@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="910" viewBox="0 0 1440 910" role="img" aria-labelledby="title desc"><title id="title">幂等的三层保障 · 各自保护什么</title><desc id="desc">同一购买重试复用 trace；以下按保障职责分层，不表示执行顺序</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="910" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">幂等的三层保障 · 各自保护什么</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">同一购买重试复用 trace；以下按保障职责分层，不表示执行顺序</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="132" width="668" height="112" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="46" y="149" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="60" y="168" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">原 trace 重试</text>
+<text x="49" y="201" font-size="19" fill="#43566f" style="fill:#43566f">参数摘要不变 → 返回原状态或原订单</text>
+<rect x="724" y="132" width="684" height="112" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="738" y="149" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="752" y="168" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">新 trace 再次购买</text>
+<text x="741" y="201" font-size="19" fill="#43566f" style="fill:#43566f">即使商品、数量相同，也允许新的购买意图</text>
+<rect x="32" y="276" width="1376" height="121" rx="12" fill="#eff6ff" stroke="#b8d0ee"/>
+<text x="52" y="310" font-size="23" fill="#2466b5" style="fill:#2466b5" font-weight="600">01  接口并发保护</text>
+<text x="52" y="354" font-size="23" fill="#2466b5" style="fill:#2466b5" font-weight="600">AOP + Redisson 看门狗锁</text>
+<text x="610" y="325" font-size="20" fill="#172b4d" style="fill:#172b4d">键：ORDER_SUBMIT:&lt;userId&gt;:&lt;traceId&gt;</text>
+<text x="610" y="362" font-size="20" fill="#172b4d" style="fill:#172b4d">减少同时进入；释放后请求仍可能再次到达</text>
+<rect x="32" y="419" width="1376" height="121" rx="12" fill="#fff7ed" stroke="#ebccaa"/>
+<text x="52" y="453" font-size="23" fill="#b66824" style="fill:#b66824" font-weight="600">02  数据库结果兜底</text>
+<text x="52" y="497" font-size="23" fill="#b66824" style="fill:#b66824" font-weight="600">行锁 + 状态 / version CAS + 唯一约束</text>
+<text x="610" y="468" font-size="20" fill="#172b4d" style="fill:#172b4d">锁 trace 并重检；customer_order.submit_trace_id 唯一</text>
+<text x="610" y="505" font-size="20" fill="#172b4d" style="fill:#172b4d">即使 Redis 锁丢失，同 trace 仍不能再建第二单</text>
+<rect x="32" y="562" width="1376" height="121" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
+<text x="52" y="596" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">03  库存操作幂等</text>
+<text x="52" y="640" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">每 SKU + trace 的 Hash / Lua 状态机</text>
+<text x="610" y="611" font-size="20" fill="#172b4d" style="fill:#172b4d">RESERVED → CONFIRMED / RELEASED / RETURNED</text>
+<text x="610" y="648" font-size="20" fill="#172b4d" style="fill:#172b4d">重复预扣、释放、返还不会再次修改计数</text>
+<rect x="32" y="731" width="1376" height="94" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
+<text x="52" y="765" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">MQ 快速去重：Redis String</text>
+<text x="52" y="802" font-size="20" fill="#172b4d" style="fill:#172b4d">ORDER_BUILD:&lt;trace&gt;   ·   PROCESSING:&lt;owner&gt; 600s → DONE 7200s；Lua 只允许所有者完成或删除。</text>
+<path d="M32 846 L1408 846" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="881" font-size="18" fill="#687c96" style="fill:#687c96">DONE 是消费处理结束的标记；可能记录了业务拒绝。订单结果看数据库 trace，库存 Redis 故障不能靠锁降级绕过。</text>
+</svg>

@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:bitmall;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  flyway:
+    locations: classpath:db/migration
+
+app:
+  inventory:
+    enabled: false
+  order-processing:
+    # 测试默认同步，异步场景通过隔离的策略替身显式选择，避免本机演示环境变量污染。
+    submission-mode: SYNC
+    demo-payment-enabled: true
+    locks-enabled: false
+    recovery-interval-ms: 3600000
+  order-messaging:
+    enabled: false
+  catalog-cache:
+    enabled: false
+  hotkey:
+    enabled: false
+management:
+  health:
+    redis:
+      enabled: false

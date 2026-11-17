@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.agent.dao.mapper.AgentStateMapper">
+    <!-- putSql: 插入持久化记录 -->
+    <insert id="putSql">
+        INSERT INTO agent_scope_state(user_id, session_id, state_key, payload) VALUES (#{u},#{s},#{k},#{p})
+    </insert>
+    <!-- updateSql: 条件更新，调用者检查影响行数 -->
+    <update id="updateSql">
+        UPDATE agent_scope_state SET payload=#{p}, updated_at=CURRENT_TIMESTAMP WHERE user_id=#{u} AND session_id=#{s} AND state_key=#{k}
+    </update>
+    <!-- payloadSql: 读取数据库投影 -->
+    <select id="payloadSql" resultType="java.lang.String">
+        SELECT payload FROM agent_scope_state WHERE user_id=#{u} AND session_id=#{s} AND state_key=#{k}
+    </select>
+    <!-- existsSql: 读取数据库投影 -->
+    <select id="existsSql" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM agent_scope_state WHERE user_id=#{u} AND session_id=#{s}
+    </select>
+    <!-- listSessionIdsSql: 读取数据库投影 -->
+    <select id="listSessionIdsSql" resultType="java.lang.String">
+        SELECT DISTINCT session_id FROM agent_scope_state WHERE user_id=#{u}
+    </select>
+    <!-- deleteSession: 按归属和条件删除 -->
+    <delete id="deleteSession">
+        DELETE FROM agent_scope_state WHERE user_id=#{u} AND session_id=#{s}
+    </delete>
+    <!-- deleteState: 按归属和条件删除 -->
+    <delete id="deleteState">
+        DELETE FROM agent_scope_state WHERE user_id=#{u} AND session_id=#{s} AND state_key=#{k}
+    </delete>
+</mapper>

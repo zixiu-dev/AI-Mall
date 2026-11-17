@@ -1,0 +1,590 @@
+package com.bitmall.agent.order.service;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+import com.bitmall.agent.checkout.service.CheckoutService;
+import com.bitmall.agent.order.config.*;
+import com.bitmall.agent.order.controller.OrderController;
+import com.bitmall.agent.order.dao.repository.*;
+import com.bitmall.agent.order.idempotent.OrderRedisClient;
+import com.bitmall.agent.order.inventory.*;
+import com.bitmall.agent.order.model.CreateOrderCommand;
+import java.net.*;
+import java.nio.file.Files;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.*;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+
+/** 使用真实 Redis 执行 Lua，使用真实事务检验库存边界；不向共享 RocketMQ 集群发送测试消息。 */
+@com.bitmall.agent.support.LegacyCatalogFixture
+@SpringBootTest(
+    properties = {
+      "spring.datasource.url=jdbc:h2:mem:inventory-reservation;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+      "app.inventory.enabled=true",
+      "app.order-processing.locks-enabled=true",
+      "app.order-processing.recovery-interval-ms=3600000"
+    })
+@ActiveProfiles("demo")
+class InventoryReservationIntegrationTest {
+  private static Process server;
+  private static final AtomicLong ids = new AtomicLong(95000);
+  private static final String namespace = "test:inventory:" + UUID.randomUUID() + ":";
+  private long sku;
+  @Autowired OrderController controller;
+  @Autowired com.bitmall.agent.order.monitor.OrderMetrics metrics;
+  @Autowired CheckoutService checkout;
+  @Autowired OrderTraceService traces;
+  @Autowired OrderTraceRepository traceRows;
+  @Autowired OrderSubmissionService submissions;
+  @Autowired OrderBuildCommandService consumer;
+  @Autowired OrderRecoveryService recovery;
+  @Autowired OrderLifecycleService lifecycle;
+  @Autowired OrderInventoryService inventory;
+  @MockitoSpyBean com.bitmall.agent.order.dao.mapper.OrderInventoryMapper inventoryRows;
+  @Autowired InventorySettlementService settlement;
+  @MockitoSpyBean InventoryRedisStore redis;
+  @Autowired OrderRedisClient client;
+  @Autowired JdbcClient jdbc;
+  @MockitoSpyBean OrderProcessingProperties processing;
+  @MockitoSpyBean OrderMessagingProperties messaging;
+  @MockitoSpyBean OrderMessageRepository outbox;
+  @MockitoSpyBean OrderRepository orders;
+  @MockitoSpyBean InventoryReservationProperties settings;
+
+  @DynamicPropertySource
+  static void infrastructure(DynamicPropertyRegistry registry) throws Exception {
+    int port;
+    try (var socket = new ServerSocket(0)) {
+      port = socket.getLocalPort();
+    }
+    server =
+        new ProcessBuilder(
+                System.getenv().getOrDefault("REDIS_SERVER", "redis-server"),
+                "--bind",
+                "127.0.0.1",
+                "--port",
+                String.valueOf(port),
+                "--save",
+                "",
+                "--appendonly",
+                "no",
+                "--maxmemory-policy",
+                "noeviction",
+                "--dir",
+                Files.createTempDirectory("inventory-redis-").toString())
+            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            .redirectErrorStream(true)
+            .start();
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+    while (true) {
+      try (var socket = new Socket("127.0.0.1", port)) {
+        break;
+      } catch (Exception ex) {
+        if (System.nanoTime() > deadline) throw ex;
+        Thread.sleep(25);
+      }
+    }
+    registry.add("app.order-processing.redis-port", () -> port);
+    registry.add("app.order-processing.namespace", () -> namespace);
+  }
+
+  @AfterAll
+  static void stop() {
+    if (server != null) server.destroy();
+  }
+
+  @BeforeEach
+  void setup() {
+    sku = ids.incrementAndGet();
+    doReturn("ASYNC").when(processing).getSubmissionMode();
+    doReturn(true).when(messaging).isEnabled();
+    jdbc.sql(
+            "INSERT INTO"
+                + " product_sku(id,product_id,sku_code,spec,price,original_price,stock,enabled)"
+                + " SELECT :id,product_id,:code,spec,price,original_price,10,TRUE FROM product_sku"
+                + " WHERE id=1003")
+        .param("id", sku)
+        .param("code", "RESERVE-" + sku)
+        .update();
+  }
+
+  @Test
+  void issuerOnlyCreatesUuidAndFirstSubmissionBindsImmutablePurchase() {
+    long before = count("SELECT COUNT(*) FROM order_submit_trace");
+    String id = controller.issue().get("traceId");
+    assertThat(UUID.fromString(id)).isNotNull();
+    assertThat(count("SELECT COUNT(*) FROM order_submit_trace")).isEqualTo(before);
+    var command = command();
+    assertThat(submissions.submit(10001, id, command).getStatus()).isEqualTo("PROCESSING");
+    assertThat(traceRows.find(id).orElseThrow().getSubmissionHash()).hasSize(64);
+    assertThat(submissions.submit(10001, id, command).getStatus()).isEqualTo("PROCESSING");
+    var changed =
+        new CreateOrderCommand("DIRECT", sku, 2, 20001L, null, command.getExpectedPayAmount());
+    assertThatThrownBy(() -> submissions.submit(10001, id, changed)).hasMessageContaining("不能更改");
+    assertThatThrownBy(() -> submissions.submit(10002, id, command)).hasMessageContaining("不属于");
+    assertPool(9, 1);
+    assertThat(builds(id)).isEqualTo(1);
+  }
+
+  @Test
+  void preDeductionHappensBeforeMqAndRepeatedAdmissionDoesNotDeductAgain() {
+    double createdBefore = ((Number) metrics.snapshot().get("ordersCreatedTotal")).doubleValue();
+    String id = prepare();
+    assertThat(submissions.submit(10001, id).getStatus()).isEqualTo("PROCESSING");
+    assertPool(9, 1);
+    assertThat(state(id)).isEqualTo("RESERVED");
+    assertThat(stock()).isEqualTo(10);
+    assertThat(locked()).isZero();
+    assertThat(orderCount(id)).isZero();
+    assertThat(((Number) metrics.snapshot().get("ordersCreatedTotal")).doubleValue())
+        .isEqualTo(createdBefore);
+    submissions.submit(10001, id);
+    assertPool(9, 1);
+    assertThat(builds(id)).isEqualTo(1);
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    assertPool(9, 0);
+    assertThat(state(id)).isEqualTo("CONFIRMED");
+    assertThat(stock()).isEqualTo(9);
+    assertThat(locked()).isEqualTo(1);
+    assertThat(orderCount(id)).isEqualTo(1);
+    assertThat(((Number) metrics.snapshot().get("ordersCreatedTotal")).doubleValue())
+        .isEqualTo(createdBefore + 1);
+  }
+
+  @Test
+  void lastItemIsSharedBySyncAndAsync() {
+    jdbc.sql("UPDATE product_sku SET stock=1 WHERE id=:id").param("id", sku).update();
+    String queued = prepare();
+    doReturn("SYNC").when(processing).getSubmissionMode();
+    String sync = prepare();
+    submissions.submit(10001, queued);
+    assertThat(submissions.submit(10001, sync).getFailureCode()).isEqualTo("OUT_OF_STOCK");
+    settlement.settleTrace(sync);
+    consumer.consume(queued);
+    settlement.settleTrace(queued);
+    assertPool(0, 0);
+    assertThat(stock()).isZero();
+    assertThat(orderCount(queued) + orderCount(sync)).isEqualTo(1);
+  }
+
+  @Test
+  void outboxFailureLeavesRecoverableIntentAndRetryUsesSameReservation() {
+    String id = prepare();
+    doThrow(new DataAccessResourceFailureException("模拟受理写入中断"))
+        .doCallRealMethod()
+        .when(outbox)
+        .insertBuild(anyString(), eq(id), anyString(), anyString());
+    assertThatThrownBy(() -> submissions.submit(10001, id))
+        .isInstanceOf(DataAccessResourceFailureException.class);
+    assertThat(traces.get(10001, id).getStatus()).isEqualTo("INIT");
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("RESERVING");
+    assertThat(builds(id)).isZero();
+    assertPool(9, 1);
+    submissions.submit(10001, id);
+    assertPool(9, 1);
+    assertThat(builds(id)).isEqualTo(1);
+  }
+
+  @Test
+  void abandonedPreDeductionIsReleasedOnceAndLateCallerCannotReserve() {
+    String id = prepare();
+    inventory.reserve(10001, id);
+    assertPool(9, 1);
+    jdbc.sql("UPDATE order_submit_trace SET next_check_at=:at WHERE trace_id=:id")
+        .param("at", LocalDateTime.now().minusMinutes(1))
+        .param("id", id)
+        .update();
+    recovery.reconcile(id);
+    recovery.reconcile(id);
+    settlement.settleTrace(id);
+    assertThat(traces.get(10001, id).getFailureCode()).isEqualTo("ADMISSION_INTERRUPTED");
+    assertPool(10, 0);
+    assertThat(state(id)).isEqualTo("RELEASED");
+    assertThat(builds(id)).isZero();
+    assertThatThrownBy(() -> redis.reserve(sku, id, 1)).hasMessageContaining("已结束");
+    assertPool(10, 0);
+  }
+
+  @Test
+  void definitiveConsumerFailureReturnsStockAndLateDeliveryCannotCreateOrder() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    jdbc.sql("UPDATE product_sku SET price=price+1 WHERE id=:id").param("id", sku).update();
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    assertThat(traces.get(10001, id).getFailureCode()).isEqualTo("PRICE_CHANGED");
+    assertPool(10, 0);
+    assertThat(orderCount(id)).isZero();
+    assertThat(stock()).isEqualTo(10);
+  }
+
+  @Test
+  void transientDatabaseFailureKeepsReservationForRetry() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    doThrow(new DataAccessResourceFailureException("模拟数据库临时故障"))
+        .doCallRealMethod()
+        .when(orders)
+        .attachTrace(anyString(), eq(id));
+    assertThatThrownBy(() -> consumer.consume(id))
+        .isInstanceOf(DataAccessResourceFailureException.class);
+    assertPool(9, 1);
+    assertThat(stock()).isEqualTo(10);
+    assertThat(orderCount(id)).isZero();
+    assertThat(traces.get(10001, id).getStatus()).isEqualTo("PROCESSING");
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    assertPool(9, 0);
+    assertThat(stock()).isEqualTo(9);
+    assertThat(orderCount(id)).isEqualTo(1);
+  }
+
+  @Test
+  void cancelledOrderReturnsBothInventoriesExactlyOnce() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    String order = traces.get(10001, id).getOrderId();
+    lifecycle.cancel(10001, order);
+    settlement.settleReturn(order, sku);
+    lifecycle.cancel(10001, order);
+    settlement.settleReturn(order, sku);
+    assertPool(10, 0);
+    assertThat(stock()).isEqualTo(10);
+    assertThat(locked()).isZero();
+    assertThat(state(id)).isEqualTo("RETURNED");
+  }
+
+  @Test
+  void paidOrderDoesNotDeductOrReturnRedisStockAgain() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    String order = traces.get(10001, id).getOrderId();
+    lifecycle.payDemo(10001, order);
+    lifecycle.payDemo(10001, order);
+    assertPool(9, 0);
+    assertThat(stock()).isEqualTo(9);
+    assertThat(locked()).isZero();
+    assertThat(state(id)).isEqualTo("CONFIRMED");
+  }
+
+  @Test
+  void lostInitializedPoolFailsClosedWithoutDatabaseBypassOrBlindRebuild() {
+    String first = prepare();
+    submissions.submit(10001, first);
+    client.template().delete(redis.keys(sku, first).subList(0, 2));
+    String second = prepare();
+    assertThatThrownBy(() -> submissions.submit(10001, second))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(orderCount(second)).isZero();
+    assertThat(builds(second)).isZero();
+    assertThat(stock()).isEqualTo(10);
+    assertThat(client.template().hasKey(redis.keys(sku, second).get(0))).isFalse();
+  }
+
+  @Test
+  void releaseTombstonePreventsLateDeductionEvenIfReservationNeverStarted() {
+    String id = prepare();
+    inventory.reserve(10001, id);
+    String late = UUID.randomUUID().toString();
+    redis.finish(sku, late, 1, "RELEASE");
+    redis.finish(sku, late, 1, "RELEASE");
+    assertThatThrownBy(() -> redis.reserve(sku, late, 1)).hasMessageContaining("已结束");
+    assertPool(9, 1);
+  }
+
+  @Test
+  void legacyUnpaidOrderCanCloseAfterPoolInitializationWithoutExtraDeduction() {
+    doReturn(false).when(settings).isEnabled();
+    doReturn("SYNC").when(processing).getSubmissionMode();
+    String id = prepare();
+    String order = submissions.submit(10001, id).getOrderId();
+    assertThat(stock()).isEqualTo(9);
+    doReturn(true).when(settings).isEnabled();
+    lifecycle.cancel(10001, order);
+    settlement.settleReturn(order, sku);
+    assertPool(10, 0);
+    assertThat(stock()).isEqualTo(10);
+    assertThat(
+            client.template().opsForHash().get(redis.keys(sku, "legacy:" + order).get(2), "state"))
+        .isEqualTo("RETURNED");
+  }
+
+  @Test
+  void timedOutQueuedTaskReleasesPreDeductionAndRejectsLateMessage() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    jdbc.sql("UPDATE order_submit_trace SET processing_expires_at=:at WHERE trace_id=:id")
+        .param("at", LocalDateTime.now().minusMinutes(1))
+        .param("id", id)
+        .update();
+    recovery.reconcile(id);
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    assertPool(10, 0);
+    assertThat(traces.get(10001, id).getFailureCode()).isEqualTo("QUEUE_TIMEOUT");
+    assertThat(orderCount(id)).isZero();
+  }
+
+  @Test
+  void cancelledOrderCanReturnAnAsYetUnconfirmedReservation() {
+    String id = prepare();
+    doThrow(new IllegalStateException("模拟提交后确认失败"))
+        .when(redis)
+        .finish(eq(sku), eq(id), eq(1), eq("CONFIRM"));
+    submissions.submit(10001, id);
+    consumer.consume(id);
+    String order = traces.get(10001, id).getOrderId();
+    assertThat(traces.get(10001, id).getStatus()).isEqualTo("SUCCESS");
+    assertPool(9, 1);
+    lifecycle.cancel(10001, order);
+    settlement.settleReturn(order, sku);
+    recovery.reconcile(id);
+    assertPool(10, 0);
+    assertThat(state(id)).isEqualTo("RETURNED");
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("RETURNED");
+  }
+
+  /** 实际延时消息入口关闭订单；数据库、Redis 和重复补偿均只返还一次。 */
+  @Test
+  void paymentTimeoutMessageReturnsSharedRedisReservationOnlyOnce() throws Exception {
+    String id = prepare();
+    submissions.submit(10001, id);
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    String order = traces.get(10001, id).getOrderId();
+    String payload =
+        jdbc.sql(
+                "SELECT payload FROM order_message_outbox WHERE order_id=:id"
+                    + " AND event_type='ORDER_PAYMENT_TIMEOUT'")
+            .param("id", order)
+            .query(String.class)
+            .single();
+    jdbc.sql("UPDATE customer_order SET payment_expires_at=:at WHERE id=:id")
+        .param("at", LocalDateTime.now().minusSeconds(2))
+        .param("id", order)
+        .update();
+    var timeoutConsumer =
+        new com.bitmall.agent.order.mq.consumer.OrderPaymentTimeoutConsumer(
+            tools.jackson.databind.json.JsonMapper.builder().findAndAddModules().build(),
+            lifecycle);
+    timeoutConsumer.onMessage(payload);
+    timeoutConsumer.onMessage(payload);
+    settlement.settleReturn(order, sku);
+    settlement.settleReturn(order, sku);
+    assertPool(10, 0);
+    assertThat(stock()).isEqualTo(10);
+    assertThat(locked()).isZero();
+    assertThat(state(id)).isEqualTo("RETURNED");
+    assertThat(
+            jdbc.sql("SELECT status FROM customer_order WHERE id=:id")
+                .param("id", order)
+                .query(String.class)
+                .single())
+        .isEqualTo("CLOSED");
+  }
+
+  @Test
+  void concurrentSubmissionsCannotReserveMoreThanAvailable() throws Exception {
+    jdbc.sql("UPDATE product_sku SET stock=1 WHERE id=:id").param("id", sku).update();
+    var requests = new ArrayList<String>();
+    for (int i = 0; i < 8; i++) requests.add(prepare());
+    var start = new CountDownLatch(1);
+    var executor = Executors.newFixedThreadPool(8);
+    try {
+      var results = new ArrayList<Future<String>>();
+      for (var id : requests)
+        results.add(
+            executor.submit(
+                () -> {
+                  start.await();
+                  return submissions.submit(10001, id).getStatus();
+                }));
+      start.countDown();
+      int accepted = 0;
+      for (var result : results)
+        if ("PROCESSING".equals(result.get(15, TimeUnit.SECONDS))) accepted++;
+      assertThat(accepted).isEqualTo(1);
+      assertPool(0, 1);
+      assertThat(stock()).isEqualTo(1);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  void partiallyReservedCartIsReleasedAndNoBuildCommandIsWritten() {
+    long second = ids.incrementAndGet();
+    jdbc.sql(
+            "INSERT INTO"
+                + " product_sku(id,product_id,sku_code,spec,price,original_price,stock,enabled)"
+                + " SELECT :id,product_id,:code,spec,price,original_price,1,TRUE FROM product_sku"
+                + " WHERE id=1003")
+        .param("id", second)
+        .param("code", "RESERVE-" + second)
+        .update();
+    // 先独占第二个 SKU 的最后一件，数据库仍有货，购物车试算可以通过。
+    var secondQuote = checkout.checkoutQuote(10001, second, 1, 20001L, null);
+    String other =
+        traces
+            .prepare(
+                10001,
+                new CreateOrderCommand(
+                    "DIRECT", second, 1, 20001L, null, secondQuote.getPayAmount()),
+                null)
+            .getTraceId();
+    submissions.submit(10001, other);
+    jdbc.sql("UPDATE cart_item SET selected=FALSE WHERE user_id=10001").update();
+    for (long item : new long[] {sku, second})
+      jdbc.sql("INSERT INTO cart_item(user_id,sku_id,quantity,selected) VALUES(10001,:sku,1,TRUE)")
+          .param("sku", item)
+          .update();
+    var quote = checkout.cartCheckoutQuote(10001, 20001L, null);
+    String id =
+        traces
+            .prepare(
+                10001,
+                new CreateOrderCommand("CART", null, 1, 20001L, null, quote.getPayAmount()),
+                null)
+            .getTraceId();
+    assertThat(submissions.submit(10001, id).getFailureCode()).isEqualTo("OUT_OF_STOCK");
+    settlement.settleTrace(id);
+    assertPool(10, 0);
+    assertThat(state(id)).isEqualTo("RELEASED");
+    assertThat(builds(id)).isZero();
+    assertThat(client.template().opsForValue().get(redis.keys(second, id).get(0))).isEqualTo("0");
+    assertThat(client.template().opsForHash().get(redis.keys(second, id).get(2), "state"))
+        .isEqualTo("RELEASED");
+    assertThatThrownBy(() -> redis.reserve(second, id, 1)).hasMessageContaining("已结束");
+  }
+
+  @Test
+  void changedCartItemsCannotPassConfirmationMerelyBecauseAmountIsUnchanged() {
+    jdbc.sql("UPDATE cart_item SET selected=FALSE WHERE user_id=10001").update();
+    jdbc.sql("INSERT INTO cart_item(user_id,sku_id,quantity,selected) VALUES(10001,:sku,1,TRUE)")
+        .param("sku", sku)
+        .update();
+    var quote = checkout.cartCheckoutQuote(10001, 20001L, null);
+    var wrongItems = List.of(new com.bitmall.agent.order.model.PurchaseItem(sku + 9999, 1));
+    var command =
+        new CreateOrderCommand("CART", null, 1, 20001L, null, quote.getPayAmount(), wrongItems);
+    String id = controller.issue().get("traceId");
+    assertThatThrownBy(() -> submissions.submit(10001, id, command))
+        .hasMessageContaining("购买明细已经变化");
+    assertThat(traceRows.find(id)).isEmpty();
+    assertThat(builds(id)).isZero();
+  }
+
+  @Test
+  void redisReleaseThenDatabaseProgressRollbackCanRetryWithoutDoubleReturn() {
+    String id = prepare();
+    inventory.reserve(10001, id);
+    doThrow(new DataAccessResourceFailureException("模拟释放进度提交失败"))
+        .when(inventoryRows)
+        .stage(argThat(args -> id.equals(args.get("id")) && "RELEASED".equals(args.get("state"))));
+    jdbc.sql("UPDATE order_submit_trace SET next_check_at=:at WHERE trace_id=:id")
+        .param("at", LocalDateTime.now().minusMinutes(1))
+        .param("id", id)
+        .update();
+    recovery.reconcile(id);
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("RELEASE_PENDING");
+    reset(inventoryRows);
+    settlement.settleTrace(id);
+    settlement.settleTrace(id);
+    assertPool(10, 0);
+    assertThat(state(id)).isEqualTo("RELEASED");
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("RELEASED");
+  }
+
+  @Test
+  void redisConfirmThenDatabaseProgressRollbackCanRetryWithoutChangingStock() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    doThrow(new DataAccessResourceFailureException("模拟确认进度提交失败"))
+        .when(inventoryRows)
+        .stage(argThat(args -> id.equals(args.get("id")) && "CONFIRMED".equals(args.get("state"))));
+    consumer.consume(id);
+    verify(inventoryRows, timeout(3000).atLeastOnce())
+        .stage(argThat(args -> id.equals(args.get("id")) && "CONFIRMED".equals(args.get("state"))));
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("CONFIRM_PENDING");
+    reset(inventoryRows);
+    recovery.reconcile(id);
+    settlement.settleTrace(id);
+    assertPool(9, 0);
+    assertThat(state(id)).isEqualTo("CONFIRMED");
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("CONFIRMED");
+    assertThat(orderCount(id)).isEqualTo(1);
+  }
+
+  private CreateOrderCommand command() {
+    var q = checkout.checkoutQuote(10001, sku, 1, 20001L, null);
+    return new CreateOrderCommand("DIRECT", sku, 1, 20001L, null, q.getPayAmount());
+  }
+
+  private String prepare() {
+    return traces.prepare(10001, command(), null).getTraceId();
+  }
+
+  private void assertPool(int available, int pending) {
+    var keys = redis.keys(sku, "unused");
+    assertThat(client.template().opsForValue().get(keys.get(0)))
+        .isEqualTo(String.valueOf(available));
+    assertThat(client.template().opsForValue().get(keys.get(1))).isEqualTo(String.valueOf(pending));
+  }
+
+  private String state(String id) {
+    return (String) client.template().opsForHash().get(redis.keys(sku, id).get(2), "state");
+  }
+
+  private int stock() {
+    return jdbc.sql("SELECT stock FROM product_sku WHERE id=:id")
+        .param("id", sku)
+        .query(Integer.class)
+        .single();
+  }
+
+  private int locked() {
+    return jdbc.sql("SELECT locked_stock FROM product_sku WHERE id=:id")
+        .param("id", sku)
+        .query(Integer.class)
+        .single();
+  }
+
+  private long count(String sql) {
+    return jdbc.sql(sql).query(Long.class).single();
+  }
+
+  private long orderCount(String id) {
+    return jdbc.sql("SELECT COUNT(*) FROM customer_order WHERE submit_trace_id=:id")
+        .param("id", id)
+        .query(Long.class)
+        .single();
+  }
+
+  private long builds(String id) {
+    return jdbc.sql(
+            "SELECT COUNT(*) FROM order_message_outbox WHERE trace_id=:id AND"
+                + " event_type='ORDER_BUILD'")
+        .param("id", id)
+        .query(Long.class)
+        .single();
+  }
+}

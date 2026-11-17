@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.agent.dao.mapper.ConversationMapper">
+    <!-- touchConversation: 条件更新，调用者检查影响行数 -->
+    <update id="touchConversation">
+        UPDATE conversation SET updated_at = CURRENT_TIMESTAMP WHERE id = #{id}
+    </update>
+    <!-- recentMessagesSql: 读取数据库投影 -->
+    <select id="recentMessagesSql" resultType="map">
+        SELECT id, conversation_id, role, content, metadata, created_at
+        FROM chat_message WHERE conversation_id = #{conversationId}
+        ORDER BY id DESC LIMIT #{limit}
+    </select>
+    <!-- messageCountSql: 读取数据库投影 -->
+    <select id="messageCountSql" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM chat_message WHERE conversation_id = #{conversationId}
+    </select>
+    <!-- summarySql: 读取数据库投影 -->
+    <select id="summarySql" resultType="java.lang.String">
+        SELECT summary FROM conversation WHERE id = #{id}
+    </select>
+    <!-- selectRecentTurnCutoff: 读取数据库投影 -->
+    <select id="selectRecentTurnCutoff" resultType="java.lang.Long">
+        SELECT id FROM chat_message WHERE conversation_id=#{c} AND role='user'
+        ORDER BY id DESC LIMIT 1 OFFSET #{offset}
+    </select>
+    <!-- selectUnsummarizedMessages: 读取数据库投影 -->
+    <select id="selectUnsummarizedMessages" resultType="map">
+        SELECT m.id, m.conversation_id, m.role, m.content, m.metadata, m.created_at
+        FROM chat_message m JOIN conversation c ON c.id=m.conversation_id
+        WHERE m.conversation_id=#{c} AND m.id &gt; COALESCE(c.summarized_until_id, 0) AND m.id &lt; #{cutoff}
+        ORDER BY m.id LIMIT 200
+    </select>
+    <!-- updateSummarySql: 条件更新，调用者检查影响行数 -->
+    <update id="updateSummarySql">
+        UPDATE conversation SET summary = #{summary}, summarized_until_id = #{untilId},
+                                updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id} AND COALESCE(summarized_until_id, 0) &lt; #{untilId}
+    </update>
+    <!-- updatedAtSql: 读取数据库投影 -->
+    <select id="updatedAtSql" resultType="java.time.LocalDateTime">
+        SELECT updated_at FROM conversation WHERE id = #{id}
+    </select>
+</mapper>

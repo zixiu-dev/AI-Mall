@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="930" viewBox="0 0 1440 930" role="img" aria-labelledby="title desc"><title id="title">压测口径 · 请求、受理、建单分别计数</title><desc id="desc">同机单 JVM 实测；成功查询 QPS 与建单 TPS 使用不同的真实事件</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="930" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">压测口径 · 请求、受理、建单分别计数</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">同机单 JVM 实测；成功查询 QPS 与建单 TPS 使用不同的真实事件</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="133" width="440" height="123" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="46" y="150" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="60" y="169" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">① 发压器</text>
+<text x="49" y="202" font-size="19" fill="#43566f" style="fill:#43566f">查询：wrk 闭环多连接</text>
+<text x="49" y="230" font-size="19" fill="#43566f" style="fill:#43566f">下单：Node 固定到达率</text>
+<rect x="500" y="133" width="440" height="123" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="514" y="150" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="528" y="169" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">② 应用处理完成</text>
+<text x="517" y="202" font-size="19" fill="#43566f" style="fill:#43566f">HTTP 总响应 / 2xx 分开</text>
+<text x="517" y="230" font-size="19" fill="#43566f" style="fill:#43566f">受理 PROCESSING 不等于建单</text>
+<rect x="968" y="133" width="440" height="123" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="982" y="150" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="996" y="169" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">③ 事务真正提交</text>
+<text x="985" y="202" font-size="19" fill="#43566f" style="fill:#43566f">afterCommit 计新订单</text>
+<text x="985" y="230" font-size="19" fill="#43566f" style="fill:#43566f">重复消息不重复计 TPS</text>
+<path d="M472 195 L500 195" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M940 195 L968 195" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="294" width="1376" height="175" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
+<text x="52" y="328" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">固定 1000ms 自然秒桶：独立记录事件，读取已关闭的秒</text>
+<rect x="52" y="354" width="316" height="91" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="66" y="371" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="80" y="390" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">[s, s+1)</text>
+<text x="69" y="423" font-size="19" fill="#43566f" style="fill:#43566f">成功 QPS / 新订单 TPS</text>
+<rect x="390" y="354" width="316" height="91" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="404" y="371" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="418" y="390" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">[s+1, s+2)</text>
+<text x="407" y="423" font-size="19" fill="#43566f" style="fill:#43566f">成功 QPS / 新订单 TPS</text>
+<rect x="728" y="354" width="316" height="91" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="742" y="371" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="756" y="390" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">[s+2, s+3)</text>
+<text x="745" y="423" font-size="19" fill="#43566f" style="fill:#43566f">成功 QPS / 新订单 TPS</text>
+<rect x="1066" y="354" width="316" height="91" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="1080" y="371" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="1094" y="390" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">[s+3, s+4)</text>
+<text x="1083" y="423" font-size="19" fill="#43566f" style="fill:#43566f">成功 QPS / 新订单 TPS</text>
+<text x="52" y="511" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">峰值：选最大完整一秒；平均：成功总数 ÷ 实际秒数。首尾不足一秒不按比例放大。</text>
+<rect x="32" y="551" width="1376" height="213" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
+<text x="52" y="585" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">不同场景分开验证</text>
+<rect x="52" y="607" width="430" height="136" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="66" y="624" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="80" y="643" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">冷构建 / 持续重建</text>
+<text x="69" y="676" font-size="19" fill="#43566f" style="fill:#43566f">1024 个不同商品 key</text>
+<text x="69" y="704" font-size="19" fill="#43566f" style="fill:#43566f">看 loader / 回填 / 双检命中</text>
+<rect x="502" y="607" width="430" height="136" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="516" y="624" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="530" y="643" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">同步 / 异步建单</text>
+<text x="519" y="676" font-size="19" fill="#43566f" style="fill:#43566f">同 SKU 与 64 SKU 分开</text>
+<text x="519" y="704" font-size="19" fill="#43566f" style="fill:#43566f">受理、成功、失败、终态核对</text>
+<rect x="952" y="607" width="430" height="136" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="966" y="624" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="980" y="643" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">后置与守恒检查</text>
+<text x="969" y="676" font-size="19" fill="#43566f" style="fill:#43566f">Redis 整理 / Outbox 积压</text>
+<text x="969" y="704" font-size="19" fill="#43566f" style="fill:#43566f">库存、订单件数、trace 一致</text>
+<text x="52" y="810" font-size="21" fill="#b66824" style="fill:#b66824" font-weight="600">不能互相替代：一秒峰值 ≠ 一分钟均值；HTTP 延迟 ≠ Redis GET 延迟；建单 TPS ≠ 全链路追平。</text>
+<path d="M32 866 L1408 866" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="901" font-size="18" fill="#687c96" style="fill:#687c96">数值与硬件、连接数、错误率和场景一起阅读。原始报告在本机 .runtime；测试与压测结果统一维护在这一篇。</text>
+</svg>

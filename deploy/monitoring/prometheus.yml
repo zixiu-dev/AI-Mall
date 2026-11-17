@@ -1,0 +1,10 @@
+# 示例在宿主机运行 Prometheus，应用管理端口默认只监听回环地址。
+global:
+  scrape_interval: 5s
+rule_files:
+  - order-alerts.yml
+scrape_configs:
+  - job_name: wowo-orders
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9080"]

@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1260" viewBox="0 0 1440 1260" role="img" aria-labelledby="title desc"><title id="title">Agentic RAG · 从子问题到可核对证据</title><desc id="desc">同一个 ReAct 选择工具；搜索内部固定流水线；KEYWORD 默认启用，HYBRID 已完成百炼 / DeepSeek 真实联调</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="1260" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">Agentic RAG · 从子问题到可核对证据</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">同一个 ReAct 选择工具；搜索内部固定流水线；KEYWORD 默认启用，HYBRID 已完成百炼 / DeepSeek 真实联调</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="124" width="1376" height="194" rx="12" fill="#f1f5fa" stroke="#c8d5e5"/>
+<text x="52" y="158" font-size="23" fill="#466484" style="fill:#466484" font-weight="600">离线索引 · 不在用户聊天中构建，不在数据库事务中等模型</text>
+<rect x="52" y="177" width="320" height="118" rx="12" fill="#ffffff" stroke="#c8d5e5"/>
+<rect x="66" y="194" width="4" height="23" rx="2" fill="#466484" stroke="none"/>
+<text x="80" y="213" font-size="22" fill="#466484" style="fill:#466484" font-weight="600">原文与源数据</text>
+<text x="69" y="246" font-size="19" fill="#43566f" style="fill:#43566f">Markdown / manifest → 新迁移</text>
+<text x="69" y="274" font-size="19" fill="#43566f" style="fill:#43566f">knowledge_document：22 篇</text>
+<rect x="390" y="177" width="320" height="118" rx="12" fill="#ffffff" stroke="#c8d5e5"/>
+<rect x="404" y="194" width="4" height="23" rx="2" fill="#466484" stroke="none"/>
+<text x="418" y="213" font-size="22" fill="#466484" style="fill:#466484" font-weight="600">候选版本 BUILDING</text>
+<text x="407" y="246" font-size="19" fill="#43566f" style="fill:#43566f">元数据 / 文本哈希校验</text>
+<text x="407" y="274" font-size="19" fill="#43566f" style="fill:#43566f">短政策整篇，长文按段落</text>
+<rect x="728" y="177" width="320" height="118" rx="12" fill="#ffffff" stroke="#c8d5e5"/>
+<rect x="742" y="194" width="4" height="23" rx="2" fill="#466484" stroke="none"/>
+<text x="756" y="213" font-size="22" fill="#466484" style="fill:#466484" font-weight="600">真实 embedding</text>
+<text x="745" y="246" font-size="19" fill="#43566f" style="fill:#43566f">独立百炼地址 / 模型 / Key</text>
+<text x="745" y="274" font-size="19" fill="#43566f" style="fill:#43566f">网络调用在事务外完成</text>
+<rect x="1066" y="177" width="320" height="118" rx="12" fill="#ffffff" stroke="#c8d5e5"/>
+<rect x="1080" y="194" width="4" height="23" rx="2" fill="#466484" stroke="none"/>
+<text x="1094" y="213" font-size="22" fill="#466484" style="fill:#466484" font-weight="600">PG V1 原子发布</text>
+<text x="1083" y="246" font-size="19" fill="#43566f" style="fill:#43566f">vector(1024) / JSONB / 指针</text>
+<text x="1083" y="274" font-size="19" fill="#43566f" style="fill:#43566f">源未变 → PG 事务切换指针</text>
+<path d="M372 234 L390 234" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M710 234 L728 234" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1048 234 L1066 234" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="346" width="1376" height="220" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
+<text x="52" y="380" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">外层 Spring AI · 理解完整请求，组织工具调用，不增加固定 Planner</text>
+<rect x="52" y="401" width="320" height="138" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="66" y="418" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="80" y="437" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">① 可信本轮上下文</text>
+<text x="69" y="470" font-size="19" fill="#43566f" style="fill:#43566f">用户原文 / 有限消息 / 期限</text>
+<text x="69" y="498" font-size="19" fill="#43566f" style="fill:#43566f">保留身份与交易确认门禁</text>
+<text x="69" y="526" font-size="19" fill="#43566f" style="fill:#43566f">例：Apple 退货 + Nike 配送</text>
+<rect x="434" y="401" width="430" height="138" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="448" y="418" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="462" y="437" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">② 同一个 ReAct 选择工具</text>
+<text x="451" y="470" font-size="19" fill="#43566f" style="fill:#43566f">search_knowledge(query, queries)</text>
+<text x="451" y="498" font-size="19" fill="#43566f" style="fill:#43566f">queries 只放 1～3 个知识子问题</text>
+<text x="451" y="526" font-size="19" fill="#43566f" style="fill:#43566f">商品 / 订单 / 结算继续用原工具</text>
+<rect x="926" y="401" width="462" height="138" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="940" y="418" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="954" y="437" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">③ 工具参数与原意校验</text>
+<text x="943" y="470" font-size="19" fill="#43566f" style="fill:#43566f">递归数组校验 / 去重 / 互斥参数</text>
+<text x="943" y="498" font-size="19" fill="#43566f" style="fill:#43566f">iPhone → APPLE；未知品牌不删掉</text>
+<text x="943" y="526" font-size="19" fill="#43566f" style="fill:#43566f">按主体与类别配对，歧义则补问</text>
+<path d="M372 468 L434 468" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M864 468 L926 468" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1157 539 L1157 645" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="590" width="1376" height="327" rx="12" fill="#eff6ff" stroke="#b8d0ee"/>
+<text x="52" y="624" font-size="23" fill="#2466b5" style="fill:#2466b5" font-weight="600">知识服务内部 · 有界只读并行，同一发布版本与同一硬过滤范围</text>
+<rect x="982" y="645" width="406" height="195" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="996" y="662" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="1010" y="681" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">④ 可选查询增强</text>
+<text x="999" y="714" font-size="19" fill="#43566f" style="fill:#43566f">默认 DIRECT，不额外调用模型</text>
+<text x="999" y="742" font-size="19" fill="#43566f" style="fill:#43566f">开启后：本次最多 1 个批量请求</text>
+<text x="999" y="770" font-size="19" fill="#43566f" style="fill:#43566f">原查询 + 最多 2 个表达变体</text>
+<text x="999" y="798" font-size="19" fill="#43566f" style="fill:#43566f">越界 / 超时 → 原查询并警告</text>
+<text x="999" y="826" font-size="19" fill="#43566f" style="fill:#43566f">同轮缓存，换问题允许新增强</text>
+<rect x="530" y="645" width="406" height="90" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="544" y="662" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="558" y="681" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">⑤ DB_KEYWORD</text>
+<text x="547" y="714" font-size="19" fill="#43566f" style="fill:#43566f">SQL LIKE；不是 BM25</text>
+<rect x="530" y="766" width="406" height="111" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="544" y="783" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="558" y="802" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">⑤ VECTOR</text>
+<text x="547" y="835" font-size="19" fill="#43566f" style="fill:#43566f">PostgreSQL + pgvector</text>
+<text x="547" y="863" font-size="19" fill="#43566f" style="fill:#43566f">精确 / HNSW（不足精确兜底）</text>
+<rect x="52" y="645" width="430" height="232" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="66" y="662" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="80" y="681" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">⑥ 融合与完整证据预算</text>
+<text x="69" y="714" font-size="19" fill="#43566f" style="fill:#43566f">RRF：Σ 1 / (60 + rank)，rank ≥ 1</text>
+<text x="69" y="742" font-size="19" fill="#43566f" style="fill:#43566f">按文档 / 版本 / 块去重</text>
+<text x="69" y="770" font-size="19" fill="#43566f" style="fill:#43566f">每组最多 2 条，总计最多 6 条</text>
+<text x="69" y="798" font-size="19" fill="#43566f" style="fill:#43566f">工具另受 4000 字符预算限制</text>
+<text x="69" y="826" font-size="19" fill="#43566f" style="fill:#43566f">移除整块，同步更新覆盖缺口</text>
+<text x="69" y="854" font-size="19" fill="#43566f" style="fill:#43566f">范围不因相关性分数而放宽</text>
+<path d="M982 688 L936 688" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M982 813 L936 813" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M530 688 L482 688" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M530 813 L506 813 L506 813 L482 813" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1225 318 L1422 318 L1422 575 L730 575 L730 645" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)" stroke-dasharray="5 5"/>
+<rect x="773.0" y="557" width="114" height="26" rx="3" fill="#fbfcff" stroke="none"/>
+<text x="830" y="575" font-size="17" fill="#60728a" style="fill:#60728a" text-anchor="middle">仅读发布版本</text>
+<path d="M267 877 L267 970" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="52" y="970" width="430" height="155" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="66" y="987" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="80" y="1006" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">⑦ 交还证据与缺口</text>
+<text x="69" y="1039" font-size="19" fill="#43566f" style="fill:#43566f">groups / hits / coverage / warnings</text>
+<text x="69" y="1067" font-size="19" fill="#43566f" style="fill:#43566f">来源、渠道、版本及真实检索模式</text>
+<text x="69" y="1095" font-size="19" fill="#43566f" style="fill:#43566f">单路失败明确降级；两路失败 ERROR</text>
+<rect x="530" y="970" width="406" height="155" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="544" y="987" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="558" y="1006" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">⑧ 回到外层工具循环</text>
+<text x="547" y="1039" font-size="19" fill="#43566f" style="fill:#43566f">模型引用资料，可继续查订单</text>
+<text x="547" y="1067" font-size="19" fill="#43566f" style="fill:#43566f">业务事实仍由业务工具返回</text>
+<text x="547" y="1095" font-size="19" fill="#43566f" style="fill:#43566f">最后回答或按原规则请求确认</text>
+<rect x="984" y="970" width="404" height="155" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="998" y="987" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="1012" y="1006" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">只读与执行边界</text>
+<text x="1001" y="1039" font-size="19" fill="#43566f" style="fill:#43566f">政策不等于售后资格或交易授权</text>
+<text x="1001" y="1067" font-size="19" fill="#43566f" style="fill:#43566f">正文不是系统 / 工具指令</text>
+<text x="1001" y="1095" font-size="19" fill="#43566f" style="fill:#43566f">FOUND 不等于下单 / 退款成功</text>
+<path d="M482 1046 L530 1046" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<text x="52" y="1170" font-size="20" fill="#b35249" style="fill:#b35249" font-weight="600">内容状态：FOUND / PARTIAL / NO_MATCH / CLARIFICATION_REQUIRED；基础设施错误不能伪装成无资料。</text>
+<path d="M32 1196 L1408 1196" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="1231" font-size="18" fill="#687c96" style="fill:#687c96">向量排序在 PG 执行；HNSW 使用取决于查询计划；LIKE 不是 BM25，未接 cross-encoder。</text>
+</svg>

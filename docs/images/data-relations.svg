@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="970" viewBox="0 0 1440 970" role="img" aria-labelledby="title desc"><title id="title">数据关系 · 购买意图、成交记录与恢复进度</title><desc id="desc">只画核心业务关联；箭头表达引用 / 业务联系，不全部代表数据库外键</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="970" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">数据关系 · 购买意图、成交记录与恢复进度</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">只画核心业务关联；箭头表达引用 / 业务联系，不全部代表数据库外键</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="130" width="414" height="615" rx="12" fill="#eff6ff" stroke="#b8d0ee"/>
+<text x="52" y="164" font-size="23" fill="#2466b5" style="fill:#2466b5" font-weight="600">商品与规格</text>
+<rect x="52" y="198" width="374" height="124" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="66" y="215" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="80" y="234" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">product</text>
+<text x="69" y="267" font-size="19" fill="#43566f" style="fill:#43566f">商品名称 / 品牌 / 描述</text>
+<text x="69" y="295" font-size="19" fill="#43566f" style="fill:#43566f">product_attribute：材质、用途</text>
+<path d="M239 322 L239 382" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="163.3" y="326.0" width="151.39999999999998" height="26" rx="3" fill="#fbfcff" stroke="none"/>
+<text x="239.0" y="344.0" font-size="17" fill="#60728a" style="fill:#60728a" text-anchor="middle">一个商品多个 SKU</text>
+<rect x="52" y="382" width="374" height="155" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="66" y="399" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="80" y="418" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">product_sku</text>
+<text x="69" y="451" font-size="19" fill="#43566f" style="fill:#43566f">具体规格 / 单价 / stock</text>
+<text x="69" y="479" font-size="19" fill="#43566f" style="fill:#43566f">locked_stock：待支付占用</text>
+<text x="69" y="507" font-size="19" fill="#43566f" style="fill:#43566f">sku_attribute：颜色、尺码等</text>
+<text x="52" y="612" font-size="18" fill="#52647e" style="fill:#52647e">历史订单保留名称 / 单价 / 地址快照</text>
+<text x="52" y="652" font-size="19" fill="#52647e" style="fill:#52647e">商品变化不应改变过去的成交内容。</text>
+<rect x="474" y="130" width="464" height="615" rx="12" fill="#fff7ed" stroke="#ebccaa"/>
+<text x="494" y="164" font-size="23" fill="#b66824" style="fill:#b66824" font-weight="600">一次购买到真实订单</text>
+<rect x="494" y="198" width="424" height="124" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="508" y="215" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="522" y="234" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">order_submit_trace</text>
+<text x="511" y="267" font-size="19" fill="#43566f" style="fill:#43566f">用户 / 快照 / mode / status</text>
+<text x="511" y="295" font-size="19" fill="#43566f" style="fill:#43566f">reserve_status：库存整理进度</text>
+<path d="M706 322 L706 382" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="608.2" y="326.0" width="195.6" height="26" rx="3" fill="#fbfcff" stroke="none"/>
+<text x="706.0" y="344.0" font-size="17" fill="#60728a" style="fill:#60728a" text-anchor="middle">submit_trace_id 唯一</text>
+<rect x="494" y="382" width="424" height="124" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="508" y="399" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="522" y="418" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">customer_order</text>
+<text x="511" y="451" font-size="19" fill="#43566f" style="fill:#43566f">订单状态 / 金额 / 地址快照</text>
+<text x="511" y="479" font-size="19" fill="#43566f" style="fill:#43566f">PENDING_PAYMENT / PAID / CANCELLED</text>
+<path d="M706 506 L706 570" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="632.0" y="512.0" width="148" height="26" rx="3" fill="#fbfcff" stroke="none"/>
+<text x="706.0" y="530.0" font-size="17" fill="#60728a" style="fill:#60728a" text-anchor="middle">一个订单多条明细</text>
+<rect x="494" y="570" width="424" height="124" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="508" y="587" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="522" y="606" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">order_item</text>
+<text x="511" y="639" font-size="19" fill="#43566f" style="fill:#43566f">关联 product / SKU</text>
+<text x="511" y="667" font-size="19" fill="#43566f" style="fill:#43566f">保存名称、规格、成交单价与数量</text>
+<path d="M494 634 L460 634 L460 460 L426 460" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="966" y="130" width="442" height="615" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
+<text x="986" y="164" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">授权、券与可靠恢复</text>
+<rect x="986" y="198" width="402" height="115" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="1000" y="215" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="1014" y="234" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">pending_action</text>
+<text x="1003" y="267" font-size="19" fill="#43566f" style="fill:#43566f">确认卡参数 / 摘要 / CAS</text>
+<text x="1003" y="295" font-size="19" fill="#43566f" style="fill:#43566f">订单提议关联 trace</text>
+<rect x="986" y="337" width="402" height="105" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="1000" y="354" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="1014" y="373" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">user_coupon</text>
+<text x="1003" y="406" font-size="19" fill="#43566f" style="fill:#43566f">券状态 / used_order_id</text>
+<rect x="986" y="466" width="402" height="105" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="1000" y="483" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="1014" y="502" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">order_message_outbox</text>
+<text x="1003" y="535" font-size="19" fill="#43566f" style="fill:#43566f">待发送命令 / 事件 / 租约</text>
+<rect x="986" y="595" width="402" height="105" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="1000" y="612" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="1014" y="631" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">order_inventory_return</text>
+<text x="1003" y="664" font-size="19" fill="#43566f" style="fill:#43566f">关单后的 Redis 返还进度</text>
+<path d="M918 258 L986 258" fill="none" stroke="#7b8ba5" stroke-width="1.7" stroke-dasharray="5 5"/>
+<rect x="32" y="779" width="1376" height="97" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
+<text x="52" y="813" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">两个生命周期必须分开</text>
+<text x="52" y="848" font-size="20" fill="#172b4d" style="fill:#172b4d">trace.SUCCESS：曾成功建单；订单可能后来取消。SUCCESS + CONFIRM_PENDING：成功但 Redis 确认待重试。</text>
+<path d="M32 906 L1408 906" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="941" font-size="18" fill="#687c96" style="fill:#687c96">完整用户、购物车、会话、知识、售后表见正文；模型状态、页面消息和长期偏好因用途不同而分开保存。</text>
+</svg>

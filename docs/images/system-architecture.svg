@@ -1,0 +1,223 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1760" height="1260" viewBox="0 0 1760 1260" role="img" aria-labelledby="title desc">
+<title id="title">智购 Spring AI 智能商城整体架构</title>
+<desc id="desc">按业务模块拆分的 Spring Boot 单体应用。展示页面与 Agent 共用业务服务、查询缓存、同步异步建单、MySQL 事务、Redis 预占与 RocketMQ 可靠投递。</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M1 1 L6 4 L1 7" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs>
+<style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d} .muted{fill:#52647e} .small{font-size:17px} .body{font-size:19px} .cardtitle{font-size:21px;font-weight:600} .bold{font-weight:600}</style>
+<rect x="0" y="0" width="1760" height="1260" rx="0" fill="#fbfcff" stroke="none" />
+<text x="32" y="51" font-size="36" style="fill:#142b4b" font-weight="700">智购 · Spring AI 智能商城</text>
+<text x="34" y="88" font-size="21" style="fill:#586c88">总体架构  /  模块化单体 · 共享业务服务 · 分层幂等 · 可靠异步建单</text>
+<rect x="1402" y="28" width="326" height="39" rx="19" fill="#eaf1fb" stroke="none" />
+<text x="1565" y="54" font-size="18" style="fill:#365c8b" font-weight="600" text-anchor="middle">Java 17  /  Spring Boot</text>
+<text x="34" y="127" font-size="17" style="fill:#72819a">组件视图：按职责分层，模块之间通过 Java Service 协作</text>
+<text x="1292" y="127" font-size="17" style="fill:#72819a">关键调用链  /  从上往下读</text>
+<rect x="32" y="148" width="1230" height="104" rx="12" fill="#eff6ff" stroke="#b8d0ee" />
+<path d="M184 164 L184 236" fill="none" stroke="#b8d0ee" stroke-width="1.6"/>
+<rect x="54" y="170" width="34" height="28" rx="7" fill="#ffffff" stroke="#b8d0ee" />
+<text x="71" y="190" font-size="16" style="fill:#2466b5" font-weight="600" text-anchor="middle">01</text>
+<text x="54" y="228" font-size="24" style="fill:#2466b5" font-weight="600">访问入口</text>
+<rect x="202" y="161" width="332" height="78" rx="9" fill="#ffffff" stroke="#b8d0ee" />
+<rect x="216" y="178" width="4" height="22" rx="2" fill="#2466b5" stroke="none" />
+<text x="230" y="196" font-size="21" style="fill:#2466b5" font-weight="600">商城页面</text>
+<text x="218" y="226" font-size="18" style="fill:#43566f">商品 · 购物车 · 结算 · 订单</text>
+<rect x="548" y="161" width="332" height="78" rx="9" fill="#ffffff" stroke="#b8d0ee" />
+<rect x="562" y="178" width="4" height="22" rx="2" fill="#2466b5" stroke="none" />
+<text x="576" y="196" font-size="21" style="fill:#2466b5" font-weight="600">HTTP Controller</text>
+<text x="564" y="226" font-size="18" style="fill:#43566f">/api/store/*  ·  /api/agent/*</text>
+<rect x="894" y="161" width="350" height="78" rx="9" fill="#ffffff" stroke="#b8d0ee" />
+<rect x="908" y="178" width="4" height="22" rx="2" fill="#2466b5" stroke="none" />
+<text x="922" y="196" font-size="21" style="fill:#2466b5" font-weight="600">对话与交互</text>
+<text x="910" y="226" font-size="18" style="fill:#43566f">REST / SSE  ·  用户确认卡</text>
+<rect x="21" y="280" width="1252" height="675" rx="15" fill="none" stroke="#b8c6d8" stroke-dasharray="6 5"/>
+<rect x="44" y="267" width="470" height="27" rx="0" fill="#fbfcff" stroke="none" />
+<text x="54" y="287" font-size="17" style="fill:#566c88">Spring Boot 应用内部（含上方 Controller）</text>
+<path d="M722 260 L722 293" fill="none" stroke="#7b8ba5" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="738" y="262" width="476" height="30" rx="4" fill="#ffffff" stroke="none" />
+<text x="750" y="283" font-size="17" style="fill:#60728a">页面 → 业务服务；对话 → Agent 编排</text>
+<rect x="32" y="305" width="1230" height="169" rx="12" fill="#f6f3ff" stroke="#d4c4ef" />
+<path d="M184 321 L184 458" fill="none" stroke="#d4c4ef" stroke-width="1.6"/>
+<rect x="54" y="327" width="34" height="28" rx="7" fill="#ffffff" stroke="#d4c4ef" />
+<text x="71" y="347" font-size="16" style="fill:#7151a6" font-weight="600" text-anchor="middle">02</text>
+<text x="54" y="385" font-size="24" style="fill:#7151a6" font-weight="600">智能助手</text>
+<text x="54" y="412" font-size="14" style="fill:#7151a6">Agent</text>
+<rect x="202" y="318" width="250" height="143" rx="9" fill="#ffffff" stroke="#d4c4ef" />
+<rect x="216" y="335" width="4" height="22" rx="2" fill="#7151a6" stroke="none" />
+<text x="230" y="353" font-size="21" style="fill:#7151a6" font-weight="600">Spring AI ReAct</text>
+<text x="218" y="383" font-size="18" style="fill:#43566f">外部模型 API · 意图理解</text>
+<text x="218" y="410" font-size="18" style="fill:#43566f">选择工具 → 结果 → 再推理</text>
+<text x="218" y="437" font-size="18" style="fill:#43566f">JSON 回复 / SSE 事件</text>
+<rect x="466" y="318" width="250" height="143" rx="9" fill="#ffffff" stroke="#d4c4ef" />
+<rect x="480" y="335" width="4" height="22" rx="2" fill="#7151a6" stroke="none" />
+<text x="494" y="353" font-size="21" style="fill:#7151a6" font-weight="600">Skills 与工具</text>
+<text x="482" y="383" font-size="18" style="fill:#43566f">按需加载办理手册</text>
+<text x="482" y="410" font-size="18" style="fill:#43566f">工具白名单 + Schema 校验</text>
+<text x="482" y="437" font-size="18" style="fill:#43566f">查询工具调用业务 Service</text>
+<rect x="730" y="318" width="250" height="143" rx="9" fill="#ffffff" stroke="#d4c4ef" />
+<rect x="744" y="335" width="4" height="22" rx="2" fill="#7151a6" stroke="none" />
+<text x="758" y="353" font-size="21" style="fill:#7151a6" font-weight="600">写操作确认</text>
+<text x="746" y="383" font-size="18" style="fill:#43566f">先持久化 pending_action</text>
+<text x="746" y="410" font-size="18" style="fill:#43566f">用户同意后恢复后端参数</text>
+<text x="746" y="437" font-size="18" style="fill:#43566f">共用商城校验和交易事务</text>
+<rect x="994" y="318" width="250" height="143" rx="9" fill="#ffffff" stroke="#d4c4ef" />
+<rect x="1008" y="335" width="4" height="22" rx="2" fill="#7151a6" stroke="none" />
+<text x="1022" y="353" font-size="21" style="fill:#7151a6" font-weight="600">上下文与记忆</text>
+<text x="1010" y="383" font-size="18" style="fill:#43566f">页面历史 / Spring AI 消息</text>
+<text x="1010" y="410" font-size="18" style="fill:#43566f">完整轮次裁剪 · 用户偏好</text>
+<text x="1010" y="437" font-size="18" style="fill:#43566f">规则知识：PG 混合检索</text>
+<path d="M722 480 L722 513" fill="none" stroke="#7b8ba5" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="738" y="482" width="476" height="30" rx="4" fill="#ffffff" stroke="none" />
+<text x="750" y="503" font-size="17" style="fill:#60728a">查询直接调用；交易写操作必须经过用户确认</text>
+<rect x="32" y="520" width="1230" height="144" rx="12" fill="#fff7ed" stroke="#ebccaa" />
+<path d="M184 536 L184 648" fill="none" stroke="#ebccaa" stroke-width="1.6"/>
+<rect x="54" y="542" width="34" height="28" rx="7" fill="#ffffff" stroke="#ebccaa" />
+<text x="71" y="562" font-size="16" style="fill:#b66824" font-weight="600" text-anchor="middle">03</text>
+<text x="54" y="600" font-size="24" style="fill:#b66824" font-weight="600">业务服务</text>
+<text x="54" y="627" font-size="14" style="fill:#b66824">Service</text>
+<rect x="202" y="534" width="198" height="116" rx="9" fill="#ffffff" stroke="#ebccaa" />
+<rect x="216" y="551" width="4" height="22" rx="2" fill="#b66824" stroke="none" />
+<text x="230" y="569" font-size="21" style="fill:#b66824" font-weight="600">商品与 SKU</text>
+<text x="218" y="599" font-size="18" style="fill:#43566f">搜索 · 详情 · 属性</text>
+<text x="218" y="626" font-size="18" style="fill:#43566f">价格 / 库存展示</text>
+<rect x="413" y="534" width="198" height="116" rx="9" fill="#ffffff" stroke="#ebccaa" />
+<rect x="427" y="551" width="4" height="22" rx="2" fill="#b66824" stroke="none" />
+<text x="441" y="569" font-size="21" style="fill:#b66824" font-weight="600">购物车与结算</text>
+<text x="429" y="599" font-size="18" style="fill:#43566f">选品 · 数量 · 地址</text>
+<text x="429" y="626" font-size="18" style="fill:#43566f">金额试算 · 购买快照</text>
+<rect x="624" y="534" width="198" height="116" rx="9" fill="#ffffff" stroke="#ebccaa" />
+<rect x="638" y="551" width="4" height="22" rx="2" fill="#b66824" stroke="none" />
+<text x="652" y="569" font-size="21" style="fill:#b66824" font-weight="600">优惠券</text>
+<text x="640" y="599" font-size="18" style="fill:#43566f">查询 · 领取 · 校验</text>
+<text x="640" y="626" font-size="18" style="fill:#43566f">锁定 · 使用 · 释放</text>
+<rect x="835" y="534" width="198" height="116" rx="9" fill="#ffffff" stroke="#ebccaa" />
+<rect x="849" y="551" width="4" height="22" rx="2" fill="#b66824" stroke="none" />
+<text x="863" y="569" font-size="21" style="fill:#b66824" font-weight="600">订单</text>
+<text x="851" y="599" font-size="18" style="fill:#43566f">提交 · 查询 · 取消</text>
+<text x="851" y="626" font-size="18" style="fill:#43566f">支付 / 超时关闭</text>
+<rect x="1046" y="534" width="198" height="116" rx="9" fill="#ffffff" stroke="#ebccaa" />
+<rect x="1060" y="551" width="4" height="22" rx="2" fill="#b66824" stroke="none" />
+<text x="1074" y="569" font-size="21" style="fill:#b66824" font-weight="600">业务支撑</text>
+<text x="1062" y="599" font-size="18" style="fill:#43566f">用户地址 · 物流查询</text>
+<text x="1062" y="626" font-size="18" style="fill:#43566f">售后申请 · 规则检索</text>
+<path d="M722 670 L722 703" fill="none" stroke="#7b8ba5" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="738" y="672" width="476" height="30" rx="4" fill="#ffffff" stroke="none" />
+<text x="750" y="693" font-size="17" style="fill:#60728a">校验与事务在 Service；数据库访问经 Repository / Mapper</text>
+<rect x="32" y="710" width="1230" height="226" rx="12" fill="#eef9f7" stroke="#b5ded5" />
+<path d="M184 726 L184 920" fill="none" stroke="#b5ded5" stroke-width="1.6"/>
+<rect x="54" y="732" width="34" height="28" rx="7" fill="#ffffff" stroke="#b5ded5" />
+<text x="71" y="752" font-size="16" style="fill:#247d71" font-weight="600" text-anchor="middle">04</text>
+<text x="54" y="790" font-size="24" style="fill:#247d71" font-weight="600">核心设计</text>
+<text x="54" y="817" font-size="14" style="fill:#247d71">Mechanisms</text>
+<rect x="202" y="724" width="337" height="198" rx="9" fill="#ffffff" stroke="#b5ded5" />
+<rect x="216" y="741" width="4" height="22" rx="2" fill="#247d71" stroke="none" />
+<text x="230" y="759" font-size="21" style="fill:#247d71" font-weight="600">商品查询缓存</text>
+<text x="218" y="789" font-size="18" style="fill:#43566f">Caffeine → Bloom → Redis</text>
+<text x="218" y="816" font-size="18" style="fill:#43566f">未命中：RLock 双检 → MySQL</text>
+<text x="218" y="843" font-size="18" style="fill:#43566f">空值缓存 + 锁所有者校验</text>
+<text x="218" y="870" font-size="18" style="fill:#43566f">TTL 随机抖动 · 有界回源</text>
+<text x="218" y="897" font-size="18" style="fill:#43566f">HotKey 控制本地热点提升</text>
+<rect x="554" y="724" width="337" height="198" rx="9" fill="#ffffff" stroke="#b5ded5" />
+<rect x="568" y="741" width="4" height="22" rx="2" fill="#247d71" stroke="none" />
+<text x="582" y="759" font-size="21" style="fill:#247d71" font-weight="600">交易与并发控制</text>
+<text x="570" y="789" font-size="18" style="fill:#43566f">AOP / Redisson 接口幂等</text>
+<text x="570" y="816" font-size="18" style="fill:#43566f">trace 绑定快照与执行模式</text>
+<text x="570" y="843" font-size="18" style="fill:#43566f">Lua 预扣 + 预占状态标志</text>
+<text x="570" y="870" font-size="18" style="fill:#43566f">数据库事务 / CAS / 唯一约束</text>
+<text x="570" y="897" font-size="18" style="fill:#43566f">AUTO 按交易压力切换模式</text>
+<rect x="906" y="724" width="338" height="198" rx="9" fill="#ffffff" stroke="#b5ded5" />
+<rect x="920" y="741" width="4" height="22" rx="2" fill="#247d71" stroke="none" />
+<text x="934" y="759" font-size="21" style="fill:#247d71" font-weight="600">可靠消息与故障恢复</text>
+<text x="922" y="789" font-size="18" style="fill:#43566f">业务状态与 Outbox 同事务</text>
+<text x="922" y="816" font-size="18" style="fill:#43566f">提交后转发 + 扫描重发</text>
+<text x="922" y="843" font-size="18" style="fill:#43566f">MQ 消费幂等 · 共用建单事务</text>
+<text x="922" y="870" font-size="18" style="fill:#43566f">确认 / 释放 / 返还幂等补偿</text>
+<text x="922" y="897" font-size="18" style="fill:#43566f">QPS / TPS · P95 · 积压监测</text>
+<path d="M722 942 L722 975" fill="none" stroke="#7b8ba5" stroke-width="1.6" marker-end="url(#arrow)"/>
+<rect x="738" y="944" width="476" height="30" rx="4" fill="#ffffff" stroke="none" />
+<text x="750" y="965" font-size="17" style="fill:#60728a">数据库保存业务事实；跨 Redis / MQ 依靠持久化进度恢复</text>
+<rect x="32" y="982" width="1230" height="152" rx="12" fill="#eff6ff" stroke="#b8d0ee" />
+<path d="M184 998 L184 1118" fill="none" stroke="#b8d0ee" stroke-width="1.6"/>
+<rect x="54" y="1004" width="34" height="28" rx="7" fill="#ffffff" stroke="#b8d0ee" />
+<text x="71" y="1024" font-size="16" style="fill:#2466b5" font-weight="600" text-anchor="middle">05</text>
+<text x="54" y="1062" font-size="24" style="fill:#2466b5" font-weight="600">外部组件</text>
+<text x="54" y="1089" font-size="14" style="fill:#2466b5">Storage</text>
+<rect x="202" y="995" width="198" height="126" rx="9" fill="#ffffff" stroke="#b8d0ee"/>
+<text x="218" y="1030" font-size="20" style="fill:#2466b5" font-weight="600">MySQL</text>
+<text x="215" y="1060" font-size="17" style="fill:#43566f">商品 / 订单 / 券</text>
+<text x="215" y="1087" font-size="17" style="fill:#43566f">trace / 会话 / Outbox</text>
+<text x="215" y="1114" font-size="17" style="fill:#43566f">事务与约束兜底</text>
+<rect x="412" y="995" width="198" height="126" rx="9" fill="#ffffff" stroke="#b8d0ee"/>
+<text x="428" y="1030" font-size="20" style="fill:#2466b5" font-weight="600">缓存 Redis</text>
+<text x="425" y="1060" font-size="17" style="fill:#43566f">详情 / 搜索 / 空值</text>
+<text x="425" y="1087" font-size="17" style="fill:#43566f">Bloom / 重建锁</text>
+<text x="425" y="1114" font-size="17" style="fill:#43566f">异常时有界回源</text>
+<rect x="622" y="995" width="198" height="126" rx="9" fill="#ffffff" stroke="#b8d0ee"/>
+<text x="638" y="1030" font-size="20" style="fill:#2466b5" font-weight="600">交易 Redis</text>
+<text x="635" y="1060" font-size="17" style="fill:#43566f">SKU 可售 / 预占</text>
+<text x="635" y="1087" font-size="17" style="fill:#43566f">幂等锁 / MQ 标记</text>
+<text x="635" y="1114" font-size="17" style="fill:#43566f">库存池丢失须核对</text>
+<rect x="832" y="995" width="198" height="126" rx="9" fill="#ffffff" stroke="#b8d0ee"/>
+<text x="848" y="1030" font-size="20" style="fill:#2466b5" font-weight="600">RocketMQ</text>
+<text x="845" y="1060" font-size="17" style="fill:#43566f">建单 / 到期关单</text>
+<text x="845" y="1087" font-size="17" style="fill:#43566f">交易事件 / 审计</text>
+<text x="845" y="1114" font-size="17" style="fill:#43566f">至少一次 / 幂等</text>
+<rect x="1042" y="995" width="198" height="126" rx="9" fill="#ffffff" stroke="#b8d0ee"/>
+<text x="1058" y="1030" font-size="20" style="fill:#2466b5" font-weight="600">PG + pgvector</text>
+<text x="1055" y="1060" font-size="17" style="fill:#43566f">chunk / vector(1024)</text>
+<text x="1055" y="1087" font-size="17" style="fill:#43566f">JSONB / HNSW</text>
+<text x="1055" y="1114" font-size="17" style="fill:#43566f">知识库独立事务</text>
+<rect x="1290" y="148" width="438" height="276" rx="12" fill="#ffffff" stroke="#b8d0ee" />
+<rect x="1290" y="148" width="438" height="55" rx="12" fill="#eff6ff" stroke="none" />
+<text x="1312" y="184" font-size="23" style="fill:#2466b5" font-weight="600">A  商品详情查询</text>
+<text x="1312" y="231" font-size="17" style="fill:#52647e">Caffeine 命中直接返回；否则依次检查</text>
+<rect x="1312" y="241" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="259" font-size="15" style="fill:#2466b5" font-weight="600" text-anchor="middle">1</text>
+<text x="1350" y="261" font-size="19">参数校验 → Caffeine</text>
+<rect x="1312" y="274" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="292" font-size="15" style="fill:#2466b5" font-weight="600" text-anchor="middle">2</text>
+<text x="1350" y="294" font-size="19">本地未命中 → RBloomFilter</text>
+<rect x="1312" y="307" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="325" font-size="15" style="fill:#2466b5" font-weight="600" text-anchor="middle">3</text>
+<text x="1350" y="327" font-size="19">可能存在 / 未知 → Redis</text>
+<rect x="1312" y="340" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="358" font-size="15" style="fill:#2466b5" font-weight="600" text-anchor="middle">4</text>
+<text x="1350" y="360" font-size="19">未命中 → RLock 双检 → MySQL</text>
+<text x="1312" y="390" font-size="17" style="fill:#52647e">回填详情 / 短 TTL 空值，TTL 随机抖动。</text>
+<text x="1312" y="414" font-size="17" style="fill:#52647e">布隆否定：不读详情缓存、不抢锁、不回源。</text>
+<rect x="1290" y="444" width="438" height="202" rx="12" fill="#ffffff" stroke="#ebccaa" />
+<rect x="1290" y="444" width="438" height="55" rx="12" fill="#fff7ed" stroke="none" />
+<text x="1312" y="480" font-size="23" style="fill:#b66824" font-weight="600">B  同步下单</text>
+<text x="1312" y="529" font-size="18" style="fill:#52647e">前置：幂等 → trace / 意图落库 → Lua 预扣</text>
+<rect x="1312" y="544" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="562" font-size="15" style="fill:#b66824" font-weight="600" text-anchor="middle">1</text>
+<text x="1350" y="564" font-size="19">建单事务：扣库存 / 锁券 / 写订单</text>
+<rect x="1312" y="584" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="602" font-size="15" style="fill:#b66824" font-weight="600" text-anchor="middle">2</text>
+<text x="1350" y="604" font-size="19">提交 SUCCESS + orderId → 返回</text>
+<text x="1312" y="632" font-size="17" style="fill:#92602f">建单成功，订单处于待支付状态。</text>
+<rect x="1290" y="666" width="438" height="355" rx="12" fill="#ffffff" stroke="#d4c4ef" />
+<rect x="1290" y="666" width="438" height="55" rx="12" fill="#f6f3ff" stroke="none" />
+<text x="1312" y="702" font-size="23" style="fill:#7151a6" font-weight="600">C  异步下单</text>
+<text x="1312" y="751" font-size="18" style="fill:#52647e">同样先绑定 trace、保存意图、Lua 预扣</text>
+<rect x="1312" y="766" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="784" font-size="15" style="fill:#7151a6" font-weight="600" text-anchor="middle">1</text>
+<text x="1350" y="786" font-size="19">受理事务：PROCESSING + Outbox</text>
+<rect x="1312" y="807" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="825" font-size="15" style="fill:#7151a6" font-weight="600" text-anchor="middle">2</text>
+<text x="1350" y="827" font-size="19">提交后即可返回 trace：已受理</text>
+<rect x="1312" y="848" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="866" font-size="15" style="fill:#7151a6" font-weight="600" text-anchor="middle">3</text>
+<text x="1350" y="868" font-size="19">Outbox 转发 → RocketMQ</text>
+<rect x="1312" y="889" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="907" font-size="15" style="fill:#7151a6" font-weight="600" text-anchor="middle">4</text>
+<text x="1350" y="909" font-size="19">消费者 → 共用建单事务</text>
+<rect x="1312" y="930" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
+<text x="1324.5" y="948" font-size="15" style="fill:#7151a6" font-weight="600" text-anchor="middle">5</text>
+<text x="1350" y="950" font-size="19">提交 SUCCESS；前端按 trace 查询</text>
+<text x="1312" y="992" font-size="17" style="fill:#7151a6">失败：记录原因 / 幂等释放；中断：扫描恢复</text>
+<rect x="1290" y="1041" width="438" height="93" rx="12" fill="#eefaF5" stroke="#b8dbcc" />
+<text x="1312" y="1073" font-size="21" style="fill:#27745c" font-weight="600">关键边界</text>
+<text x="1312" y="1104" font-size="22" style="fill:#27745c" font-weight="600">已受理 ≠ 建单成功 ≠ 已支付</text>
+<path d="M32 1160 L1728 1160" fill="none" stroke="#dce4ef" stroke-width="1.6"/>
+<text x="32" y="1194" font-size="19" style="fill:#344e71" font-weight="600">实现边界</text>
+<text x="145" y="1194" font-size="19" style="fill:#52647e">模块化单体；演示身份 / 模拟支付；PG 向量检索；AUTO 为采样切换，HotKey 不决定下单模式。</text>
+<text x="32" y="1230" font-size="18" style="fill:#718198">普通配置启用预扣时，同步与异步共用 Redis 库存池；离线 demo 关闭预扣。图示为职责视图，事务细节见「下单设计」。</text>
+</svg>

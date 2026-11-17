@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.order.dao.mapper.OrderTraceMapper">
+    <!-- insertSql: 插入持久化记录 -->
+    <insert id="insertSql">
+        INSERT INTO order_submit_trace(trace_id,user_id,origin_key,mode,request_snapshot,request_hash,expires_at,submission_hash)
+        VALUES (#{id},#{u},#{origin},#{mode},#{snapshot},#{hash},#{expires},#{submissionHash})
+    </insert>
+    <!-- findSql: 读取数据库投影 -->
+    <select id="findSql" resultType="map">
+        SELECT * FROM order_submit_trace WHERE trace_id=#{id}
+    </select>
+    <!-- lockSql: 读取数据库投影 -->
+    <select id="lockSql" resultType="map">
+        SELECT * FROM order_submit_trace WHERE trace_id=#{id} FOR UPDATE
+    </select>
+    <!-- findOriginSql: 读取数据库投影 -->
+    <select id="findOriginSql" resultType="map">
+        SELECT * FROM order_submit_trace WHERE origin_key=#{origin}
+    </select>
+    <!-- claimSql: 条件更新，调用者检查影响行数 -->
+    <update id="claimSql">
+        UPDATE order_submit_trace SET status='PROCESSING',processing_expires_at=#{deadline,jdbcType=TIMESTAMP},next_check_at=CURRENT_TIMESTAMP(6),
+               version=version+1,accepted_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6)
+        WHERE trace_id=#{id} AND status='INIT' AND version=#{version} AND expires_at&gt;CURRENT_TIMESTAMP(6)
+    </update>
+    <!-- succeedSql: 条件更新，调用者检查影响行数 -->
+    <update id="succeedSql">
+        UPDATE order_submit_trace SET status='SUCCESS',order_id=#{order},result_json=#{result},reserve_status=#{reserve},
+               version=version+1,updated_at=CURRENT_TIMESTAMP(6),finished_at=CURRENT_TIMESTAMP(6)
+        WHERE trace_id=#{id} AND status='PROCESSING' AND version=#{version}
+    </update>
+    <!-- failSql: 条件更新，调用者检查影响行数 -->
+    <update id="failSql">
+        UPDATE order_submit_trace SET status=#{status},failure_code=#{code},failure_reason=#{reason},reserve_status=#{reserve},
+               version=version+1,updated_at=CURRENT_TIMESTAMP(6),finished_at=CURRENT_TIMESTAMP(6)
+        WHERE trace_id=#{id} AND version=#{version} AND status IN ('INIT','PROCESSING')
+    </update>
+    <!-- recoveryIdsSql: 读取数据库投影 -->
+    <select id="recoveryIdsSql" resultType="java.lang.String">
+        SELECT trace_id FROM order_submit_trace WHERE next_check_at&lt;=CURRENT_TIMESTAMP(6) AND
+          ((status='INIT' AND (expires_at&lt;=CURRENT_TIMESTAMP(6) OR reserve_status='RESERVING')) OR (status='PROCESSING' AND mode='ASYNC') OR reserve_status IN ('CONFIRM_PENDING','RELEASE_PENDING'))
+        ORDER BY next_check_at,trace_id LIMIT 50
+    </select>
+    <!-- checkedSql: 条件更新，调用者检查影响行数 -->
+    <update id="checkedSql">
+        UPDATE order_submit_trace SET next_check_at=#{next} WHERE trace_id=#{id}
+    </update>
+    <!-- backlogSql: 读取数据库投影 -->
+    <select id="backlogSql" resultType="map">
+        SELECT COUNT(*) AS pending,MIN(accepted_at) AS oldest FROM order_submit_trace WHERE status='PROCESSING'
+    </select>
+</mapper>

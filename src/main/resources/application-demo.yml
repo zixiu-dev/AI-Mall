@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    # Keep the demo database alive while the application process is running.
+    # Hikari periodically replaces physical connections; without DB_CLOSE_DELAY,
+    # closing the last old connection drops the in-memory schema and seed data.
+    url: jdbc:h2:mem:bitmall;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  flyway:
+    locations: classpath:db/migration
+
+app:
+  inventory:
+    enabled: false
+  order-processing:
+    demo-payment-enabled: true
+    locks-enabled: ${ORDER_LOCKS_ENABLED:false}
+  order-messaging:
+    # 零依赖演示默认不连接远程 MQ；需要联调时显式开启。
+    enabled: ${ROCKETMQ_ENABLED:false}
+  agent:
+    ai-enabled: ${AGENT_AI_ENABLED:false}

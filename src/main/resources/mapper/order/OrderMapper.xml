@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.order.dao.mapper.OrderMapper">
+    <!-- attachTraceSql: 条件更新，调用者检查影响行数 -->
+    <update id="attachTraceSql">
+        UPDATE customer_order SET submit_trace_id=#{trace} WHERE id=#{id}
+    </update>
+    <!-- listOrdersSql: 读取数据库投影 -->
+    <select id="listOrdersSql" resultType="map">
+        SELECT id, user_id, status, goods_amount, discount_amount, freight_amount,
+               pay_amount, coupon_name, address_snapshot, created_at, payment_expires_at
+        FROM customer_order WHERE user_id = #{userId} ORDER BY created_at DESC LIMIT #{limit}
+    </select>
+    <!-- findOrderSql: 读取数据库投影 -->
+    <select id="findOrderSql" resultType="map">
+        SELECT id, user_id, status, goods_amount, discount_amount, freight_amount,
+               pay_amount, coupon_name, address_snapshot, created_at, payment_expires_at
+        FROM customer_order WHERE user_id = #{userId} AND id = #{orderId}
+    </select>
+    <!-- selectOrderItems: 读取数据库投影 -->
+    <select id="selectOrderItems" resultType="map">
+        SELECT sku_id, product_name, sku_spec, unit_price, quantity
+        FROM order_item WHERE order_id = #{orderId} ORDER BY id
+    </select>
+    <!-- logisticsSql: 读取数据库投影 -->
+    <select id="logisticsSql" resultType="map">
+        SELECT event_time, status, description FROM logistics_event
+        WHERE order_id = #{orderId} ORDER BY event_time DESC
+    </select>
+    <!-- deductSkuStock: 条件更新，调用者检查影响行数 -->
+    <update id="deductSkuStock">
+        UPDATE product_sku SET stock = stock - #{quantity}, locked_stock = locked_stock + #{quantity}
+        WHERE id = #{skuId} AND enabled = TRUE AND stock &gt;= #{quantity} AND price=#{expectedPrice}
+          AND EXISTS (SELECT 1 FROM product p WHERE p.id=product_sku.product_id AND p.enabled=TRUE)
+    </update>
+    <!-- insertOrderWithoutCoupon: 插入持久化记录 -->
+    <insert id="insertOrderWithoutCoupon">
+        INSERT INTO customer_order(id, user_id, status, goods_amount, discount_amount,
+                                   freight_amount, pay_amount, address_snapshot, payment_expires_at)
+        VALUES (#{id}, #{userId}, 'PENDING_PAYMENT', #{goods}, #{discount}, #{freight}, #{pay}, #{address}, #{deadline})
+    </insert>
+    <!-- insertOrderWithCoupon: 插入持久化记录 -->
+    <insert id="insertOrderWithCoupon">
+        INSERT INTO customer_order(id, user_id, status, goods_amount, discount_amount,
+                                   freight_amount, pay_amount, coupon_id, coupon_name,
+                                   address_snapshot, payment_expires_at)
+        VALUES (#{id}, #{userId}, 'PENDING_PAYMENT', #{goods}, #{discount}, #{freight}, #{pay},
+                #{couponId}, #{couponName}, #{address}, #{deadline})
+    </insert>
+    <!-- insertOrderItem: 插入持久化记录 -->
+    <insert id="insertOrderItem">
+        INSERT INTO order_item(order_id, product_id, sku_id, product_name, sku_spec, unit_price, quantity)
+        VALUES (#{orderId}, #{productId}, #{skuId}, #{name}, #{spec}, #{price}, #{quantity})
+    </insert>
+    <!-- useAvailableCoupon: 条件更新，调用者检查影响行数 -->
+    <update id="useAvailableCoupon">
+        UPDATE user_coupon SET status = 'LOCKED', used_order_id = #{orderId}, used_at = NULL
+        WHERE id = #{userCouponId} AND user_id = #{userId} AND status = 'AVAILABLE'
+          AND EXISTS (SELECT 1 FROM coupon c WHERE c.id=user_coupon.coupon_id AND c.status='ACTIVE'
+              AND c.start_at&lt;=CURRENT_TIMESTAMP AND c.end_at&gt;CURRENT_TIMESTAMP)
+    </update>
+    <!-- deleteSettledCartItem: 按归属和条件删除 -->
+    <delete id="deleteSettledCartItem">
+        DELETE FROM cart_item WHERE id=#{cartId} AND user_id = #{userId} AND sku_id = #{skuId} AND quantity=#{quantity}
+    </delete>
+    <!-- cancelEligibleOrder: 条件更新，调用者检查影响行数 -->
+    <update id="cancelEligibleOrder">
+        UPDATE customer_order SET status = #{status}, cancelled_at = CURRENT_TIMESTAMP,
+                                  version = version + 1
+        WHERE id = #{orderId} AND user_id = #{userId} AND status='PENDING_PAYMENT'
+    </update>
+    <!-- returnSkuStock: 条件更新，调用者检查影响行数 -->
+    <update id="returnSkuStock">
+        UPDATE product_sku SET stock = stock + #{quantity}, locked_stock = locked_stock - #{quantity}
+        WHERE id = #{skuId} AND locked_stock &gt;= #{quantity}
+    </update>
+    <!-- restoreOrderCoupons: 条件更新，调用者检查影响行数 -->
+    <update id="restoreOrderCoupons">
+        UPDATE user_coupon SET status = 'AVAILABLE', used_order_id = NULL, used_at = NULL
+        WHERE user_id = #{userId} AND used_order_id = #{orderId} AND status = 'LOCKED'
+    </update>
+    <!-- 订单锁统一串行化支付、取消和自动关单。 -->
+    <select id="lockOrderSql" resultType="map">
+        SELECT id,user_id,status,goods_amount,discount_amount,freight_amount,pay_amount,
+               coupon_name,address_snapshot,created_at,payment_expires_at FROM customer_order
+        WHERE id=#{orderId} AND user_id=#{userId} FOR UPDATE
+    </select>
+    <update id="payPendingOrder">
+        UPDATE customer_order SET status='PAID',paid_at=CURRENT_TIMESTAMP,version=version+1
+        WHERE id=#{orderId} AND user_id=#{userId} AND status='PENDING_PAYMENT'
+          AND payment_expires_at&gt;CURRENT_TIMESTAMP
+    </update>
+    <!-- 可售库存下单时已减，支付只确认锁定量，不能重复扣减。 -->
+    <update id="confirmSkuStock">
+        UPDATE product_sku SET locked_stock=locked_stock-#{quantity}
+        WHERE id=#{skuId} AND locked_stock&gt;=#{quantity}
+    </update>
+    <update id="consumeLockedCoupons">
+        UPDATE user_coupon SET status='USED',used_at=CURRENT_TIMESTAMP
+        WHERE user_id=#{userId} AND used_order_id=#{orderId} AND status='LOCKED'
+    </update>
+    <select id="expiredOrders" resultType="map">
+        SELECT id,user_id FROM customer_order WHERE status='PENDING_PAYMENT'
+          AND payment_expires_at&lt;=CURRENT_TIMESTAMP ORDER BY payment_expires_at,id LIMIT 50
+    </select>
+</mapper>

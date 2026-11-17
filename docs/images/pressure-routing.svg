@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="920" viewBox="0 0 1440 920" role="img" aria-labelledby="title desc"><title id="title">AUTO 模式切换 · 先观测，再控制新购买</title><desc id="desc">依据交易压力，首次预占时固定本次模式；浏览 HotKey 不参与路由</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="920" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">AUTO 模式切换 · 先观测，再控制新购买</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">依据交易压力，首次预占时固定本次模式；浏览 HotKey 不参与路由</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="132" width="502" height="466" rx="12" fill="#eff6ff" stroke="#b8d0ee"/>
+<text x="52" y="166" font-size="23" fill="#2466b5" style="fill:#2466b5" font-weight="600">① 每秒采样与协调</text>
+<rect x="52" y="190" width="462" height="111" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="66" y="207" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="80" y="226" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">到达与耗时</text>
+<text x="69" y="259" font-size="19" fill="#43566f" style="fill:#43566f">提交 QPS / 同步 P95 / 在途请求</text>
+<rect x="52" y="320" width="462" height="111" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="66" y="337" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="80" y="356" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">数据库压力</text>
+<text x="69" y="389" font-size="19" fill="#43566f" style="fill:#43566f">Hikari 活跃比例 / 等待线程</text>
+<rect x="52" y="450" width="462" height="111" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="66" y="467" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="80" y="486" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">持久化积压</text>
+<text x="69" y="519" font-size="19" fill="#43566f" style="fill:#43566f">未完成建单数 / 最老任务年龄</text>
+<text x="52" y="577" font-size="21" fill="#2466b5" style="fill:#2466b5" font-weight="600">在线实例 → Redis Lua 聚合与协调</text>
+<path d="M534 360 L580 360" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="580" y="132" width="828" height="466" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
+<text x="600" y="166" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">② 高低阈值分离，避免频繁抖动</text>
+<rect x="600" y="204" width="338" height="109" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="614" y="221" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="628" y="240" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">SYNC</text>
+<text x="617" y="273" font-size="19" fill="#43566f" style="fill:#43566f">请求内共用建单事务</text>
+<rect x="1050" y="204" width="338" height="109" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="1064" y="221" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="1078" y="240" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">ASYNC</text>
+<text x="1067" y="273" font-size="19" fill="#43566f" style="fill:#43566f">受理 + Outbox，消费者建单</text>
+<path d="M938 235 L1050 235" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="952.3" y="191" width="83.39999999999999" height="26" rx="3" fill="#fbfcff" stroke="none"/>
+<text x="994" y="209" font-size="17" fill="#60728a" style="fill:#60728a" text-anchor="middle">高压 × 3</text>
+<path d="M1050 289 L938 289" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="947.625" y="316" width="92.74999999999999" height="26" rx="3" fill="#fbfcff" stroke="none"/>
+<text x="994" y="334" font-size="17" fill="#60728a" style="fill:#60728a" text-anchor="middle">低压 × 10</text>
+<text x="606" y="406" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">冷却 30s；高低阈值不同，首次意图固定路线。</text>
+<text x="606" y="458" font-size="21" fill="#172b4d" style="fill:#172b4d">请求只读有效本地快照，不逐请求 COUNT 数据库。</text>
+<text x="606" y="509" font-size="21" fill="#172b4d" style="fill:#172b4d">预算默认 60 QPS / 实例，需要按资源与压测校准。</text>
+<text x="606" y="560" font-size="20" fill="#52647e" style="fill:#52647e">asyncReady 目前是功能开关，并非 Broker 实时探活。</text>
+<rect x="32" y="630" width="1376" height="178" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
+<text x="52" y="664" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">③ 接单保护：压力不能无限转移到队列</text>
+<rect x="52" y="684" width="430" height="104" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="66" y="701" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="80" y="720" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">采样可信</text>
+<text x="69" y="753" font-size="19" fill="#43566f" style="fill:#43566f">失败或超过 5s：拒绝新受理</text>
+<rect x="502" y="684" width="430" height="104" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="516" y="701" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="530" y="720" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">积压有界</text>
+<text x="519" y="753" font-size="19" fill="#43566f" style="fill:#43566f">任务数 / 最老年龄超限：拒绝</text>
+<rect x="952" y="684" width="430" height="104" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="966" y="701" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="980" y="720" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">已受理仍继续恢复</text>
+<text x="969" y="753" font-size="19" fill="#43566f" style="fill:#43566f">不因模式切换重写旧 trace</text>
+<path d="M32 856 L1408 856" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="891" font-size="18" fill="#687c96" style="fill:#687c96">采样驱动的是软阈值，不是精确全局限流器。异步只缓冲突发，最终吞吐仍受数据库和后置恢复能力限制。</text>
+</svg>

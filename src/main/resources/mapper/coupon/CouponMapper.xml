@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.coupon.dao.mapper.CouponMapper">
+    <!-- listCouponsSql: 读取数据库投影 -->
+    <select id="listCouponsSql" resultType="map">
+        SELECT c.id, c.name, c.threshold_amount, c.discount_amount,
+               c.total_stock - c.claimed_count AS remaining_stock,
+               c.start_at, c.end_at, uc.id AS user_coupon_id, uc.status AS user_status
+        FROM coupon c
+        LEFT JOIN user_coupon uc ON uc.coupon_id = c.id AND uc.user_id = #{userId}
+        WHERE c.status = 'ACTIVE' AND c.end_at &gt; CURRENT_TIMESTAMP
+        ORDER BY c.discount_amount DESC, c.threshold_amount
+    </select>
+    <!-- findUserCouponSql: 读取数据库投影 -->
+    <select id="findUserCouponSql" resultType="map">
+        SELECT c.id, c.name, c.threshold_amount, c.discount_amount,
+               c.total_stock - c.claimed_count AS remaining_stock,
+               c.start_at, c.end_at, uc.id AS user_coupon_id, uc.status AS user_status
+        FROM user_coupon uc JOIN coupon c ON c.id = uc.coupon_id
+        WHERE uc.user_id = #{userId} AND uc.id = #{userCouponId}
+    </select>
+    <!-- countUserClaims: 读取数据库投影 -->
+    <select id="countUserClaims" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM user_coupon WHERE user_id = #{userId} AND coupon_id = #{couponId}
+    </select>
+    <!-- incrementClaimedCount: 条件更新，调用者检查影响行数 -->
+    <update id="incrementClaimedCount">
+        UPDATE coupon SET claimed_count = claimed_count + 1
+        WHERE id = #{couponId} AND status = 'ACTIVE'
+          AND start_at &lt;= CURRENT_TIMESTAMP AND end_at &gt; CURRENT_TIMESTAMP
+          AND claimed_count &lt; total_stock
+    </update>
+    <!-- insertUserCoupon: 插入持久化记录 -->
+    <insert id="insertUserCoupon">
+        INSERT INTO user_coupon(user_id, coupon_id, status)
+        VALUES (#{userId}, #{couponId}, 'AVAILABLE')
+    </insert>
+    <!-- selectUserCouponId: 读取数据库投影 -->
+    <select id="selectUserCouponId" resultType="java.lang.Long">
+        SELECT id FROM user_coupon WHERE user_id = #{userId} AND coupon_id = #{couponId}
+    </select>
+</mapper>

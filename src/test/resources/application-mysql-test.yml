@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: ${MYSQL_TEST_URL}
+    username: ${MYSQL_TEST_USERNAME:bitmall}
+    password: ${MYSQL_TEST_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    locations: classpath:db/mysql
+app:
+  inventory:
+    enabled: false
+  order-processing:
+    # 测试默认同步，异步场景通过隔离的策略替身显式选择，避免本机演示环境变量污染。
+    submission-mode: SYNC
+    locks-enabled: false
+    recovery-interval-ms: 3600000
+  order-messaging:
+    enabled: false
+  catalog-cache:
+    enabled: false
+  hotkey:
+    enabled: false
+  agent:
+    ai-enabled: false
+management:
+  health:
+    redis:
+      enabled: false

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.agent.dao.mapper.PendingActionMapper">
+    <!-- insertSql: 插入持久化记录 -->
+    <insert id="insertSql">
+        INSERT INTO pending_action(id, idempotency_key, user_id, conversation_id,
+                                   tool_name, arguments, arguments_hash, summary, status)
+        VALUES (#{id}, #{key}, #{userId}, #{conversationId}, #{toolName},
+                #{arguments}, #{hash}, #{summary}, 'PENDING')
+        ON CONFLICT DO NOTHING
+    </insert>
+    <insert id="insertSql" databaseId="mysql">
+        INSERT INTO pending_action(id, idempotency_key, user_id, conversation_id,
+                                   tool_name, arguments, arguments_hash, summary, status)
+        VALUES (#{id}, #{key}, #{userId}, #{conversationId}, #{toolName},
+                #{arguments}, #{hash}, #{summary}, 'PENDING')
+        ON DUPLICATE KEY UPDATE id = id
+    </insert>
+    <!-- findSql: 读取数据库投影 -->
+    <select id="findSql" resultType="map">
+        SELECT id, idempotency_key, user_id, conversation_id, tool_name,
+               arguments, arguments_hash, summary, status,
+               COALESCE(result, '{}') AS result_json, version, created_at
+        FROM pending_action WHERE id = #{id} AND user_id = #{userId}
+    </select>
+    <!-- latestPendingSql: 读取数据库投影 -->
+    <select id="latestPendingSql" resultType="map">
+        SELECT id, idempotency_key, user_id, conversation_id, tool_name,
+               arguments, arguments_hash, summary, status,
+               COALESCE(result, '{}') AS result_json, version, created_at
+        FROM pending_action WHERE conversation_id = #{conversationId} AND status = 'PENDING'
+        ORDER BY created_at DESC LIMIT 1
+    </select>
+    <!-- decideSql: 条件更新，调用者检查影响行数 -->
+    <update id="decideSql">
+        UPDATE pending_action SET status = #{status}, decided_at = CURRENT_TIMESTAMP,
+                                  version = version + 1
+        WHERE id = #{id} AND user_id = #{userId} AND status = 'PENDING'
+    </update>
+    <!-- markExecutedSql: 条件更新，调用者检查影响行数 -->
+    <update id="markExecutedSql">
+        UPDATE pending_action SET status = 'EXECUTED', result = #{result},
+                                  executed_at = CURRENT_TIMESTAMP, version = version + 1
+        WHERE id = #{id} AND status = 'APPROVED' AND version = #{version}
+    </update>
+    <!-- markFailedSql: 条件更新，调用者检查影响行数 -->
+    <update id="markFailedSql">
+        UPDATE pending_action SET status = 'FAILED', result = #{result},
+                                  executed_at = CURRENT_TIMESTAMP, version = version + 1
+        WHERE id = #{id} AND status = 'APPROVED' AND version = #{version}
+    </update>
+</mapper>

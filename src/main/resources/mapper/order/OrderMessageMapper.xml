@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.order.dao.mapper.OrderMessageMapper">
+    <!-- insertSql: 插入持久化记录 -->
+    <insert id="insertSql">
+        INSERT INTO order_message_outbox(event_id, order_id, topic, event_type, payload, deliver_at_epoch_ms)
+        VALUES (#{id}, #{orderId}, #{topic}, #{type}, #{payload}, #{deliverAt,jdbcType=BIGINT})
+    </insert>
+    <!-- 已受理任务和命令同事务保存，event_id 与 trace/type 都唯一。 -->
+    <insert id="insertBuildSql">
+        INSERT INTO order_message_outbox(event_id,trace_id,topic,event_type,payload)
+        VALUES (#{id},#{trace},#{topic},'ORDER_BUILD',#{payload})
+    </insert>
+    <select id="findByIdSql" resultType="map">
+        SELECT event_id,topic,event_type,payload,attempts,deliver_at_epoch_ms FROM order_message_outbox WHERE event_id=#{id}
+    </select>
+    <!-- 消费重试耗尽或丢失唤醒后可重新投递，仍使用原事件编号。 -->
+    <update id="requeueBuildSql">
+        UPDATE order_message_outbox SET status='PENDING',next_attempt_at=CURRENT_TIMESTAMP(6),
+            lease_token=NULL,locked_until=NULL,last_error='购买任务尚未完成，恢复重投'
+        WHERE trace_id=#{trace} AND event_type='ORDER_BUILD' AND status='SENT' AND sent_at&lt;=#{cutoff}
+    </update>
+    <!-- 任务明确失败后不再发送过期建单命令，不影响已经发生的交易事件。 -->
+    <update id="cancelBuildSql">
+        UPDATE order_message_outbox SET status='CANCELLED',lease_token=NULL,locked_until=NULL,
+            last_error='购买任务已结束，取消未完成的建单命令'
+        WHERE trace_id=#{trace} AND event_type='ORDER_BUILD' AND status IN ('PENDING','SENDING')
+    </update>
+    <!-- findReadySql: 读取数据库投影 -->
+    <select id="findReadySql" resultType="map">
+        SELECT event_id, topic, event_type, payload, attempts, deliver_at_epoch_ms FROM order_message_outbox
+        WHERE (status = 'PENDING' AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6))
+           OR (status = 'SENDING' AND locked_until &lt;= CURRENT_TIMESTAMP(6))
+        ORDER BY CASE WHEN event_type='ORDER_BUILD' THEN 0 ELSE 1 END, created_at, event_id LIMIT #{limit}
+    </select>
+    <!-- claimSql: 条件更新，调用者检查影响行数 -->
+    <update id="claimSql">
+        UPDATE order_message_outbox SET status = 'SENDING', lease_token = #{token},
+               locked_until = #{until}, attempts = attempts + 1
+        WHERE event_id = #{id} AND (
+            (status = 'PENDING' AND next_attempt_at &lt;= CURRENT_TIMESTAMP(6))
+            OR (status = 'SENDING' AND locked_until &lt;= CURRENT_TIMESTAMP(6)))
+    </update>
+    <!-- markSentSql: 条件更新，调用者检查影响行数 -->
+    <update id="markSentSql">
+        UPDATE order_message_outbox SET status = 'SENT', broker_msg_id = #{messageId},
+               sent_at = CURRENT_TIMESTAMP(6), lease_token = NULL, locked_until = NULL, last_error = NULL
+        WHERE event_id = #{id} AND status = 'SENDING' AND lease_token = #{token}
+    </update>
+    <!-- scheduleRetrySql: 条件更新，调用者检查影响行数 -->
+    <update id="scheduleRetrySql">
+        UPDATE order_message_outbox SET status = 'PENDING', next_attempt_at = #{next},
+               lease_token = NULL, locked_until = NULL, last_error = #{error}
+        WHERE event_id = #{id} AND status = 'SENDING' AND lease_token = #{token}
+    </update>
+</mapper>

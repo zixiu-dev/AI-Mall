@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="沃沃智购：发现日常好物，轻松选购。商品、购物车、优惠券和订单，一站管理。"
+    />
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+    <meta name="theme-color" content="#f8f7f4" />
+    <title>沃沃智购 · 发现日常的好</title>
+    <link rel="stylesheet" href="/styles.css?v=real-catalog-20261116" />
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <path d="m21 21-5-5M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0" />
+      </symbol>
+      <symbol id="i-cart" viewBox="0 0 24 24">
+        <path d="M2 3h3l3 13h11l3-9H6M10 21h.01M18 21h.01" />
+      </symbol>
+      <symbol id="i-order" viewBox="0 0 24 24">
+        <path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4" />
+      </symbol>
+      <symbol id="i-ticket" viewBox="0 0 24 24">
+        <path
+          d="M3 5h18v5a2 2 0 0 0 0 4v5H3v-5a2 2 0 0 0 0-4zM15 5v3m0 3v2m0 3v3"
+        />
+      </symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24">
+        <path
+          d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8"
+        />
+      </symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24">
+        <path d="M4 12h16m-6-6 6 6-6 6" />
+      </symbol>
+      <symbol id="i-home" viewBox="0 0 24 24">
+        <path d="m3 10 9-7 9 7v11h-7v-7h-4v7H3z" />
+      </symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24">
+        <path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="m5 12 4 4L19 6" />
+      </symbol>
+      <symbol id="i-bag" viewBox="0 0 24 24">
+        <path d="M5 7h14l2 14H3L5 7Zm3 0V5a4 4 0 0 1 8 0v2" />
+      </symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24">
+        <path d="M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z" />
+      </symbol>
+      <symbol id="i-user" viewBox="0 0 24 24">
+        <path d="M20 21v-2a7 7 0 0 0-14 0v2M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0" />
+      </symbol>
+    </svg>
+    <a class="skip-link" href="#mainContent">跳转到主要内容</a>
+    <div class="utility-bar">
+      <div class="shell">
+        <span>认真选好物，轻松过生活。</span>
+        <div>
+          <span class="environment-label">体验账户 · 小林</span
+          ><button data-open="orders">我的订单</button
+          ><button data-open="chat">购物帮助</button>
+        </div>
+      </div>
+    </div>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="#/" aria-label="沃沃智购首页"
+          ><span class="brand-mark">w<span>•</span></span
+          ><span><b>沃沃智购</b><small>GOOD THINGS, EVERY DAY.</small></span></a
+        >
+        <div class="search-area">
+          <div class="header-search">
+            <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg
+            ><input
+              aria-label="搜索商品"
+              id="searchInput"
+              placeholder="搜一搜，发现你的心头好"
+              autocomplete="off"
+            /><button id="searchButton">搜索</button>
+          </div>
+          <div class="hot-queries">
+            <span>大家在搜</span><button data-keyword="耳机">降噪耳机</button
+            ><button data-keyword="电脑">轻薄电脑</button
+            ><button data-keyword="咖啡">咖啡时光</button
+            ><button data-keyword="背包">通勤好物</button>
+          </div>
+          <div class="search-suggestions" id="searchSuggestions" hidden></div>
+        </div>
+        <nav class="header-actions" aria-label="个人购物">
+          <button id="couponsButton" aria-label="优惠券中心">
+            <svg class="icon" aria-hidden="true"><use href="#i-ticket" /></svg
+            ><span>优惠券</span></button
+          ><button id="ordersButton" aria-label="我的订单">
+            <svg class="icon" aria-hidden="true"><use href="#i-order" /></svg
+            ><span>我的订单</span></button
+          ><button id="cartButton" aria-label="购物车" class="header-cart">
+            <svg class="icon" aria-hidden="true"><use href="#i-cart" /></svg
+            ><span>购物车</span><i id="cartCount">0</i>
+          </button>
+        </nav>
+      </div>
+    </header>
+    <div class="nav-border">
+      <nav class="mall-nav shell" aria-label="商城导航">
+        <a href="#/" data-nav="home">首页精选</a
+        ><a href="#/catalog" data-nav="catalog">全部商品</a
+        ><button data-category="电脑办公">数码办公</button
+        ><button data-category="居家生活">居家生活</button
+        ><a href="#/coupons" data-nav="coupons"
+          >领券中心 <small>省一点</small></a
+        ><button class="nav-assistant" id="heroChatButton">
+          <svg class="icon" aria-hidden="true"><use href="#i-spark" /></svg>
+          沃沃帮你选
+        </button>
+      </nav>
+    </div>
+    <main id="mainContent" tabindex="-1">
+      <div id="homeView" class="route-view">
+        <div id="homeOverview">
+          <section class="hero shell">
+            <aside class="category-menu">
+              <h2>发现好物 <span>EXPLORE</span></h2>
+              <button data-category="电脑办公">
+                <span>电脑办公</span><i>›</i></button
+              ><button data-category="数码影音">
+                <span>数码影音</span><i>›</i></button
+              ><button data-category="智能穿戴">
+                <span>智能穿戴</span><i>›</i></button
+              ><button data-category="生活家电">
+                <span>生活家电</span><i>›</i></button
+              ><button data-category="运动户外">
+                <span>运动户外</span><i>›</i></button
+              ><button data-category="居家生活">
+                <span>居家生活</span><i>›</i></button
+              ><button data-category="食品饮料">
+                <span>食品饮料</span><i>›</i></button
+              ><button data-category="个护美妆">
+                <span>个护美妆</span><i>›</i></button
+              ><a href="#/catalog">浏览全部商品 →</a>
+            </aside>
+            <div
+              class="hero-main"
+              id="carousel"
+              aria-label="主题精选"
+              tabindex="0"
+            >
+              <article class="hero-slide" data-slide="0">
+                <div class="hero-copy">
+                  <span class="eyebrow">MAKE ROOM FOR BETTER</span>
+                  <h1>让每一天，<br />都有新的喜欢<span>。</span></h1>
+                  <p>从专注工作到松弛日常<br />找到刚刚好的生活搭档。</p>
+                  <button class="dark-button" data-category="电脑办公">
+                    探索办公好物 <span>↗</span>
+                  </button>
+                </div>
+                <div class="hero-stage">
+                  <span class="stage-ring"></span
+                  ><span class="stage-label"
+                    >YOUR EVERYDAY<br />ESSENTIALS / 01</span
+                  ><img
+                    class="hero-laptop"
+                    src="/images/products/real-201.jpg"
+                    alt="Apple MacBook Pro 品牌资料图"
+                  /><img
+                    class="hero-headphone"
+                    src="/images/products/real-206.jpg"
+                    alt="Apple AirPods Pro 品牌资料图"
+                  /><span class="stage-foot">少一点将就，多一点讲究。</span>
+                </div>
+              </article>
+              <article class="hero-slide home-slide" data-slide="1" hidden>
+                <div class="hero-copy">
+                  <span class="eyebrow">LITTLE JOYS AT HOME</span>
+                  <h1>把喜欢的日常，<br />装进家里<span>。</span></h1>
+                  <p>一盏灯，一处角落<br />为生活留一点舒适。</p>
+                  <button class="dark-button" data-category="居家生活">
+                    发现生活灵感 ↗
+                  </button>
+                </div>
+                <div class="hero-stage">
+                  <span class="stage-ring"></span
+                  ><img
+                    class="hero-laptop"
+                    src="/images/products/real-226.jpg"
+                    alt="IKEA POÄNG 扶手椅品牌资料图"
+                  /><img
+                    class="hero-headphone"
+                    src="/images/products/real-225.jpg"
+                    alt="IKEA TERTIAL 台灯品牌资料图"
+                  />
+                </div>
+              </article>
+              <article class="hero-slide audio-slide" data-slide="2" hidden>
+                <div class="hero-copy">
+                  <span class="eyebrow">FIND YOUR OWN RHYTHM</span>
+                  <h1>戴上喜欢，<br />听见好心情<span>。</span></h1>
+                  <p>通勤、独处、运动<br />你的节奏，由你决定。</p>
+                  <button class="dark-button" data-category="数码影音">
+                    探索数码影音 ↗
+                  </button>
+                </div>
+                <div class="hero-stage">
+                  <span class="stage-ring"></span
+                  ><img
+                    class="hero-laptop"
+                    src="/images/products/real-206.jpg"
+                    alt="Apple AirPods Pro 品牌资料图"
+                  /><img
+                    class="hero-headphone"
+                    src="/images/products/real-205.jpg"
+                    alt="Apple iPhone 17 品牌资料图"
+                  />
+                </div>
+              </article>
+              <div class="carousel-controls">
+                <div>
+                  <button
+                    data-goto-slide="0"
+                    aria-label="主题一"
+                    aria-pressed="true"
+                  ></button
+                  ><button
+                    data-goto-slide="1"
+                    aria-label="主题二"
+                    aria-pressed="false"
+                  ></button
+                  ><button
+                    data-goto-slide="2"
+                    aria-label="主题三"
+                    aria-pressed="false"
+                  ></button>
+                </div>
+                <span>生活好物提案</span
+                ><button id="prevSlide" aria-label="上一主题">‹</button
+                ><button id="nextSlide" aria-label="下一主题">›</button
+                ><button id="pauseSlides" aria-label="暂停自动轮播">Ⅱ</button>
+              </div>
+            </div>
+          </section>
+          <section class="benefits shell" aria-label="购物服务">
+            <span
+              ><svg class="icon" aria-hidden="true"><use href="#i-grid" /></svg>
+              多种品类，认真挑选</span
+            ><span
+              ><svg class="icon" aria-hidden="true">
+                <use href="#i-ticket" />
+              </svg>
+              先领优惠，再选好物</span
+            ><span
+              ><svg class="icon" aria-hidden="true"><use href="#i-bag" /></svg>
+              订单进度，随时查看</span
+            ><span
+              ><svg class="icon" aria-hidden="true">
+                <use href="#i-spark" />
+              </svg>
+              智能助手，贴心参谋</span
+            >
+          </section>
+          <section class="shell selection" id="goodPrices">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">THE GOOD FINDS</span>
+                <h2>
+                  真实品牌，认真挑选<span>型号、规格与参考价格均可核对</span>
+                </h2>
+              </div>
+              <a href="#/catalog">全部好物 ↗</a>
+            </div>
+            <div id="valueProducts" class="value-products">
+              <p class="section-loading">正在挑选好物…</p>
+            </div>
+          </section>
+          <section class="shopping-floors shell" id="shoppingFloors">
+            <article class="shopping-floor">
+              <div class="floor-heading">
+                <h2>品牌精选 <em>TOP PICKS</em></h2>
+                <span>从品牌到日常</span>
+              </div>
+              <div id="rankingProducts" class="ranking-products"></div>
+            </article>
+            <article class="shopping-floor digital-floor">
+              <div class="floor-heading">
+                <h2>数码，悦享日常</h2>
+                <button data-category="数码影音">更多 ↗</button>
+              </div>
+              <p>把好声音，留给自己。</p>
+              <div id="digitalProducts" class="floor-products"></div>
+            </article>
+            <article class="shopping-floor living-floor">
+              <div class="floor-heading">
+                <h2>家，自在一点</h2>
+                <button data-category="居家生活">更多 ↗</button>
+              </div>
+              <p>寻常日子，也值得用心。</p>
+              <div id="livingProducts" class="floor-products"></div>
+            </article>
+          </section>
+          <section class="coupon-ribbon shell">
+            <div>
+              <span class="eyebrow">A LITTLE EXTRA FOR YOU</span>
+              <h2>喜欢的好物，再省一点。</h2>
+              <a href="#/coupons">逛逛领券中心 →</a>
+            </div>
+            <div id="homeCoupons" class="home-coupons"></div>
+          </section>
+        </div>
+        <section class="shell catalog-area" id="recommendations">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">FIND YOUR FAVORITES</span>
+              <h2 id="catalogTitle">
+                发现你的心头好<span>好好生活，从一件好物开始</span>
+              </h2>
+            </div>
+            <button data-open="chat">不知道怎么选？问沃沃 ↗</button>
+          </div>
+          <div class="category-tabs" id="categoryTabs">
+            <button class="active" data-category="">全部商品</button
+            ><button data-category="电脑办公">电脑办公</button
+            ><button data-category="数码影音">数码影音</button
+            ><button data-category="智能穿戴">智能穿戴</button
+            ><button data-category="生活家电">生活家电</button
+            ><button data-category="运动户外">运动户外</button
+            ><button data-category="居家生活">居家生活</button
+            ><button data-category="食品饮料">食品饮料</button
+            ><button data-category="个护美妆">个护美妆</button>
+          </div>
+          <div id="products">
+            <div class="product-toolbar">
+              <p id="resultLabel" role="status">好物加载中…</p>
+              <div class="sort-controls">
+                <label for="productSort">排序</label
+                ><select id="productSort">
+                  <option value="recommended">综合推荐</option>
+
+                  <option value="priceAsc">价格从低到高</option>
+                  <option value="priceDesc">价格从高到低</option></select
+                ><button id="clearSearch" hidden>清除筛选</button>
+              </div>
+            </div>
+            <details class="filter-panel">
+              <summary>
+                精细筛选 <span>品牌 / 预算 / 颜色 / 规格</span><i>＋</i>
+              </summary>
+              <form
+                id="catalogFilters"
+                class="catalog-filters"
+                aria-label="商品筛选"
+              >
+                <label
+                  >品牌<select id="filterBrand" name="brand">
+                    <option value="">全部品牌</option>
+                  </select></label
+                ><label
+                  >颜色<select id="filterColor" name="color">
+                    <option value="">全部颜色</option>
+                  </select></label
+                ><label
+                  >尺码<select id="filterSize" name="size">
+                    <option value="">全部尺码</option>
+                  </select></label
+                ><label
+                  >材质<select id="filterMaterial" name="material">
+                    <option value="">全部材质</option>
+                  </select></label
+                ><label
+                  >用途<select id="filterUseCase" name="useCase">
+                    <option value="">全部用途</option>
+                  </select></label
+                ><label
+                  >预算范围
+                  <div class="price-inputs">
+                    <input
+                      name="minPrice"
+                      type="number"
+                      min="0"
+                      max="100000000"
+                      step="0.01"
+                      placeholder="最低价"
+                      aria-label="最低价格"
+                    /><span>—</span
+                    ><input
+                      name="maxPrice"
+                      type="number"
+                      min="0"
+                      max="100000000"
+                      step="0.01"
+                      placeholder="最高价"
+                      aria-label="最高价格"
+                    /></div></label
+                ><label class="stock-filter"
+                  ><input type="checkbox" name="inStock" />仅看有货</label
+                ><button class="primary-button" type="submit">应用筛选</button>
+              </form>
+            </details>
+            <div
+              id="activeFilters"
+              class="active-filters"
+              aria-live="polite"
+            ></div>
+            <div class="product-grid" id="productGrid" aria-live="polite"></div>
+            <nav class="catalog-pagination" aria-label="商品翻页">
+              <button id="previousPage">← 上一页</button
+              ><span id="pageLabel"></span
+              ><button id="nextPage">下一页 →</button>
+            </nav>
+          </div>
+        </section>
+        <section class="recent-section shell" id="recentSection" hidden>
+          <div class="floor-heading">
+            <h2>再看一眼</h2>
+            <button id="clearRecent">清空浏览记录</button>
+          </div>
+          <div id="recentProducts" class="recent-products"></div>
+          <small>收藏与足迹仅保存在当前浏览器。</small>
+        </section>
+      </div>
+      <section class="route-view shell product-page" id="productDialog" hidden>
+        <button class="back-link" id="closeDialog">← 继续逛逛</button>
+        <div id="productDialogContent">
+          <div class="empty-panel">正在加载商品…</div>
+        </div>
+      </section>
+      <div id="accountLayout" class="account-layout shell" hidden>
+        <aside class="account-sidebar">
+          <div class="member-profile">
+            <span class="member-avatar">林</span><b>小林的商城</b
+            ><small>欢迎回来，发现新的喜欢</small>
+          </div>
+          <nav aria-label="我的商城">
+            <a href="#/orders" data-account="orders"
+              ><svg class="icon" aria-hidden="true">
+                <use href="#i-order" />
+              </svg>
+              我的订单</a
+            ><a href="#/cart" data-account="cart"
+              ><svg class="icon" aria-hidden="true"><use href="#i-cart" /></svg>
+              我的购物车 <small id="railCartCount">0</small></a
+            ><a href="#/coupons" data-account="coupons"
+              ><svg class="icon" aria-hidden="true">
+                <use href="#i-ticket" />
+              </svg>
+              我的优惠券</a
+            ><button data-library="favorites">
+              <svg class="icon" aria-hidden="true"><use href="#i-heart" /></svg>
+              我的收藏</button
+            ><button data-library="recent">◷ <span>浏览足迹</span></button>
+          </nav>
+          <div class="sidebar-help">
+            <span>✦</span><b>购物有疑问？</b>
+            <p>选商品、算优惠、查订单<br />沃沃随时为你参谋。</p>
+            <button data-open="chat">问问沃沃 →</button>
+          </div>
+        </aside>
+        <div class="account-content">
+          <section class="route-view commerce-page" id="cartDialog" hidden>
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">YOUR SHOPPING BAG</span>
+                <h1>我的购物车 <small id="cartItemLabel"></small></h1>
+                <p>喜欢的好物，都在这里。</p>
+              </div>
+              <a href="#/catalog">继续选购 ↗</a>
+            </div>
+            <div class="cart-layout">
+              <div class="cart-main">
+                <div class="cart-table-head">
+                  <label
+                    ><input
+                      type="checkbox"
+                      id="selectAllCart"
+                      aria-label="全选购物车商品"
+                    />
+                    全选</label
+                  ><span>商品信息</span><span>小计 / 操作</span>
+                </div>
+                <div id="cartList"></div>
+                <p class="cart-note">
+                  购物车不保留库存，商品价格、优惠及运费以结算页为准。
+                </p>
+              </div>
+              <aside class="cart-summary">
+                <h2>订单预览</h2>
+                <div>
+                  <span>已选商品</span><b id="cartSelectedCount">0 件</b>
+                </div>
+                <div><span>商品合计</span><b id="cartTotal">¥0</b></div>
+                <p>优惠券和运费将在结算时核算</p>
+                <button class="primary-button" id="cartCheckoutButton">
+                  去结算 →</button
+                ><a href="#/coupons"
+                  ><svg class="icon" aria-hidden="true">
+                    <use href="#i-ticket" />
+                  </svg>
+                  先领一张优惠券</a
+                >
+              </aside>
+            </div>
+          </section>
+          <section class="route-view commerce-page" id="couponDialog" hidden>
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">A LITTLE TREAT</span>
+                <h1>优惠券中心</h1>
+                <p>给喜欢多一个理由，让好物更划算。</p>
+              </div>
+              <a href="#/catalog">去逛好物 ↗</a>
+            </div>
+            <div class="coupon-banner">
+              <span>FOR YOUR NEXT FAVORITE</span>
+              <h2>领一份小确幸。</h2>
+              <p>每笔订单可使用一张符合条件的优惠券</p>
+              <div class="ticket-art">券<span>GOOD THINGS AWAIT</span></div>
+            </div>
+            <div class="tabs" id="couponTabs" aria-label="优惠券筛选">
+              <button class="active" data-coupon-tab="all">领券中心</button
+              ><button data-coupon-tab="available">可使用</button
+              ><button data-coupon-tab="locked">使用中</button
+              ><button data-coupon-tab="used">已使用</button
+              ><button data-coupon-tab="expired">已过期</button>
+            </div>
+            <div id="couponList" aria-live="polite"></div>
+            <p class="section-note">
+              使用前请确认门槛及有效期。待付款订单会占用优惠券，取消或超时关闭后按有效期恢复。
+            </p>
+          </section>
+          <section class="route-view commerce-page" id="checkoutDialog" hidden>
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">ONE STEP CLOSER</span>
+                <h1>确认订单</h1>
+                <p>核对一下，让喜欢稳稳到手。</p>
+              </div>
+              <a href="#/cart">返回购物车</a>
+            </div>
+            <div class="checkout-steps">
+              <span class="done">✓ 选择商品</span><i></i><b>02 确认订单</b
+              ><i></i><span>03 完成支付</span>
+            </div>
+            <div id="checkoutContent">
+              <div class="empty-panel">
+                <b>还没有待结算的商品</b>
+                <p>请从购物车或商品详情发起结算。</p>
+                <a href="#/cart">查看购物车 →</a>
+              </div>
+            </div>
+            <div class="checkout-bottom">
+              <span>提交后请在订单支付期限内完成付款</span>
+              <div>
+                <span>应付金额 <strong id="checkoutPay">—</strong></span
+                ><button class="primary-button" id="submitOrderButton" disabled>
+                  提交订单
+                </button>
+              </div>
+            </div>
+          </section>
+          <section class="route-view commerce-page" id="ordersDialog" hidden>
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">YOUR ORDERS</span>
+                <h1>我的订单</h1>
+                <p>每一份喜欢，都有迹可循。</p>
+              </div>
+              <button id="refreshOrders">刷新订单 ↻</button>
+            </div>
+            <div class="order-tools">
+              <div class="tabs" id="orderTabs" aria-label="订单状态">
+                <button data-order-tab="ALL" class="active">全部订单</button
+                ><button data-order-tab="PENDING_PAYMENT">待付款</button
+                ><button data-order-tab="PAID">已付款</button
+                ><button data-order-tab="SHIPPED">配送中</button
+                ><button data-order-tab="COMPLETED">已完成</button
+                ><button data-order-tab="CLOSED">已关闭</button>
+              </div>
+              <label class="order-search"
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-search" /></svg
+                ><input
+                  id="orderSearch"
+                  aria-label="搜索订单"
+                  placeholder="订单号 / 商品名称"
+              /></label>
+            </div>
+            <p class="section-note">
+              展示接口返回的最近 20 笔订单；处理中购买会单独显示。
+            </p>
+            <div id="ordersList" aria-live="polite">
+              <div class="empty-panel">正在加载订单…</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <section class="mall-footer">
+      <div class="shell footer-columns">
+        <div class="footer-brand">
+          <b>沃沃智购<span>。</span></b>
+          <p>认真选好物，轻松过生活。</p>
+          <small>GOOD THINGS, EVERY DAY.</small>
+        </div>
+        <div>
+          <h3>开始选购</h3>
+          <a href="#/catalog">全部商品</a><a href="#/coupons">领券中心</a
+          ><button data-library="favorites">我的收藏</button>
+        </div>
+        <div>
+          <h3>我的购物</h3>
+          <a href="#/cart">购物车</a><a href="#/orders">订单管理</a
+          ><button data-library="recent">浏览足迹</button>
+        </div>
+        <div>
+          <h3>沃沃在这里</h3>
+          <p>选不定？算不清？<br />让购物助手帮你一把。</p>
+          <button data-open="chat">和沃沃聊聊 ↗</button>
+        </div>
+      </div>
+      <div class="shell footer-bottom">
+        <span>© 2026 沃沃智购</span
+        ><span>真实品牌资料展示 · 价格为核对快照 · 体验下单不产生真实交易</span>
+      </div>
+    </section>
+    <nav class="mobile-nav" aria-label="手机导航">
+      <a href="#/" data-mobile="home"
+        ><svg class="icon" aria-hidden="true"><use href="#i-home" /></svg
+        >首页</a
+      ><a href="#/catalog" data-mobile="catalog"
+        ><svg class="icon" aria-hidden="true"><use href="#i-grid" /></svg
+        >分类</a
+      ><a href="#/cart" data-mobile="cart"
+        ><svg class="icon" aria-hidden="true"><use href="#i-cart" /></svg
+        >购物车</a
+      ><a href="#/orders" data-mobile="orders"
+        ><svg class="icon" aria-hidden="true"><use href="#i-user" /></svg
+        >我的订单</a
+      >
+    </nav>
+    <div class="floating-tools">
+      <button id="backToTop" aria-label="回到顶部">↑</button>
+    </div>
+    <button class="chat-fab" id="chatFab" aria-label="打开沃沃购物助手">
+      <svg class="icon" aria-hidden="true"><use href="#i-spark" /></svg
+      ><span>问问沃沃</span>
+    </button>
+    <aside
+      class="chat-panel"
+      id="chatPanel"
+      aria-label="沃沃 Agent"
+      aria-hidden="true"
+    >
+      <header class="chat-header">
+        <div class="assistant-avatar">✦</div>
+        <div>
+          <b>沃沃智购 Agent</b
+          ><span id="agentMode" role="status">正在检查助手模式…</span>
+        </div>
+        <button id="closeChat" aria-label="关闭">×</button>
+      </header>
+      <div class="chat-messages" id="chatMessages">
+        <div class="message assistant">
+          <div class="mini-avatar">✦</div>
+          <div class="bubble">
+            你好，我是沃沃，你的商城小助手。选商品、找优惠、算价格、查订单都可以问我。下单和取消前，我会先请你确认。
+          </div>
+        </div>
+        <div class="suggestions" id="suggestions">
+          <button>苹果官网买的 iPhone 退货有哪些条件？</button>
+          <button>帮我看看最近的订单</button>
+          <button>有哪些优惠券可以领取？</button>
+          <button>帮我选一款通勤背包</button>
+        </div>
+      </div>
+      <form class="chat-composer" id="chatForm">
+        <textarea
+          id="chatInput"
+          rows="1"
+          maxlength="1000"
+          placeholder="想买什么？让沃沃帮你挑…"
+        ></textarea>
+        <button type="submit" id="sendButton" aria-label="发送">
+          <svg viewBox="0 0 24 24">
+            <path d="m4 4 17 8-17 8 3-8-3-8Zm3 8h14" />
+          </svg>
+        </button>
+      </form>
+      <p class="chat-note">AI 可能出错，关键操作会要求你确认</p>
+    </aside>
+
+    <dialog class="commerce-dialog library-dialog" id="libraryDialog">
+      <header>
+        <div>
+          <small>MY COLLECTION</small>
+          <h2 id="libraryTitle">我的收藏</h2>
+        </div>
+        <button data-close-dialog="libraryDialog" aria-label="关闭收藏和足迹">
+          ×
+        </button>
+      </header>
+      <div class="dialog-body">
+        <p class="library-note">仅保存在当前浏览器，价格与库存以结算时为准。</p>
+        <div id="libraryProducts" class="library-products"></div>
+      </div>
+    </dialog>
+
+    <dialog id="confirmDialog" class="small-dialog">
+      <form method="dialog">
+        <span class="dialog-emblem">!</span>
+        <h2 id="confirmTitle">请确认操作</h2>
+        <p id="confirmDescription"></p>
+        <div class="confirm-buttons">
+          <button value="cancel">暂不操作</button
+          ><button class="primary-button" value="confirm">确认</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="orderDetailDialog" class="commerce-dialog order-detail-dialog">
+      <header>
+        <div>
+          <small>ORDER DETAILS</small>
+          <h2>订单详情</h2>
+        </div>
+        <button data-close-dialog="orderDetailDialog" aria-label="关闭订单详情">
+          ×
+        </button>
+      </header>
+      <div id="orderDetailContent" class="dialog-body"></div>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js?v=real-catalog-20261116"></script>
+  </body>
+</html>

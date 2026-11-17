@@ -1,0 +1,18 @@
+# 示例阈值需要按压测容量调整；告警不会直接切换下单模式。
+groups:
+  - name: order-submission
+    rules:
+      - alert: OrderAdmissionPressure
+        expr: sum(mall_order_inflight) / sum(mall_order_capacity) > 0.8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "下单受理并发持续接近配置上限"
+      - alert: OrderSubmissionStalled
+        expr: max(mall_order_oldest_pending_seconds) > 120
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "下单等待过长，请检查本地消息、MQ 和库存 Redis"

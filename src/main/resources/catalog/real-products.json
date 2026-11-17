@@ -1,0 +1,1123 @@
+{
+  "version": "2026-11-16",
+  "currency": "CNY",
+  "inventoryNote": "本项目演示库存，不代表品牌或门店库存",
+  "products": [
+    {
+      "id": 201,
+      "name": "Apple MacBook Pro 14 英寸 M4",
+      "brand": "Apple",
+      "category": "电脑办公",
+      "summary": "M4 芯片笔记本电脑，配备 14 英寸 Liquid 视网膜 XDR 显示屏。",
+      "imageKey": "real-201",
+      "imageSource": "https://www.apple.com.cn/newsroom/images/2024/10/new-macbook-pro/article/Apple-MacBook-Pro-M4-lineup_big.jpg.large.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2024/10/apples-new-macbook-pro-features-the-incredibly-powerful-m4-family-of-chips/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2024-10-30",
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "笔记本电脑",
+        "useCase": "办公",
+        "processor": "Apple M4",
+        "screen": "14英寸",
+        "memory": "16GB",
+        "storage": "512GB"
+      },
+      "skus": [
+        {
+          "spec": "深空黑色 / M4 / 16GB / 512GB",
+          "price": 12999,
+          "originalPrice": null,
+          "attributes": {
+            "color": "黑色",
+            "memory": "16GB",
+            "storage": "512GB"
+          },
+          "code": "REAL-201-1",
+          "id": 20101,
+          "stock": 36
+        },
+        {
+          "spec": "银色 / M4 / 16GB / 512GB",
+          "price": 12999,
+          "originalPrice": null,
+          "attributes": {
+            "color": "银色",
+            "memory": "16GB",
+            "storage": "512GB"
+          },
+          "code": "REAL-201-2",
+          "id": 20102,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-201.jpg"
+    },
+    {
+      "id": 202,
+      "name": "Apple MacBook Air 13 英寸 M4",
+      "brand": "Apple",
+      "category": "电脑办公",
+      "summary": "13 英寸轻薄笔记本电脑，M4 芯片，适合移动办公与学习。",
+      "imageKey": "real-202",
+      "imageSource": "https://www.apple.com.cn/newsroom/images/2025/03/apple-introduces-the-new-macbook-air-with-the-m4-chip-and-a-sky-blue-color/article/Apple-MacBook-Air-sky-blue-250305_big.jpg.large.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2025/03/apple-introduces-the-new-macbook-air-with-m4-and-a-gorgeous-new-sky-blue-color/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2025-03-05",
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "笔记本电脑",
+        "useCase": "办公",
+        "processor": "Apple M4",
+        "screen": "13.6英寸"
+      },
+      "skus": [
+        {
+          "spec": "天蓝色 / M4 / 16GB / 256GB",
+          "price": 7999,
+          "originalPrice": null,
+          "attributes": {
+            "color": "蓝色",
+            "memory": "16GB",
+            "storage": "256GB"
+          },
+          "code": "REAL-202-1",
+          "id": 20201,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-202.jpg"
+    },
+    {
+      "id": 203,
+      "name": "Apple Mac mini M4",
+      "brand": "Apple",
+      "category": "电脑办公",
+      "summary": "M4 芯片迷你台式电脑，需另外搭配显示器、键盘和鼠标。",
+      "imageKey": "real-203",
+      "imageSource": "https://www.apple.com.cn/newsroom/images/2024/10/apples-all-new-mac-mini-is-even-more-mighty-and-more-mini/article/Apple-Mac-mini-hero_big.jpg.large.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2024/10/apples-all-new-mac-mini-is-even-more-mighty-and-more-mini/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2024-10-29",
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "台式电脑",
+        "useCase": "办公",
+        "processor": "Apple M4"
+      },
+      "skus": [
+        {
+          "spec": "银色 / M4 / 16GB / 256GB",
+          "price": 4499,
+          "originalPrice": null,
+          "attributes": {
+            "color": "银色",
+            "memory": "16GB",
+            "storage": "256GB"
+          },
+          "code": "REAL-203-1",
+          "id": 20301,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-203.jpg"
+    },
+    {
+      "id": 204,
+      "name": "Apple Studio Display 27 英寸",
+      "brand": "Apple",
+      "category": "电脑办公",
+      "summary": "27 英寸 5K 视网膜显示器，标准玻璃与可调倾斜度支架。",
+      "imageKey": "real-204",
+      "imageSource": "https://www.apple.com.cn/newsroom/images/product/mac/standard/Apple-Mac-Studio-Studio-Display-hero-220308.jpg.og.jpg?202608191733",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2022/03/apple-unveils-all-new-mac-studio-and-studio-display/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2022-03-08",
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "显示器",
+        "useCase": "办公",
+        "screen": "27英寸 5K",
+        "resolution": "5K"
+      },
+      "skus": [
+        {
+          "spec": "标准玻璃 / 可调倾斜度支架",
+          "price": 11499,
+          "originalPrice": null,
+          "attributes": {
+            "screen": "27英寸",
+            "resolution": "5K"
+          },
+          "code": "REAL-204-1",
+          "id": 20401,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-204.jpg"
+    },
+    {
+      "id": 205,
+      "name": "Apple iPhone 17",
+      "brand": "Apple",
+      "category": "数码影音",
+      "summary": "iPhone 17，提供 256GB 和 512GB 存储容量，参考价来自中国大陆购买页。",
+      "imageKey": "real-205",
+      "imageSource": "https://store.storeimages.cdn-apple.com/1/as-images.apple.com/is/iphone-17-finish-unselect-gallery-1-202509?wid=1200&hei=630&fmt=jpeg&qlt=95&.v=1758739980534",
+      "sourceUrl": "https://www.apple.com.cn/shop/buy-iphone/iphone-17",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "手机",
+        "useCase": "日常"
+      },
+      "skus": [
+        {
+          "spec": "黑色 / 256GB",
+          "price": 6799,
+          "originalPrice": null,
+          "attributes": {
+            "color": "黑色",
+            "storage": "256GB"
+          },
+          "code": "REAL-205-1",
+          "id": 20501,
+          "stock": 36
+        },
+        {
+          "spec": "黑色 / 512GB",
+          "price": 8799,
+          "originalPrice": null,
+          "attributes": {
+            "color": "黑色",
+            "storage": "512GB"
+          },
+          "code": "REAL-205-2",
+          "id": 20502,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-205.jpg"
+    },
+    {
+      "id": 206,
+      "name": "Apple AirPods Pro 2（USB-C）",
+      "brand": "Apple",
+      "category": "数码影音",
+      "summary": "第二代 AirPods Pro，配备 USB-C 端口的 MagSafe 充电盒与主动降噪。",
+      "imageKey": "real-206",
+      "imageSource": "https://www.apple.com.cn/newsroom/images/2023/09/apple-introduces-new-airpods-pro-2nd-generation/tile/Apple-AirPods-Pro-2nd-generation-USB-C-connection-230912.jpg.og.jpg?202608192044",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2023/09/apple-upgrades-airpods-pro-2nd-generation-with-usb-c-charging/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2023-09-12",
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "无线耳机",
+        "useCase": "通勤",
+        "noiseCancellation": "主动降噪"
+      },
+      "skus": [
+        {
+          "spec": "白色 / USB-C MagSafe 充电盒",
+          "price": 1899,
+          "originalPrice": null,
+          "attributes": {
+            "color": "白色"
+          },
+          "code": "REAL-206-1",
+          "id": 20601,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-206.jpg"
+    },
+    {
+      "id": 207,
+      "name": "Apple AirPods 4",
+      "brand": "Apple",
+      "category": "数码影音",
+      "summary": "AirPods 4 标准版，无耳塞式设计，配备 USB-C 充电盒。",
+      "imageKey": "real-207",
+      "imageSource": "https://www.apple.com.cn/newsroom/images/2024/09/apple-introduces-airpods-4/article/Apple-AirPods-4-with-case-240909_big.jpg.large.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2024/09/apple-introduces-all-new-airpods-4-with-industry-defining-audio-and-design/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2024-09-09",
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "无线耳机",
+        "useCase": "通勤"
+      },
+      "skus": [
+        {
+          "spec": "白色 / 标准版",
+          "price": 999,
+          "originalPrice": null,
+          "attributes": {
+            "color": "白色"
+          },
+          "code": "REAL-207-1",
+          "id": 20701,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-207.jpg"
+    },
+    {
+      "id": 208,
+      "name": "Apple Watch Series 10",
+      "brand": "Apple",
+      "category": "智能穿戴",
+      "summary": "Series 10 智能手表，42 毫米铝金属 GPS 机型。",
+      "imageKey": "real-208",
+      "imageSource": "https://www.apple.com.cn/newsroom/images/2024/09/introducing-apple-watch-series-10/article/Apple-Watch-Series-10-hero-240909_big.jpg.large.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2024/09/introducing-apple-watch-series-10/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2024-09-09",
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "智能手表",
+        "useCase": "运动",
+        "material": "铝金属",
+        "diameter": "42mm"
+      },
+      "skus": [
+        {
+          "spec": "亮黑色 / 42mm / GPS / 运动型表带",
+          "price": 2999,
+          "originalPrice": null,
+          "attributes": {
+            "color": "黑色",
+            "diameter": "42mm"
+          },
+          "code": "REAL-208-1",
+          "id": 20801,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-208.jpg"
+    },
+    {
+      "id": 209,
+      "name": "米家智能电饭煲 微压版 3L",
+      "brand": "米家",
+      "category": "生活家电",
+      "summary": "看得见的真微压",
+      "imageKey": "real-209",
+      "imageSource": "https://cdn.cnbj1.fds.api.mi-img.com/mi-mall/b5e7b8356420596e2116ca901e11cb7b.jpg",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=14536",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "电饭煲",
+        "capacity": "3L",
+        "useCase": "烹饪"
+      },
+      "skus": [
+        {
+          "spec": "白色 / 3L",
+          "price": 459.0,
+          "originalPrice": 499.0,
+          "attributes": {
+            "capacity": "3L",
+            "useCase": "烹饪"
+          },
+          "code": "REAL-209-1",
+          "id": 20901,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-209.jpg"
+    },
+    {
+      "id": 210,
+      "name": "米家扫拖机器人 6",
+      "brand": "米家",
+      "category": "生活家电",
+      "summary": "滚筒活水净除顽渍，超薄机身灵活绕物",
+      "imageKey": "real-210",
+      "imageSource": "https://cdn.cnbj1.fds.api.mi-img.com/nr-upload-outer/046B7F2A729715C5377AEA7588A91BFF_1775205800124.png",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=24243",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "扫地机器人",
+        "useCase": "清洁"
+      },
+      "skus": [
+        {
+          "spec": "标准版",
+          "price": 2699.0,
+          "originalPrice": 3999.0,
+          "attributes": {
+            "useCase": "清洁"
+          },
+          "code": "REAL-210-1",
+          "id": 21001,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-210.png"
+    },
+    {
+      "id": 211,
+      "name": "米家冰箱 十字430L 2026款",
+      "brand": "米家",
+      "category": "生活家电",
+      "summary": "纤薄机身小占地 精控变温更养鲜",
+      "imageKey": "real-211",
+      "imageSource": "https://cdn.cnbj1.fds.api.mi-img.com/nr-upload-outer/C207A9224BE46D06A5353D124E4671A3_1767861761490.png",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=22503",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "冰箱",
+        "capacity": "430L",
+        "useCase": "冷藏"
+      },
+      "skus": [
+        {
+          "spec": "十字门 / 430L / 2026款",
+          "price": 1949.0,
+          "originalPrice": 2299.0,
+          "attributes": {
+            "capacity": "430L",
+            "useCase": "冷藏"
+          },
+          "code": "REAL-211-1",
+          "id": 21101,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-211.png"
+    },
+    {
+      "id": 212,
+      "name": "米家洗衣机Pro 超电解智投 洗烘12kg",
+      "brand": "米家",
+      "category": "生活家电",
+      "summary": "12kg大容量洗+9kg烘干，超电解祛渍净白防串色",
+      "imageKey": "real-212",
+      "imageSource": "https://cdn.cnbj1.fds.api.mi-img.com/nr-upload-outer/E3505DF4208199DE00182BD1D307AB87_1767690181894.jpg",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=22521",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "洗烘一体机",
+        "capacity": "12kg",
+        "useCase": "清洁"
+      },
+      "skus": [
+        {
+          "spec": "洗烘12kg",
+          "price": 3299.0,
+          "originalPrice": 3999.0,
+          "attributes": {
+            "capacity": "12kg",
+            "useCase": "清洁"
+          },
+          "code": "REAL-212-1",
+          "id": 21201,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-212.jpg"
+    },
+    {
+      "id": 213,
+      "name": "巨省电 小米空调 1.5匹新1级能效",
+      "brand": "米家",
+      "category": "生活家电",
+      "summary": "强劲制冷 | 高效节能 | 智能互联",
+      "imageKey": "real-213",
+      "imageSource": "https://cdn.cnbj0.fds.api.mi-img.com/b2c-shopapi-pms/pms_1664285178.54196051.jpg",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=13143",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "空调",
+        "useCase": "温控"
+      },
+      "skus": [
+        {
+          "spec": "1.5匹 / 新1级能效",
+          "price": 1999.0,
+          "originalPrice": 2499.0,
+          "attributes": {
+            "useCase": "温控"
+          },
+          "code": "REAL-213-1",
+          "id": 21301,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-213.jpg"
+    },
+    {
+      "id": 214,
+      "name": "米家微波炉",
+      "brand": "米家",
+      "category": "生活家电",
+      "summary": "APP操控，精选食谱",
+      "imageKey": "real-214",
+      "imageSource": "https://cdn.cnbj1.fds.api.mi-img.com/mi-mall/3b6a47f33993a59ff3a5c1112d484eed.jpg",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=10330",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "微波炉",
+        "useCase": "烹饪"
+      },
+      "skus": [
+        {
+          "spec": "白色 / 标准版",
+          "price": 429.0,
+          "originalPrice": 499.0,
+          "attributes": {
+            "useCase": "烹饪"
+          },
+          "code": "REAL-214-1",
+          "id": 21401,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-214.jpg"
+    },
+    {
+      "id": 215,
+      "name": "米家无线吸尘器 3C",
+      "brand": "米家",
+      "category": "生活家电",
+      "summary": "120AW飓风吸力",
+      "imageKey": "real-215",
+      "imageSource": "https://cdn.cnbj1.fds.api.mi-img.com/nr-pub/202408211607_38d4a8358958b1e6bf668bc8d7d36699.png",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=20336",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "吸尘器",
+        "useCase": "清洁"
+      },
+      "skus": [
+        {
+          "spec": "标准版",
+          "price": 599.0,
+          "originalPrice": 899.0,
+          "attributes": {
+            "useCase": "清洁"
+          },
+          "code": "REAL-215-1",
+          "id": 21501,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-215.png"
+    },
+    {
+      "id": 216,
+      "name": "REDMI手环 4",
+      "brand": "小米",
+      "category": "智能穿戴",
+      "summary": "运动不间断，轻盈长续航",
+      "imageKey": "real-216",
+      "imageSource": "https://cdn.cnbj1.fds.api.mi-img.com/nr-upload-outer/6E4D252A7446BA928BB90D4177A33931_1792396816824.png",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=25768",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "运动手环",
+        "useCase": "运动"
+      },
+      "skus": [
+        {
+          "spec": "标准版",
+          "price": 169.0,
+          "originalPrice": null,
+          "attributes": {
+            "useCase": "运动"
+          },
+          "code": "REAL-216-1",
+          "id": 21601,
+          "stock": 36
+        }
+      ],
+      "imagePath": "/images/products/real-216.png"
+    },
+    {
+      "id": 217,
+      "name": "Nike Pegasus 42 GORE-TEX 跑鞋",
+      "brand": "Nike",
+      "category": "运动户外",
+      "summary": "款式 IQ0450-001，耐克飞马男子防水公路跑步鞋。",
+      "imageKey": "real-217",
+      "imageSource": "https://static.nike.com.cn/a/images/t_default/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/3461b927-b06b-4d04-adb5-b344fa9efcb3/AIR+ZOOM+PEGASUS+42+GORE-TEX.png",
+      "sourceUrl": "https://www.nike.com.cn/t/pegasus-42-gore-tex-耐克飞马男子防水公路跑步鞋-wzt6auPv/IQ0450-001",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "跑鞋",
+        "useCase": "跑步",
+        "model": "IQ0450-001"
+      },
+      "skus": [
+        {
+          "spec": "黑/亮眼柠檬黄/金属暗灰 / 42 码",
+          "price": 1099,
+          "originalPrice": null,
+          "attributes": {
+            "color": "黑色",
+            "size": "42"
+          },
+          "code": "IQ0450-001-42",
+          "id": 21701,
+          "stock": 80
+        },
+        {
+          "spec": "黑/亮眼柠檬黄/金属暗灰 / 43 码",
+          "price": 1099,
+          "originalPrice": null,
+          "attributes": {
+            "color": "黑色",
+            "size": "43"
+          },
+          "code": "IQ0450-001-43",
+          "id": 21702,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-217.png"
+    },
+    {
+      "id": 218,
+      "name": "Nike Pegasus Premium 跑鞋",
+      "brand": "Nike",
+      "category": "运动户外",
+      "summary": "款式 HQ2592-020，耐克顶级飞马男子公路跑步鞋。",
+      "imageKey": "real-218",
+      "imageSource": "https://static.nike.com.cn/a/images/t_default/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/cf3b4c56-e53e-45f2-a32a-7523b9697168/NIKE+PEGASUS+PREMIUM.png",
+      "sourceUrl": "https://www.nike.com.cn/t/pegasus-premium-耐克顶级飞马男子公路跑步鞋-VQWzfn/HQ2592-020",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "跑鞋",
+        "useCase": "跑步",
+        "model": "HQ2592-020"
+      },
+      "skus": [
+        {
+          "spec": "大学灰/浅红杉红/浅软石褐/黑 / 42 码",
+          "price": 1499,
+          "originalPrice": null,
+          "attributes": {
+            "color": "灰色",
+            "size": "42"
+          },
+          "code": "HQ2592-020-42",
+          "id": 21801,
+          "stock": 80
+        },
+        {
+          "spec": "大学灰/浅红杉红/浅软石褐/黑 / 43 码",
+          "price": 1499,
+          "originalPrice": null,
+          "attributes": {
+            "color": "灰色",
+            "size": "43"
+          },
+          "code": "HQ2592-020-43",
+          "id": 21802,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-218.png"
+    },
+    {
+      "id": 219,
+      "name": "Nike Streakfly 2 跑鞋",
+      "brand": "Nike",
+      "category": "运动户外",
+      "summary": "款式 HF6416-101，男子公路竞速跑步鞋。",
+      "imageKey": "real-219",
+      "imageSource": "https://static.nike.com.cn/a/images/t_default/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/4a5e8de6-c756-49f2-8733-c3f87165282a/ZOOMX+STREAKFLY+2.png",
+      "sourceUrl": "https://www.nike.com.cn/t/streakfly-2-男子公路竞速跑步鞋-m74iEgEy/HF6416-101",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "跑鞋",
+        "useCase": "跑步",
+        "model": "HF6416-101"
+      },
+      "skus": [
+        {
+          "spec": "白色/亮眼柠檬黄/帆白/煤黑 / 42 码",
+          "price": 959,
+          "originalPrice": 1199,
+          "attributes": {
+            "color": "白色",
+            "size": "42"
+          },
+          "code": "HF6416-101-42",
+          "id": 21901,
+          "stock": 80
+        },
+        {
+          "spec": "白色/亮眼柠檬黄/帆白/煤黑 / 43 码",
+          "price": 959,
+          "originalPrice": 1199,
+          "attributes": {
+            "color": "白色",
+            "size": "43"
+          },
+          "code": "HF6416-101-43",
+          "id": 21902,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-219.png"
+    },
+    {
+      "id": 220,
+      "name": "Nike Zoom Fly 6 SE 跑鞋",
+      "brand": "Nike",
+      "category": "运动户外",
+      "summary": "款式 IV4083-001，男子公路竞速跑步鞋。",
+      "imageKey": "real-220",
+      "imageSource": "https://static.nike.com.cn/a/images/t_default/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/463e86eb-9f05-42fd-8a0a-0207475beec7/ZOOM+FLY+6+SE.png",
+      "sourceUrl": "https://www.nike.com.cn/t/zoom-fly-6-se-男子公路竞速跑步鞋-Wp6eiX9I/IV4083-001",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "跑鞋",
+        "useCase": "跑步",
+        "model": "IV4083-001"
+      },
+      "skus": [
+        {
+          "spec": "黑/烟灰/雾灰/白色 / 42 码",
+          "price": 799,
+          "originalPrice": 999,
+          "attributes": {
+            "color": "黑色",
+            "size": "42"
+          },
+          "code": "IV4083-001-42",
+          "id": 22001,
+          "stock": 80
+        },
+        {
+          "spec": "黑/烟灰/雾灰/白色 / 43 码",
+          "price": 799,
+          "originalPrice": 999,
+          "attributes": {
+            "color": "黑色",
+            "size": "43"
+          },
+          "code": "IV4083-001-43",
+          "id": 22002,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-220.png"
+    },
+    {
+      "id": 221,
+      "name": "Nike Elemental Premium 双肩包",
+      "brand": "Nike",
+      "category": "运动户外",
+      "summary": "款式 DN2555-010，双肩包。",
+      "imageKey": "real-221",
+      "imageSource": "https://static.nike.com.cn/a/images/t_default/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/755bb92f-ba24-4417-8777-51ec95c87679/NK+ELMNTL+PRM+BKPK.png",
+      "sourceUrl": "https://www.nike.com.cn/t/elemental-premium-双肩包-8xlHHcKA/DN2555-010",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "背包",
+        "useCase": "通勤",
+        "model": "DN2555-010"
+      },
+      "skus": [
+        {
+          "spec": "黑/黑/煤黑 / 均码",
+          "price": 239,
+          "originalPrice": 299,
+          "attributes": {
+            "color": "黑色"
+          },
+          "code": "DN2555-010-均码",
+          "id": 22101,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-221.png"
+    },
+    {
+      "id": 222,
+      "name": "Nike Hayward 双肩包",
+      "brand": "Nike",
+      "category": "运动户外",
+      "summary": "款式 HJ8200-525，双肩包。",
+      "imageKey": "real-222",
+      "imageSource": "https://static.nike.com.cn/a/images/t_default/u_9ddf04c7-2a9a-4d76-add1-d15af8f0263d,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/9f44db35-c175-495d-a31d-57c7792d48cd/NIKE+HAYWARD+BKPK.png",
+      "sourceUrl": "https://www.nike.com.cn/t/hayward-双肩包-M6Hglw/HJ8200-525",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "背包",
+        "useCase": "通勤",
+        "model": "HJ8200-525"
+      },
+      "skus": [
+        {
+          "spec": "王朝紫/黑/行动葡萄紫 / 均码",
+          "price": 449,
+          "originalPrice": null,
+          "attributes": {
+            "color": "紫色"
+          },
+          "code": "HJ8200-525-均码",
+          "id": 22201,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-222.png"
+    },
+    {
+      "id": 223,
+      "name": "IKEA STELNA 斯黛纳 玻璃杯",
+      "brand": "IKEA",
+      "category": "居家生活",
+      "summary": "STELNA 斯黛纳 玻璃杯，透明玻璃 / 230ml。",
+      "imageKey": "real-223",
+      "imageSource": "https://file.app.ikea.cn/cn/zh/images/products/stelna-si-dai-na-da-bei-tou-ming-bo-li__0711128_pe727996_s5.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/stelna-si-dai-na-da-bei-tou-ming-bo-li-50258912/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "水杯",
+        "material": "钢化玻璃",
+        "capacity": "230ml"
+      },
+      "skus": [
+        {
+          "spec": "透明玻璃 / 230ml",
+          "price": 3.99,
+          "originalPrice": null,
+          "attributes": {
+            "type": "水杯",
+            "material": "钢化玻璃",
+            "capacity": "230ml"
+          },
+          "code": "REAL-223-1",
+          "id": 22301,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-223.jpg"
+    },
+    {
+      "id": 224,
+      "name": "IKEA LACK 拉克 边桌",
+      "brand": "IKEA",
+      "category": "居家生活",
+      "summary": "LACK 拉克 边桌，黑色 / 55×55cm。",
+      "imageKey": "real-224",
+      "imageSource": "https://file.app.ikea.cn/cn/zh/images/products/lack-la-ke-bian-zhuo-hei-se__22518_pe107397_s5.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/lack-la-ke-bian-zhuo-hei-se-00352988/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "边桌",
+        "useCase": "居家"
+      },
+      "skus": [
+        {
+          "spec": "黑色 / 55×55cm",
+          "price": 69.99,
+          "originalPrice": null,
+          "attributes": {
+            "type": "边桌",
+            "useCase": "居家"
+          },
+          "code": "REAL-224-1",
+          "id": 22401,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-224.jpg"
+    },
+    {
+      "id": 225,
+      "name": "IKEA TERTIAL 特提亚 工作灯",
+      "brand": "IKEA",
+      "category": "居家生活",
+      "summary": "TERTIAL 特提亚 工作灯，深灰色 / 不含灯泡。",
+      "imageKey": "real-225",
+      "imageSource": "https://file.app.ikea.cn/cn/zh/images/products/tertial-te-ti-ya-gong-zuo-deng-shen-hui-se__0609306_pe684440_s5.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/30355438/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "台灯",
+        "useCase": "学习"
+      },
+      "skus": [
+        {
+          "spec": "深灰色 / 不含灯泡",
+          "price": 89.99,
+          "originalPrice": null,
+          "attributes": {
+            "type": "台灯",
+            "useCase": "学习"
+          },
+          "code": "REAL-225-1",
+          "id": 22501,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-225.jpg"
+    },
+    {
+      "id": 226,
+      "name": "IKEA POÄNG 波昂 低背扶手椅",
+      "brand": "IKEA",
+      "category": "居家生活",
+      "summary": "POÄNG 波昂 低背扶手椅，天然色 / 米色。",
+      "imageKey": "real-226",
+      "imageSource": "https://file.app.ikea.cn/cn/zh/images/products/poaeng-bo-ang-di-bei-fu-shou-yi-tian-ran-se-mi-se-kai-tuo-tian-ran-se-mi-se__1315067_pe940386_s5.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/poaeng-bo-ang-di-bei-fu-shou-yi-tian-ran-se-mi-se-kai-tuo-tian-ran-se-mi-se-s69551607/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "扶手椅",
+        "useCase": "居家"
+      },
+      "skus": [
+        {
+          "spec": "天然色 / 米色",
+          "price": 699,
+          "originalPrice": null,
+          "attributes": {
+            "type": "扶手椅",
+            "useCase": "居家"
+          },
+          "code": "REAL-226-1",
+          "id": 22601,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-226.jpg"
+    },
+    {
+      "id": 227,
+      "name": "IKEA GRANKÖLEN 格兰科伦 被套和枕套",
+      "brand": "IKEA",
+      "category": "居家生活",
+      "summary": "GRANKÖLEN 格兰科伦 被套和枕套，深蓝色 / 150×200 / 50×80cm。",
+      "imageKey": "real-227",
+      "imageSource": "https://file.app.ikea.cn/cn/zh/images/products/grankoelen-ge-lan-ke-lun-bei-tao-he-zhen-tao-shen-lan-se__1604093_pe1044780_s5.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/grankoelen-ge-lan-ke-lun-bei-tao-he-zhen-tao-shen-lan-se-60666981/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "床品",
+        "material": "纯棉",
+        "useCase": "居家"
+      },
+      "skus": [
+        {
+          "spec": "深蓝色 / 150×200 / 50×80cm",
+          "price": 199,
+          "originalPrice": null,
+          "attributes": {
+            "type": "床品",
+            "material": "纯棉",
+            "useCase": "居家"
+          },
+          "code": "REAL-227-1",
+          "id": 22701,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-227.jpg"
+    },
+    {
+      "id": 228,
+      "name": "IKEA KAFFEREP 卡弗雷普 燕麦饼干",
+      "brand": "IKEA",
+      "category": "食品饮料",
+      "summary": "KAFFEREP 卡弗雷普 燕麦饼干，600g。",
+      "imageKey": "real-228",
+      "imageSource": "https://file.app.ikea.cn/cn/zh/images/products/kafferep-qia-fu-lei-pu-yan-mai-bing-gan__0539215_pe652391_s5.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/kafferep-yan-mai-bing-gan-30374922/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "饼干",
+        "packaging": "600g"
+      },
+      "skus": [
+        {
+          "spec": "600g",
+          "price": 49.99,
+          "originalPrice": null,
+          "attributes": {
+            "type": "饼干",
+            "packaging": "600g"
+          },
+          "code": "REAL-228-1",
+          "id": 22801,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-228.jpg"
+    },
+    {
+      "id": 229,
+      "name": "IKEA VINTERSAGA 温特萨加 生姜饼干",
+      "brand": "IKEA",
+      "category": "食品饮料",
+      "summary": "VINTERSAGA 温特萨加 生姜饼干，300g。",
+      "imageKey": "real-229",
+      "imageSource": "https://file.app.ikea.cn/cn/zh/images/products/vintersaga-wen-te-sa-jia-bo-pian-sheng-jiang-bing-gan__1544239_pe1019110_s5.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/vintersaga-wen-te-sa-jia-bo-pian-sheng-jiang-bing-gan-70611974/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "饼干",
+        "packaging": "300g"
+      },
+      "skus": [
+        {
+          "spec": "300g",
+          "price": 49.99,
+          "originalPrice": null,
+          "attributes": {
+            "type": "饼干",
+            "packaging": "300g"
+          },
+          "code": "REAL-229-1",
+          "id": 22901,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-229.jpg"
+    },
+    {
+      "id": 230,
+      "name": "IKEA DRYCK 苹果越桔味碳酸饮料",
+      "brand": "IKEA",
+      "category": "食品饮料",
+      "summary": "DRYCK 苹果越桔味碳酸饮料，750ml。",
+      "imageKey": "real-230",
+      "imageSource": "https://file.app.ikea.cn/cn/zh/images/products/dryck-bubbel-aepple-lingon-ping-guo-yue-jie-wei-tan-suan-yin-liao__1486529_pe1002425_s5.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/dryck-bubbel-aepple-lingon-ping-guo-yue-jie-wei-tan-suan-yin-liao-20226767/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "碳酸饮料",
+        "capacity": "750ml"
+      },
+      "skus": [
+        {
+          "spec": "750ml",
+          "price": 39.99,
+          "originalPrice": null,
+          "attributes": {
+            "type": "碳酸饮料",
+            "capacity": "750ml"
+          },
+          "code": "REAL-230-1",
+          "id": 23001,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-230.jpg"
+    },
+    {
+      "id": 231,
+      "name": "MUJI 无印良品米糠发酵精华液",
+      "brand": "MUJI",
+      "category": "个护美妆",
+      "summary": "MUJI 无印良品米糠发酵精华液，50mL；使用方式与适用情况以品牌说明为准。",
+      "imageKey": "real-231",
+      "imageSource": "https://webimg.muji.com.cn/oms915814747/dd14a279-043f-4c70-b7c8-a1fd6b909f14.jpg",
+      "sourceUrl": "https://www.muji.com.cn/cn/store/commodity/103226",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "精华液",
+        "useCase": "护肤",
+        "capacity": "50mL"
+      },
+      "skus": [
+        {
+          "spec": "50mL",
+          "price": 128,
+          "originalPrice": null,
+          "attributes": {
+            "capacity": "50mL"
+          },
+          "code": "REAL-231-1",
+          "id": 23101,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-231.jpg"
+    },
+    {
+      "id": 232,
+      "name": "MUJI 敏感肌用基础补水乳霜",
+      "brand": "MUJI",
+      "category": "个护美妆",
+      "summary": "MUJI 敏感肌用基础补水乳霜，50g；使用方式与适用情况以品牌说明为准。",
+      "imageKey": "real-232",
+      "imageSource": "https://webimg.muji.com.cn/oms915814747/483267c3-328f-4126-aa73-9a5b69711064.jpg",
+      "sourceUrl": "https://www.muji.com.cn/cn/store/commodity/100563",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16",
+      "attributes": {
+        "type": "保湿乳霜",
+        "useCase": "护肤",
+        "capacity": "50g"
+      },
+      "skus": [
+        {
+          "spec": "50g",
+          "price": 108,
+          "originalPrice": null,
+          "attributes": {
+            "capacity": "50g"
+          },
+          "code": "REAL-232-1",
+          "id": 23201,
+          "stock": 80
+        }
+      ],
+      "imagePath": "/images/products/real-232.jpg"
+    }
+  ]
+}

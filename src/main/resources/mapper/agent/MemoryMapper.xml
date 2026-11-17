@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.agent.dao.mapper.MemoryMapper">
+    <!-- findByUserSql: 读取数据库投影 -->
+    <select id="findByUserSql" resultType="map">
+        SELECT memory_key, memory_value FROM user_memory WHERE user_id = #{userId} ORDER BY updated_at DESC
+    </select>
+    <!-- updatePreference: 条件更新，调用者检查影响行数 -->
+    <update id="updatePreference">
+        UPDATE user_memory SET memory_value = #{value},
+                               source_conversation_id = #{conversationId},
+                               version = version + 1,
+                               updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = #{userId} AND memory_key = #{key}
+    </update>
+    <!-- insertPreference: 插入持久化记录 -->
+    <insert id="insertPreference">
+        INSERT INTO user_memory(user_id, memory_key, memory_value, source_conversation_id)
+        VALUES (#{userId}, #{key}, #{value}, #{conversationId})
+    </insert>
+</mapper>

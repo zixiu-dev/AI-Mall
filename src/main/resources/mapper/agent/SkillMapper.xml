@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.agent.dao.mapper.SkillMapper">
+    <!-- listEnabledSql: 读取数据库投影 -->
+    <select id="listEnabledSql" resultType="map">
+        SELECT code, name, description, manual, tool_names FROM agent_skill WHERE enabled = TRUE ORDER BY code
+    </select>
+    <!-- findSql: 读取数据库投影 -->
+    <select id="findSql" resultType="map">
+        SELECT code, name, description, manual, tool_names FROM agent_skill WHERE code = #{code} AND enabled = TRUE
+    </select>
+    <!-- loadedSkillCodesSql: 读取数据库投影 -->
+    <select id="loadedSkillCodesSql" resultType="java.lang.String">
+        SELECT skill_code FROM conversation_skill WHERE conversation_id = #{conversationId}
+    </select>
+    <!-- markLoadedSql: 插入持久化记录 -->
+    <insert id="markLoadedSql">
+        INSERT INTO conversation_skill(conversation_id, skill_code) VALUES (#{conversationId}, #{skillCode})
+    </insert>
+    <!-- replaceLoadedSql: 按归属和条件删除 -->
+    <delete id="replaceLoadedSql">
+        DELETE FROM conversation_skill WHERE conversation_id=#{id}
+    </delete>
+</mapper>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="950" viewBox="0 0 1440 950" role="img" aria-labelledby="title desc"><title id="title">下单主链路 · 共用前置与两种执行方式</title><desc id="desc">trace 绑定、预占意图分别独立提交；Redis 不属于 MySQL 原子事务</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="950" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">下单主链路 · 共用前置与两种执行方式</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">trace 绑定、预占意图分别独立提交；Redis 不属于 MySQL 原子事务</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="131" width="330" height="123" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="46" y="148" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="60" y="167" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">① 幂等入口</text>
+<text x="49" y="200" font-size="19" fill="#43566f" style="fill:#43566f">user + trace 的 AOP 锁</text>
+<text x="49" y="228" font-size="19" fill="#43566f" style="fill:#43566f">归属 / 快照摘要 / 并发门禁</text>
+<rect x="382" y="131" width="330" height="123" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="396" y="148" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="410" y="167" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">② 固定购买意图</text>
+<text x="399" y="200" font-size="19" fill="#43566f" style="fill:#43566f">独立事务绑定 trace 与快照</text>
+<text x="399" y="228" font-size="19" fill="#43566f" style="fill:#43566f">独立事务保存 RESERVING</text>
+<rect x="732" y="131" width="330" height="123" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="746" y="148" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="760" y="167" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">③ 共享库存预扣</text>
+<text x="749" y="200" font-size="19" fill="#43566f" style="fill:#43566f">首次选择并固定 SYNC / ASYNC</text>
+<text x="749" y="228" font-size="19" fill="#43566f" style="fill:#43566f">每 SKU Lua：检查、扣数、留标志</text>
+<path d="M362 192 L382 192" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M712 192 L732 192" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="1082" y="131" width="326" height="123" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="1096" y="148" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="1110" y="167" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">库存池共用</text>
+<text x="1099" y="200" font-size="19" fill="#43566f" style="fill:#43566f">普通配置两种模式都预扣</text>
+<text x="1099" y="228" font-size="19" fill="#43566f" style="fill:#43566f">多 SKU 部分成功可幂等释放</text>
+<path d="M897 254 L897 284 L352 284 L352 316" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M897 284 L1056 284 L1056 316" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="316" width="650" height="350" rx="12" fill="#fff7ed" stroke="#ebccaa"/>
+<text x="52" y="350" font-size="23" fill="#b66824" style="fill:#b66824" font-weight="600">SYNC  ·  请求内完成建单</text>
+<rect x="52" y="369" width="610" height="185" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="66" y="386" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="80" y="405" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">建单数据库事务</text>
+<text x="69" y="438" font-size="19" fill="#43566f" style="fill:#43566f">锁 trace / CAS → 责任链重校验</text>
+<text x="69" y="466" font-size="19" fill="#43566f" style="fill:#43566f">条件扣库存、增加待支付占用、锁券</text>
+<text x="69" y="494" font-size="19" fill="#43566f" style="fill:#43566f">订单 / 明细、唯一 trace、定时关单命令</text>
+<text x="69" y="522" font-size="19" fill="#43566f" style="fill:#43566f">SUCCESS + orderId + ORDER_CREATED Outbox</text>
+<path d="M357 554 L357 577" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="52" y="577" width="610" height="73" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="66" y="594" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="80" y="613" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">提交后返回：SUCCESS + orderId</text>
+<rect x="710" y="316" width="698" height="350" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
+<text x="730" y="350" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">ASYNC  ·  先受理，再由消费者建单</text>
+<rect x="730" y="369" width="658" height="98" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="744" y="386" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="758" y="405" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">受理数据库事务</text>
+<text x="747" y="438" font-size="19" fill="#43566f" style="fill:#43566f">PROCESSING / RESERVED + ORDER_BUILD Outbox</text>
+<text x="750" y="501" font-size="21" fill="#7151a6" style="fill:#7151a6" font-weight="600">提交后返回 PROCESSING + trace（已受理）</text>
+<path d="M1060 514 L1060 535" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="730" y="535" width="658" height="114" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="744" y="552" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="758" y="571" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">Outbox → RocketMQ → 消费者</text>
+<text x="747" y="604" font-size="19" fill="#43566f" style="fill:#43566f">消费幂等 → 读取后端快照 → 共用建单事务</text>
+<text x="747" y="632" font-size="19" fill="#43566f" style="fill:#43566f">提交 SUCCESS + orderId；前端按原 trace 查询</text>
+<path d="M357 666 L357 707" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1060 666 L1060 707" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="707" width="1376" height="141" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
+<text x="52" y="741" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">事务提交以后：整理与恢复</text>
+<text x="53" y="781" font-size="21" fill="#172b4d" style="fill:#172b4d">确认 Redis 预占 · 失效展示缓存 · 转发订单事件；失败保留持久化进度，由恢复任务重试。</text>
+<text x="53" y="820" font-size="20" fill="#247d71" style="fill:#247d71">建单失败：先回滚，再独立记失败与释放任务。已 SUCCESS 不能因确认延迟而释放成功订单。</text>
+<path d="M32 886 L1408 886" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="921" font-size="18" fill="#687c96" style="fill:#687c96">SUCCESS = 建单事务提交，订单待支付；不代表已付款，也不代表全部 Redis 整理和后续消息已追平。</text>
+</svg>

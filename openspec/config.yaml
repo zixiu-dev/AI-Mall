@@ -1,0 +1,30 @@
+# 与官方 OpenSpec 2.0.0 的 spec-driven 工作流兼容；正文中文，格式关键字保留英文。
+schema: spec-driven
+context: |
+  项目是智购智能商城，Java 17 / Spring Boot / MyBatis-Plus，按业务分包的模块化单体。
+  面试解释和架构图在 docs/；当前行为契约在 openspec/specs/；一次变更在 openspec/changes/。
+  完整项目约定见 openspec/project.md，操作方式见 openspec/README.md 与 workflow.md。
+  使用普通 Java 类，不使用 record；允许按需使用 Lombok；类、关键方法和复杂步骤写中文说明。
+  Redis 访问采用 Redisson（原生对象/RScript），MQ消费去重保留例外；缓存未命中先Bloom再RLock。
+  页面和 Agent 共用业务 Service；数据库保存成交事实，展示缓存不决定价格/库存成交。
+  trace 是一次购买意图；PROCESSING、SUCCESS、PENDING_PAYMENT、PAID 是不同阶段。
+  同步和异步在普通配置下共享预扣池；任何改动都要考虑重复、超时、回滚和恢复。
+  当前存在演示身份、模拟支付和单进程会话门禁等限制，不得把未来目标写成已实现。
+  用户已授权的明确功能在同一次任务内完成规格、代码和验证，无需逐文件反复确认。
+rules:
+  proposal:
+    - 写明问题、可观察变化、范围和影响；Capabilities 使用现有能力目录的准确名称。
+    - 区分新增能力、已有行为变化和纯重构；不凭空扩大用户范围。
+  specs:
+    - 正文中文；保留 Requirement、Scenario、SHALL、WHEN、THEN 等可解析关键字。
+    - 每条要求至少一个场景；覆盖正常、拒绝、重复或故障中与本次变化相关的情况。
+    - MODIFIED 必须复制原要求完整内容后修改，保留未改变的场景及稳定编号。
+    - 描述外部行为与业务保证；类名、SQL、线程池和实现顺序放 design.md。
+  design:
+    - 解释调用链、事务边界、幂等键、状态转换及关键取舍；按变更实际涉及内容展开。
+    - 改表必须交代 MySQL/H2 的新增 Flyway 迁移，兼容、上线顺序和失败恢复。
+    - 缓存、Redis、MQ 相关改动交代故障策略，不能依赖清空交易数据恢复服务。
+  tasks:
+    - 使用有编号的复选框；每组任务写清对应要求和适当的验证方法。
+    - 只有实际完成才打勾；历史证据与本次新执行的检查分开记录。
+    - 任务包含必要的代码、验证、说明文档与最终规格同步，避免新增重复报告。

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.order.dao.mapper.OrderInventoryMapper">
+ <select id="sku" resultType="map">SELECT stock,redis_inventory_initialized FROM product_sku WHERE id=#{sku}</select>
+ <select id="lockSku" resultType="map">SELECT stock,redis_inventory_initialized FROM product_sku WHERE id=#{sku} FOR UPDATE</select>
+ <update id="initialized">UPDATE product_sku SET redis_inventory_initialized=TRUE WHERE id=#{sku}</update>
+ <select id="initializedCount" resultType="int">SELECT COUNT(*) FROM product_sku WHERE redis_inventory_initialized=TRUE</select>
+ <!-- 与预占意图同事务固定首次提交的路由，之后的重试不能变更。 -->
+ <update id="route">UPDATE order_submit_trace SET mode=#{mode} WHERE trace_id=#{id} AND status='INIT' AND reserve_status='NONE'</update>
+ <update id="intent">UPDATE order_submit_trace SET reserve_status='RESERVING',version=version+1,updated_at=CURRENT_TIMESTAMP(6),next_check_at=#{next}
+ WHERE trace_id=#{id} AND status='INIT' AND reserve_status='NONE'</update>
+ <select id="staleIntent" resultType="int">SELECT COUNT(*) FROM order_submit_trace WHERE trace_id=#{id} AND status='INIT' AND reserve_status='RESERVING' AND next_check_at&lt;=CURRENT_TIMESTAMP(6)</select>
+ <update id="admitted">UPDATE order_submit_trace SET reserve_status='RESERVED' WHERE trace_id=#{id} AND status='PROCESSING' AND reserve_status='RESERVING'</update>
+ <update id="stage">UPDATE order_submit_trace SET reserve_status=#{state},next_check_at=CURRENT_TIMESTAMP(6) WHERE trace_id=#{id} AND reserve_status=#{expected}</update>
+ <select id="orderReservation" resultType="map">SELECT o.submit_trace_id AS trace_id,t.reserve_status FROM customer_order o LEFT JOIN order_submit_trace t ON t.trace_id=o.submit_trace_id WHERE o.id=#{order}</select>
+ <insert id="insertReturn">INSERT INTO order_inventory_return(order_id,sku_id,reservation_id,quantity) VALUES(#{order},#{sku},#{reservation},#{quantity})</insert>
+ <select id="returnsForOrder" resultType="map">SELECT order_id,sku_id FROM order_inventory_return WHERE order_id=#{order} AND completed=FALSE ORDER BY sku_id</select>
+ <select id="pendingReturns" resultType="map">SELECT order_id,sku_id FROM order_inventory_return WHERE completed=FALSE ORDER BY created_at,order_id,sku_id LIMIT 50</select>
+ <select id="lockReturn" resultType="map">SELECT * FROM order_inventory_return WHERE order_id=#{order} AND sku_id=#{sku} FOR UPDATE</select>
+ <update id="completedReturn">UPDATE order_inventory_return SET completed=TRUE WHERE order_id=#{order} AND sku_id=#{sku} AND completed=FALSE</update>
+ <update id="returnPending">UPDATE order_submit_trace SET reserve_status='RETURN_PENDING' WHERE order_id=#{order} AND reserve_status IN ('CONFIRM_PENDING','CONFIRMED')</update>
+ <update id="returnCompleted">UPDATE order_submit_trace SET reserve_status='RETURNED' WHERE order_id=#{order} AND reserve_status='RETURN_PENDING'
+ AND NOT EXISTS(SELECT 1 FROM order_inventory_return r WHERE r.order_id=#{order} AND r.completed=FALSE)</update>
+</mapper>

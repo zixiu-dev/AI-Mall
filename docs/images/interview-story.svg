@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="890" viewBox="0 0 1440 890" role="img" aria-labelledby="title desc"><title id="title">面试讲述路线 · 从一条请求展开设计</title><desc id="desc">先讲业务正常流程，再讲重复、故障与取舍，用证据支撑结果</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="890" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">面试讲述路线 · 从一条请求展开设计</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">先讲业务正常流程，再讲重复、故障与取舍，用证据支撑结果</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="131" width="1376" height="181" rx="12" fill="#eff6ff" stroke="#b8d0ee"/>
+<text x="52" y="165" font-size="23" fill="#2466b5" style="fill:#2466b5" font-weight="600">第一步：从普通用户购买讲起</text>
+<rect x="52" y="188" width="430" height="103" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="66" y="205" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="80" y="224" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">查询与选 SKU</text>
+<text x="69" y="257" font-size="19" fill="#43566f" style="fill:#43566f">展示缓存保护数据库</text>
+<rect x="502" y="188" width="430" height="103" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="516" y="205" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="530" y="224" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">结算与绑定 trace</text>
+<text x="519" y="257" font-size="19" fill="#43566f" style="fill:#43566f">核对价格 / 地址 / 券</text>
+<rect x="952" y="188" width="430" height="103" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="966" y="205" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="980" y="224" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">预扣与建单事务</text>
+<text x="969" y="257" font-size="19" fill="#43566f" style="fill:#43566f">订单成功后等待支付</text>
+<path d="M482 239 L502 239" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M932 239 L952 239" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1167 312 L1167 350" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="350" width="668" height="224" rx="12" fill="#fff7ed" stroke="#ebccaa"/>
+<text x="52" y="384" font-size="23" fill="#b66824" style="fill:#b66824" font-weight="600">第二步：解释流量和故障</text>
+<text x="52" y="427" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">高压力 → 可靠受理 → Outbox → MQ 建单</text>
+<text x="52" y="474" font-size="21" fill="#172b4d" style="fill:#172b4d">追问：锁过期？重复消息？预扣后崩溃？</text>
+<text x="52" y="522" font-size="21" fill="#172b4d" style="fill:#172b4d">回答：数据库兜底 + Lua 幂等 + 持久化恢复</text>
+<rect x="724" y="350" width="684" height="224" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
+<text x="744" y="384" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">第三步：换成 Agent 入口</text>
+<text x="744" y="427" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">模型选工具 → 确认卡 → 用户批准 → 业务</text>
+<text x="744" y="474" font-size="21" fill="#172b4d" style="fill:#172b4d">追问：模型猜价格？未确认购买？上下文丢失？</text>
+<text x="744" y="522" font-size="21" fill="#172b4d" style="fill:#172b4d">回答：真实工具结果 + 双检 + 后端参数与状态</text>
+<path d="M366 574 L366 613" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1066 574 L1066 613" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="613" width="1376" height="155" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
+<text x="52" y="647" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">第四步：用实测与边界收尾</text>
+<text x="52" y="685" font-size="22" fill="#172b4d" style="fill:#172b4d">说明机器、场景、QPS / TPS 口径、错误与后置积压；区分当前实现和后续优化。</text>
+<text x="52" y="733" font-size="20" fill="#247d71" style="fill:#247d71">单体 / 演示身份 / 模拟支付 / 知识默认关键词、可选混合 / 单进程会话门禁：边界要主动讲清。</text>
+<path d="M32 826 L1408 826" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="861" font-size="18" fill="#687c96" style="fill:#687c96">每个设计都回答四件事：遇到什么问题 → 请求怎么走 → 靠什么保证 → 失败后怎么办。</text>
+</svg>

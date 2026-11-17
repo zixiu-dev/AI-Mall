@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.knowledge.dao.mapper.pgvector.PgVectorIndexMapper">
+  <update id="setLockTimeout">SET LOCAL lock_timeout='2s'</update>
+  <update id="setStatementTimeout">SET LOCAL statement_timeout='5s'</update>
+  <update id="setIterativeScan">SET LOCAL hnsw.iterative_scan='strict_order'</update>
+  <update id="setEfSearch">SET LOCAL hnsw.ef_search=100</update>
+  <insert id="begin">INSERT INTO knowledge_index_version(index_version,build_status,embedding_model_id,embedding_version,dimension,document_count,chunk_count) VALUES (#{version},'BUILDING',#{model},#{modelVersion},#{dimension},#{documents},0)</insert>
+  <update id="fail">UPDATE knowledge_index_version SET build_status='FAILED' WHERE index_version=#{version} AND build_status='BUILDING'</update>
+  <select id="lockHead" resultType="int">SELECT head_id FROM knowledge_index_head WHERE head_id=1 FOR UPDATE</select>
+  <insert id="insertChunk">INSERT INTO knowledge_index_chunk(index_version,chunk_id,document_key,content_version,document_hash,text_hash,section_title,chunk_text,embedding,metadata_json,brand_code,document_type,region) VALUES (#{version},#{chunkId},#{documentKey},#{contentVersion},#{documentHash},#{textHash},#{sectionTitle},#{content},CAST(#{vector} AS vector),CAST(#{metadata} AS jsonb),#{brand},#{type},#{region})</insert>
+  <update id="complete">UPDATE knowledge_index_version SET build_status='PUBLISHED',chunk_count=#{count},published_at=CURRENT_TIMESTAMP WHERE index_version=#{version} AND build_status='BUILDING'</update>
+  <update id="switchHead">UPDATE knowledge_index_head SET index_version=#{version} WHERE head_id=1</update>
+  <select id="published" resultType="map">SELECT v.* FROM knowledge_index_head h JOIN knowledge_index_version v ON h.index_version=v.index_version WHERE h.head_id=1 AND v.build_status='PUBLISHED'</select>
+  <!-- 查询快照只取正文/哈希与来源，不把所有 embedding 加载回 JVM。 -->
+  <select id="chunks" resultType="map">SELECT chunk_id,document_hash,text_hash,section_title,metadata_json::text AS metadata_json FROM knowledge_index_chunk WHERE index_version=#{version} ORDER BY chunk_id LIMIT #{limit}</select>
+  <sql id="scope">index_version=#{version} AND brand_code=#{brand} AND document_type=#{type} AND region='CN_MAINLAND'</sql>
+  <select id="keyword" resultType="map">
+    SELECT chunk_id,(<foreach collection="patterns" item="term" separator=" + ">CASE WHEN LOWER(CONCAT(section_title,' ',chunk_text)) LIKE LOWER(#{term}) ESCAPE '!' THEN 1 ELSE 0 END</foreach>) AS score
+    FROM knowledge_index_chunk WHERE <include refid="scope"/> ORDER BY score DESC,chunk_id LIMIT #{limit}
+  </select>
+  <!-- 精确方式先物化合法范围，保证先过滤再 topK。 -->
+  <select id="exact" resultType="map">
+    WITH legal AS MATERIALIZED (SELECT chunk_id,embedding FROM knowledge_index_chunk WHERE <include refid="scope"/>)
+    SELECT chunk_id,embedding &lt;=> CAST(#{vector} AS vector) AS distance FROM legal ORDER BY distance,chunk_id LIMIT #{limit}
+  </select>
+  <!-- 近似方式保留可走 HNSW 的原始距离 ORDER BY；过滤不足由仓库精确兜底。 -->
+  <select id="ann" resultType="map">SELECT chunk_id,embedding &lt;=> CAST(#{vector} AS vector) AS distance FROM knowledge_index_chunk WHERE <include refid="scope"/> ORDER BY embedding &lt;=> CAST(#{vector} AS vector) LIMIT #{limit}</select>
+  <select id="scopeCount" resultType="int">SELECT COUNT(*) FROM knowledge_index_chunk WHERE <include refid="scope"/></select>
+</mapper>

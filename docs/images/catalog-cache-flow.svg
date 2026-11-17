@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1030" viewBox="0 0 1440 1030" role="img" aria-labelledby="title desc"><title id="title">商品详情缓存 · 命中、构建与故障保护</title><desc id="desc">仅缓存公共展示数据；结算和建单重新读取权威数据</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="1030" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">商品详情缓存 · 命中、构建与故障保护</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">仅缓存公共展示数据；结算和建单重新读取权威数据</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="132" width="766" height="105" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="46" y="149" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="60" y="168" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">① 参数校验</text>
+<text x="49" y="201" font-size="19" fill="#43566f" style="fill:#43566f">商品 ID 必须为正整数，非法参数直接拒绝</text>
+<path d="M415 237 L415 262" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="262" width="766" height="105" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="46" y="279" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="60" y="298" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">② Caffeine 本地缓存</text>
+<text x="49" y="331" font-size="19" fill="#43566f" style="fill:#43566f">命中即返回，本地命中不查询 Bloom</text>
+<path d="M415 367 L415 392" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="392" width="766" height="105" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="46" y="409" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="60" y="428" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">③ Bloom → Redis 详情缓存</text>
+<text x="49" y="461" font-size="19" fill="#43566f" style="fill:#43566f">先过滤；可能存在/未知才读共享缓存</text>
+<path d="M415 497 L415 522" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="522" width="766" height="105" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="46" y="539" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="60" y="558" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">④ Redisson RLock + 双重检查</text>
+<text x="49" y="591" font-size="19" fill="#43566f" style="fill:#43566f">看门狗跨实例续期；拿锁后重查缓存</text>
+<path d="M415 627 L415 652" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="652" width="766" height="105" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="46" y="669" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="60" y="688" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">⑤ 获取回源许可 → 数据库 loader</text>
+<text x="49" y="721" font-size="19" fill="#43566f" style="fill:#43566f">查商品、SKU 与属性；每实例最多 16 个 loader</text>
+<path d="M415 757 L415 782" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="782" width="766" height="105" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="46" y="799" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="60" y="818" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">⑥ 校验后回填并释放自己的锁</text>
+<text x="49" y="851" font-size="19" fill="#43566f" style="fill:#43566f">有商品：详情；查不到：短 TTL 空结果</text>
+<rect x="832" y="132" width="576" height="195" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
+<text x="852" y="166" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">穿透 / 击穿 / 雪崩分别应对</text>
+<text x="853" y="211" font-size="21" fill="#172b4d" style="fill:#172b4d">穿透：Bloom + 空值缓存</text>
+<text x="853" y="256" font-size="21" fill="#172b4d" style="fill:#172b4d">击穿：Redisson RLock + 锁后双检</text>
+<text x="853" y="301" font-size="21" fill="#172b4d" style="fill:#172b4d">雪崩：TTL 抖动 + 有界回源</text>
+<rect x="832" y="350" width="576" height="230" rx="12" fill="#fff7ed" stroke="#ebccaa"/>
+<text x="852" y="384" font-size="23" fill="#b66824" style="fill:#b66824" font-weight="600">默认缓存策略</text>
+<text x="853" y="425" font-size="21" fill="#172b4d" style="fill:#172b4d">详情 20～24s；空值 3～3.6s</text>
+<text x="853" y="466" font-size="21" fill="#172b4d" style="fill:#172b4d">Caffeine 2s；HotKey 决定是否提升</text>
+<text x="853" y="507" font-size="21" fill="#172b4d" style="fill:#172b4d">默认 HOTKEY，热点功能默认关闭</text>
+<text x="853" y="548" font-size="21" fill="#172b4d" style="fill:#172b4d">ALL / OFF 用于显式策略与对照压测</text>
+<rect x="832" y="603" width="576" height="284" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
+<text x="852" y="637" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">旧值与故障不能无限扩散</text>
+<text x="853" y="679" font-size="20" fill="#172b4d" style="fill:#172b4d">事务提交 → 切换缓存代际 + 广播</text>
+<text x="853" y="722" font-size="20" fill="#172b4d" style="fill:#172b4d">旧回填校验代际 / 锁所有者 / 修订号</text>
+<text x="853" y="765" font-size="20" fill="#172b4d" style="fill:#172b4d">Bloom 未就绪或故障：绕过过滤</text>
+<text x="853" y="808" font-size="20" fill="#172b4d" style="fill:#172b4d">Redis 故障：冷却 + 有界回源</text>
+<text x="853" y="851" font-size="20" fill="#172b4d" style="fill:#172b4d">过载返回 503，保护数据库</text>
+<text x="53" y="947" font-size="21" fill="#466484" style="fill:#466484">RLock 自动续期，竞争等待最多 1200ms；事务内查询绕过缓存。展示最终一致，不用于交易判定。</text>
+<path d="M32 966 L1408 966" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="1001" font-size="18" fill="#687c96" style="fill:#687c96">空值只处理“可能存在但数据库查不到”的详情；布隆明确否定时不回源。默认未把所有商品正文预装进 Redis。</text>
+</svg>

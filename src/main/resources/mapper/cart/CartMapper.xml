@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.cart.dao.mapper.CartMapper">
+    <!-- listCartSql: 读取数据库投影 -->
+    <select id="listCartSql" resultType="map">
+        SELECT c.id, c.sku_id, p.id AS product_id, p.name AS product_name,
+               s.spec, p.image_key, s.price, s.stock, c.quantity, c.selected
+        FROM cart_item c
+        JOIN product_sku s ON s.id = c.sku_id
+        JOIN product p ON p.id = s.product_id
+        WHERE c.user_id = #{userId} AND p.enabled = TRUE AND s.enabled = TRUE
+        ORDER BY c.updated_at DESC, c.id DESC
+    </select>
+    <!-- incrementItemQuantity: 条件更新，调用者检查影响行数 -->
+    <update id="incrementItemQuantity">
+        UPDATE cart_item SET quantity = quantity + #{quantity}, selected = TRUE,
+                             updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = #{userId} AND sku_id = #{skuId}
+    </update>
+    <!-- insertCartItem: 插入持久化记录 -->
+    <insert id="insertCartItem">
+        INSERT INTO cart_item(user_id, sku_id, quantity, selected)
+        VALUES (#{userId}, #{skuId}, #{quantity}, TRUE)
+    </insert>
+    <!-- updateCartItemSql: 条件更新，调用者检查影响行数 -->
+    <update id="updateCartItemSql">
+        UPDATE cart_item
+        SET quantity = #{quantity}, selected = COALESCE(#{selected}, selected),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{itemId} AND user_id = #{userId}
+    </update>
+    <!-- removeCartItemSql: 按归属和条件删除 -->
+    <delete id="removeCartItemSql">
+        DELETE FROM cart_item WHERE id = #{itemId} AND user_id = #{userId}
+    </delete>
+</mapper>

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="930" viewBox="0 0 1440 930" role="img" aria-labelledby="title desc"><title id="title">Agent 执行链路 · 从用户意图到真实业务</title><desc id="desc">模型负责理解和选择工具；价格、库存、资格、订单结果由业务服务判断</desc><defs><marker id="a" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L7 4.5 L1 8" fill="none" stroke="#7b8ba5" stroke-width="1.5"/></marker></defs><style>text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#172b4d}</style>
+<rect x="0" y="0" width="1440" height="930" rx="0" fill="#fbfcff" stroke="none"/>
+<text x="32" y="51" font-size="32" fill="#142b4b" style="fill:#142b4b" font-weight="600">Agent 执行链路 · 从用户意图到真实业务</text>
+<text x="34" y="88" font-size="19" fill="#586c88" style="fill:#586c88">模型负责理解和选择工具；价格、库存、资格、订单结果由业务服务判断</text>
+<rect x="1246" y="28" width="160" height="35" rx="17" fill="#eaf1fb" stroke="none"/>
+<text x="1326" y="51" font-size="16" fill="#365c8b" style="fill:#365c8b" font-weight="600" text-anchor="middle">智购 · 设计图</text>
+<rect x="32" y="130" width="322" height="123" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="46" y="147" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="60" y="166" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">① 会话入口</text>
+<text x="49" y="199" font-size="19" fill="#43566f" style="fill:#43566f">校验归属 / 本进程会话门禁</text>
+<text x="49" y="227" font-size="19" fill="#43566f" style="fill:#43566f">保存消息，准备历史与偏好</text>
+<rect x="379" y="130" width="442" height="123" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="393" y="147" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="407" y="166" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">② Spring AI Agent</text>
+<text x="396" y="199" font-size="19" fill="#43566f" style="fill:#43566f">理解 → 工具调用 → 工具结果 → 再推理</text>
+<text x="396" y="227" font-size="19" fill="#43566f" style="fill:#43566f">SSE 推送文字增量与工具执行事件</text>
+<rect x="846" y="130" width="562" height="123" rx="12" fill="#ffffff" stroke="#d4c4ef"/>
+<rect x="860" y="147" width="4" height="23" rx="2" fill="#7151a6" stroke="none"/>
+<text x="874" y="166" font-size="22" fill="#7151a6" style="fill:#7151a6" font-weight="600">③ 两次工具检查</text>
+<text x="863" y="199" font-size="19" fill="#43566f" style="fill:#43566f">推理前：按可见 Skills 过滤工具</text>
+<text x="863" y="227" font-size="19" fill="#43566f" style="fill:#43566f">执行时：开放名单 / Schema / 可信上下文</text>
+<path d="M354 191 L379 191" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M821 191 L846 191" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1127 253 L1127 287 L357 287 L357 319" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1127 287 L1060 287 L1060 319" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="319" width="650" height="284" rx="12" fill="#eff6ff" stroke="#b8d0ee"/>
+<text x="52" y="353" font-size="23" fill="#2466b5" style="fill:#2466b5" font-weight="600">查询工具：直接读取真实数据</text>
+<rect x="52" y="373" width="610" height="102" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
+<rect x="66" y="390" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
+<text x="80" y="409" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">商品 / 试算 / 订单 / 物流 / 规则</text>
+<text x="69" y="442" font-size="19" fill="#43566f" style="fill:#43566f">ToolDispatcher → 对应业务 Service</text>
+<path d="M357 475 L357 497" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<text x="64" y="530" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">工具返回结构化事实，模型据此回答。</text>
+<text x="64" y="567" font-size="20" fill="#52647e" style="fill:#52647e">商品编号和成交条件不能靠聊天内容猜测。</text>
+<rect x="710" y="319" width="698" height="284" rx="12" fill="#fff7ed" stroke="#ebccaa"/>
+<text x="730" y="353" font-size="23" fill="#b66824" style="fill:#b66824" font-weight="600">写工具：先提议，再由用户明确确认</text>
+<rect x="730" y="373" width="658" height="102" rx="12" fill="#ffffff" stroke="#ebccaa"/>
+<rect x="744" y="390" width="4" height="23" rx="2" fill="#b66824" stroke="none"/>
+<text x="758" y="409" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">持久化 pending_action</text>
+<text x="747" y="442" font-size="19" fill="#43566f" style="fill:#43566f">保存用户 / 会话 / 原始参数 / 摘要 / CAS 状态</text>
+<path d="M1060 475 L1060 497" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<text x="750" y="530" font-size="22" fill="#b66824" style="fill:#b66824" font-weight="600">用户确认 → 校验归属 → 恢复后端参数</text>
+<text x="750" y="567" font-size="20" fill="#52647e" style="fill:#52647e">ConfirmedActionExecutor → 共用业务 Service</text>
+<path d="M357 603 L357 638" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<path d="M1060 603 L1060 638" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
+<rect x="32" y="638" width="1376" height="178" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
+<text x="52" y="672" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">④ 保存真实回执与可恢复上下文</text>
+<rect x="52" y="692" width="430" height="103" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="66" y="709" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="80" y="728" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">页面消息与摘要</text>
+<text x="69" y="761" font-size="19" fill="#43566f" style="fill:#43566f">chat_message / conversation</text>
+<rect x="502" y="692" width="430" height="103" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="516" y="709" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="530" y="728" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">Spring AI 消息与工具配对</text>
+<text x="519" y="761" font-size="19" fill="#43566f" style="fill:#43566f">agent_scope_state / spring-ai-v1</text>
+<rect x="952" y="692" width="430" height="103" rx="12" fill="#ffffff" stroke="#b5ded5"/>
+<rect x="966" y="709" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
+<text x="980" y="728" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">长期偏好与购买结果</text>
+<text x="969" y="761" font-size="19" fill="#43566f" style="fill:#43566f">user_memory / trace / order</text>
+<text x="52" y="853" font-size="21" fill="#7151a6" style="fill:#7151a6" font-weight="600">确认卡 EXECUTED：工具已执行；异步购买仍可能 PROCESSING，最终成功必须查询 trace。</text>
+<path d="M32 866 L1408 866" fill="none" stroke="#7b8ba5" stroke-width="1.7"/>
+<text x="34" y="901" font-size="18" fill="#687c96" style="fill:#687c96">当前会话门禁仅单进程；Skills 是业务手册；知识检索可用 PostgreSQL + pgvector 混合召回，RRF 后交回模型。</text>
+</svg>

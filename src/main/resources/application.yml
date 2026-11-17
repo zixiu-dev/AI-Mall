@@ -1,0 +1,185 @@
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+
+spring:
+  autoconfigure:
+    # 由订单模块的配置按开关导入，关闭 MQ 时连生产者也不启动。
+    exclude: org.apache.rocketmq.spring.autoconfigure.RocketMQAutoConfiguration
+  application:
+    name: wowo-smart-commerce
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3307/bit_mall?characterEncoding=UTF-8&connectionTimeZone=%2B08:00&forceConnectionTimeZoneToSession=true}
+    username: ${DB_USERNAME:bitmall}
+    password: ${DB_PASSWORD:bitmall}
+  flyway:
+    enabled: true
+    locations: classpath:db/mysql
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6380}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: 300ms
+      timeout: 200ms
+      lettuce:
+        shutdown-timeout: 100ms
+  jackson:
+    # 使用 Jackson 3，但保留现有 JSON 缺省字段、日期等兼容规则。
+    use-jackson2-defaults: true
+    default-property-inclusion: non_null
+
+management:
+  server:
+    address: 127.0.0.1
+    port: ${MANAGEMENT_PORT:9080}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,catalogcache,ordermonitor
+  health:
+    redis:
+      enabled: ${CATALOG_CACHE_ENABLED:true}
+
+app:
+  inventory:
+    enabled: ${ORDER_INVENTORY_RESERVATION_ENABLED:true}
+    admission-grace-seconds: 30
+  order-processing:
+    redis-host: ${ORDER_REDIS_HOST:127.0.0.1}
+    redis-port: ${ORDER_REDIS_PORT:6381}
+    redis-password: ${ORDER_REDIS_PASSWORD:}
+    redis-database: ${ORDER_REDIS_DATABASE:0}
+    namespace: ${ORDER_NAMESPACE:wowo:order:dev:}
+    locks-enabled: ${ORDER_LOCKS_ENABLED:true}
+    database-fallback: true
+    submission-mode: ${ORDER_SUBMISSION_MODE:AUTO}
+    async-timeout-seconds: 120
+    trace-ttl-seconds: 600
+    payment-ttl-seconds: ${ORDER_PAYMENT_TTL_SECONDS:900}
+    demo-payment-enabled: ${ORDER_DEMO_PAYMENT_ENABLED:false}
+    max-concurrent: 32
+    latency-target-ms: 500
+    recovery-interval-ms: 5000
+  order-routing:
+    # 初始容量预算，压测后按机器与数据库资源调整。不是线上吞吐承诺。
+    sync-qps-per-instance: ${ORDER_SYNC_QPS:60}
+    sample-interval-ms: 1000
+    high-samples: 3
+    low-samples: 10
+    cooldown: 30s
+    stale-after: 5s
+    sync-p95-high-ms: 300
+    sync-p95-low-ms: 150
+    minimum-sync-samples: 20
+    in-flight-high: 0.7
+    in-flight-low: 0.3
+    database-high: 0.8
+    database-low: 0.5
+    max-pending: 1000
+    recover-pending: 100
+    max-queue-age-seconds: 20
+  order-messaging:
+    enabled: ${ROCKETMQ_ENABLED:true}
+    topic: ${ROCKETMQ_ORDER_TOPIC:wowo_mall_order_events_dev}
+    consumer-group: ${ROCKETMQ_ORDER_CONSUMER_GROUP:wowo_mall_order_receipt_dev}
+    build-consumer-group: ${ROCKETMQ_BUILD_CONSUMER_GROUP:wowo_mall_order_build_dev}
+    timeout-consumer-group: ${ROCKETMQ_TIMEOUT_CONSUMER_GROUP:wowo_mall_order_timeout_dev}
+    batch-size: 20
+    relay-interval-ms: 5000
+    lease-seconds: 60
+    retry-delay-seconds: 10
+  catalog-cache:
+    enabled: ${CATALOG_CACHE_ENABLED:true}
+    namespace: ${CATALOG_CACHE_NAMESPACE:wowo:catalog:real:v2}
+    detail-ttl: 20s
+    search-ttl: 5s
+    negative-ttl: 3s
+    local-ttl: 2s
+    local-maximum-size: 2000
+    redis-cooldown: 3s
+    maximum-concurrent-loads: 16
+  catalog-local:
+    mode: ${CATALOG_LOCAL_MODE:HOTKEY}
+  catalog-protection:
+    bloom-enabled: ${CATALOG_BLOOM_ENABLED:true}
+    expected-products: 1000000
+    false-positive-rate: 0.001
+    scan-batch: 1000
+    bloom-rebuild-interval-ms: 300000
+    lock-wait: 1200ms
+    ttl-jitter-ratio: 0.2
+  hotkey:
+    enabled: ${HOTKEY_ENABLED:false}
+    app-name: ${HOTKEY_APP_NAME:wowo-mall}
+    etcd-server: ${HOTKEY_ETCD_SERVER:http://127.0.0.1:2379}
+    push-period-millis: 500
+    maximum-keys: 10000
+  knowledge:
+    mode: ${RAG_MODE:KEYWORD}
+    vector-store: ${RAG_VECTOR_STORE:PGVECTOR}
+    pgvector:
+      url: ${RAG_PG_URL:jdbc:postgresql://127.0.0.1:5433/bitmall_knowledge}
+      username: ${RAG_PG_USERNAME:bitmall}
+      password: ${RAG_PG_PASSWORD:}
+      search-mode: ${RAG_PG_SEARCH_MODE:EXACT}
+    timeout-millis: 8000
+    workers: 4
+    maximum-chunks: 1000
+    candidate-limit: 10
+    rrf-k: 60
+    evidence-per-group: 2
+    maximum-calls: 8
+    enhancement-enabled: ${RAG_ENHANCEMENT_ENABLED:false}
+    # base-url 不含 endpoint-path。地域/工作空间地址必须与百炼 Key 匹配。
+    embedding-base-url: ${RAG_EMBEDDING_BASE_URL:}
+    embedding-path: ${RAG_EMBEDDING_PATH:/embeddings}
+    embedding-api-key: ${RAG_EMBEDDING_API_KEY:${DASHSCOPE_API_KEY:}}
+    embedding-model: ${RAG_EMBEDDING_MODEL:text-embedding-v4}
+    embedding-version: ${RAG_EMBEDDING_VERSION:text-embedding-v4-config-1}
+    embedding-dimension: ${RAG_EMBEDDING_DIMENSION:1024}
+    embedding-batch-size: 8
+  agent:
+    ai-enabled: ${AGENT_AI_ENABLED:false}
+    recent-message-limit: 20
+    summary-trigger-count: 13
+    max-tool-result-chars: 4000
+    max-iterations: 12
+    request-timeout-seconds: 180
+    max-context-chars: 32000
+    keep-recent-turns: 6
+    model:
+      api-key: ${OPENAI_API_KEY:demo-key}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      endpoint-path: ${OPENAI_ENDPOINT_PATH:/v1/chat/completions}
+      name: ${OPENAI_MODEL:gpt-4.1-mini}
+
+logging:
+  level:
+    com.bitmall.agent: INFO
+    org.springframework.ai: INFO
+
+# JVM 的 -Drocketmq.name-server=... 会覆盖这里的地址。
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:common-rocketmq-dev.magestack.cn:9876}
+  producer:
+    group: ${ROCKETMQ_PRODUCER_GROUP:wowo_mall_order_producer_dev}
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 1
+    access-key: ${ROCKETMQ_ACCESS_KEY:}
+    secret-key: ${ROCKETMQ_SECRET_KEY:}
+  consumer:
+    access-key: ${ROCKETMQ_ACCESS_KEY:}
+    secret-key: ${ROCKETMQ_SECRET_KEY:}
+
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    call-setters-on-nulls: true
+    local-cache-scope: statement
+  global-config:
+    banner: false

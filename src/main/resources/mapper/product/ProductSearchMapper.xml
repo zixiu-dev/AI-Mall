@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.product.dao.mapper.ProductSearchMapper">
+    <!-- 用户值只使用 #{}；排序和表选择均在 XML 白名单中，没有原样 SQL 插值。 -->
+    <sql id="searchFrom">
+        FROM product p JOIN product_sku s ON s.product_id=p.id
+        WHERE p.enabled=TRUE AND s.enabled=TRUE
+        <if test="request.category != null">AND p.category=#{request.category}</if>
+        <if test="request.brand != null">AND LOWER(p.brand)=LOWER(#{request.brand})</if>
+        <if test="request.minPrice != null">AND s.price &gt;= #{request.minPrice}</if>
+        <if test="request.maxPrice != null">AND s.price &lt;= #{request.maxPrice}</if>
+        <if test="request.inStock">AND s.stock &gt; 0</if>
+        <if test="request.color != null">
+            AND EXISTS(SELECT 1 FROM sku_attribute a WHERE a.sku_id=s.id
+                AND a.attr_key='color' AND LOWER(a.attr_value)=LOWER(#{request.color}))
+        </if>
+        <if test="request.size != null">
+            AND EXISTS(SELECT 1 FROM sku_attribute a WHERE a.sku_id=s.id
+                AND a.attr_key='size' AND LOWER(a.attr_value)=LOWER(#{request.size}))
+        </if>
+        <if test="request.material != null">
+            AND EXISTS(SELECT 1 FROM product_attribute a WHERE a.product_id=p.id
+                AND a.attr_key='material' AND LOWER(a.attr_value)=LOWER(#{request.material}))
+        </if>
+        <if test="request.useCase != null">
+            AND EXISTS(SELECT 1 FROM product_attribute a WHERE a.product_id=p.id
+                AND a.attr_key='useCase' AND LOWER(a.attr_value)=LOWER(#{request.useCase}))
+        </if>
+        <foreach collection="patterns" item="term">
+            AND (LOWER(p.name) LIKE #{term} ESCAPE '!' OR LOWER(p.brand) LIKE #{term} ESCAPE '!'
+                OR LOWER(p.summary) LIKE #{term} ESCAPE '!' OR LOWER(p.category) LIKE #{term} ESCAPE '!'
+                OR LOWER(s.spec) LIKE #{term} ESCAPE '!'
+                OR EXISTS(SELECT 1 FROM product_attribute a WHERE a.product_id=p.id AND LOWER(a.attr_value) LIKE #{term} ESCAPE '!')
+                OR EXISTS(SELECT 1 FROM sku_attribute a WHERE a.sku_id=s.id AND LOWER(a.attr_value) LIKE #{term} ESCAPE '!'))
+        </foreach>
+    </sql>
+    <!-- countMatches: 读取数据库投影 -->
+    <select id="countMatches" resultType="long">
+        SELECT COUNT(DISTINCT p.id) <include refid="searchFrom"/>
+    </select>
+    <!-- selectMatchingProducts: 读取数据库投影 -->
+    <select id="selectMatchingProducts" resultType="map">
+        SELECT * FROM (
+            SELECT p.id,p.name,p.category,p.brand,p.summary,p.image_key,p.rating,p.sales_count,
+                s.id AS sku_id,s.spec,s.price,s.original_price,
+                0 <foreach collection="patterns" item="term">
+                    + CASE WHEN EXISTS(SELECT 1 FROM product_attribute a WHERE a.product_id=p.id AND a.attr_key='type'
+                            AND LOWER(a.attr_value) LIKE #{term} ESCAPE '!') THEN 15
+                        WHEN LOWER(p.name) LIKE #{term} ESCAPE '!' THEN 8
+                        WHEN LOWER(p.brand) LIKE #{term} ESCAPE '!' THEN 5 ELSE 1 END
+                </foreach> AS score,
+                SUM(s.stock) OVER(PARTITION BY p.id) AS stock,
+                COUNT(*) OVER(PARTITION BY p.id) AS sku_count,
+                ROW_NUMBER() OVER(PARTITION BY p.id ORDER BY s.price,s.id) AS rn
+            <include refid="searchFrom"/>
+        ) candidates WHERE rn=1 ORDER BY
+        <choose>
+            <when test="request.sort == 'priceAsc'">price ASC,id ASC</when>
+            <when test="request.sort == 'priceDesc'">price DESC,id ASC</when>
+            <when test="request.sort == 'sales'">sales_count DESC,id ASC</when>
+            <when test="request.sort == 'rating'">rating DESC,sales_count DESC,id ASC</when>
+            <otherwise>score DESC,rating DESC,sales_count DESC,id ASC</otherwise>
+        </choose>
+        LIMIT #{take} OFFSET #{skip}
+    </select>
+    <sql id="optionScope">
+        p.enabled=TRUE AND EXISTS(SELECT 1 FROM product_sku x WHERE x.product_id=p.id AND x.enabled=TRUE)
+        <if test="category != null">AND p.category=#{category}</if>
+    </sql>
+    <!-- selectBrands: 读取数据库投影 -->
+    <select id="selectBrands" resultType="string">
+        SELECT DISTINCT p.brand FROM product p WHERE <include refid="optionScope"/> ORDER BY p.brand
+    </select>
+    <!-- selectAttributeOptions: 读取数据库投影 -->
+    <select id="selectAttributeOptions" resultType="map">
+        SELECT DISTINCT a.attr_key,a.attr_value FROM product_attribute a JOIN product p ON a.product_id=p.id
+        WHERE <include refid="optionScope"/>
+        UNION SELECT DISTINCT a.attr_key,a.attr_value FROM sku_attribute a
+        JOIN product_sku s ON a.sku_id=s.id JOIN product p ON s.product_id=p.id
+        WHERE s.enabled=TRUE AND <include refid="optionScope"/>
+    </select>
+    <!-- selectAttributes: 读取数据库投影 -->
+    <select id="selectAttributes" resultType="map">
+        <choose>
+            <when test="sku">SELECT sku_id,attr_key,attr_value FROM sku_attribute WHERE sku_id IN</when>
+            <otherwise>SELECT product_id,attr_key,attr_value FROM product_attribute WHERE product_id IN</otherwise>
+        </choose>
+        <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
+        ORDER BY <choose><when test="sku">sku_id</when><otherwise>product_id</otherwise></choose>,attr_key
+    </select>
+</mapper>

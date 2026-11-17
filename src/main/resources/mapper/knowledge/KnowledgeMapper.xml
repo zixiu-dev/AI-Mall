@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.knowledge.dao.mapper.KnowledgeMapper">
+  <select id="lockSource" resultType="long" timeout="5">SELECT id FROM knowledge_document ORDER BY id FOR UPDATE</select>
+  <sql id="score"><foreach collection="patterns" item="term" separator=" + ">CASE WHEN LOWER(CONCAT(title,' ',keywords,' ',content)) LIKE LOWER(#{term}) ESCAPE '!' THEN 1 ELSE 0 END</foreach></sql>
+  <!-- 品牌、类别、地区为硬过滤条件，关键词只影响这个集合内的排序。 -->
+  <select id="searchSql" resultType="map">
+    SELECT id,category,title,content,brand_code,document_type,document_key,source_url,source_name,
+           source_checked_at,applicable_channel,region,content_version,scope_note,(<include refid="score"/>) AS score
+    FROM knowledge_document
+    WHERE enabled=TRUE AND brand_code=#{brand} AND document_type=#{documentType} AND region='CN_MAINLAND'
+    ORDER BY score DESC,id LIMIT #{limit}
+  </select>
+  <select id="listEnabled" resultType="map">
+    SELECT id,category,title,content,brand_code,document_type,document_key,source_url,source_name,
+           source_checked_at,applicable_channel,region,content_version,scope_note,0 AS score
+    FROM knowledge_document WHERE enabled=TRUE AND document_key IS NOT NULL AND region='CN_MAINLAND' ORDER BY id LIMIT 10001
+  </select>
+</mapper>

@@ -1,0 +1,17 @@
+target/
+.idea/
+*.iml
+.DS_Store
+.env
+data/
+
+.runtime/
+
+__pycache__/
+
+# 私有环境、日志及本地数据库不进入仓库；仅提交无密钥的配置示例。
+.env.*
+!.env.example
+*.log
+*.mv.db
+*.trace.db

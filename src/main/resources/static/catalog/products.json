@@ -1,0 +1,326 @@
+{
+  "version": "2026-11-16",
+  "inventoryNote": "本项目演示库存，不代表品牌或门店库存",
+  "products": [
+    {
+      "id": 201,
+      "name": "Apple MacBook Pro 14 英寸 M4",
+      "imageKey": "real-201",
+      "imagePath": "/images/products/real-201.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2024/10/apples-new-macbook-pro-features-the-incredibly-powerful-m4-family-of-chips/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2024-10-30",
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 202,
+      "name": "Apple MacBook Air 13 英寸 M4",
+      "imageKey": "real-202",
+      "imagePath": "/images/products/real-202.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2025/03/apple-introduces-the-new-macbook-air-with-m4-and-a-gorgeous-new-sky-blue-color/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2025-03-05",
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 203,
+      "name": "Apple Mac mini M4",
+      "imageKey": "real-203",
+      "imagePath": "/images/products/real-203.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2024/10/apples-all-new-mac-mini-is-even-more-mighty-and-more-mini/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2024-10-29",
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 204,
+      "name": "Apple Studio Display 27 英寸",
+      "imageKey": "real-204",
+      "imagePath": "/images/products/real-204.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2022/03/apple-unveils-all-new-mac-studio-and-studio-display/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2022-03-08",
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 205,
+      "name": "Apple iPhone 17",
+      "imageKey": "real-205",
+      "imagePath": "/images/products/real-205.jpg",
+      "sourceUrl": "https://www.apple.com.cn/shop/buy-iphone/iphone-17",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 206,
+      "name": "Apple AirPods Pro 2（USB-C）",
+      "imageKey": "real-206",
+      "imagePath": "/images/products/real-206.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2023/09/apple-upgrades-airpods-pro-2nd-generation-with-usb-c-charging/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2023-09-12",
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 207,
+      "name": "Apple AirPods 4",
+      "imageKey": "real-207",
+      "imagePath": "/images/products/real-207.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2024/09/apple-introduces-all-new-airpods-4-with-industry-defining-audio-and-design/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2024-09-09",
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 208,
+      "name": "Apple Watch Series 10",
+      "imageKey": "real-208",
+      "imagePath": "/images/products/real-208.jpg",
+      "sourceUrl": "https://www.apple.com.cn/newsroom/2024/09/introducing-apple-watch-series-10/",
+      "priceBasis": "官方发布价",
+      "publishedAt": "2024-09-09",
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 209,
+      "name": "米家智能电饭煲 微压版 3L",
+      "imageKey": "real-209",
+      "imagePath": "/images/products/real-209.jpg",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=14536",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 210,
+      "name": "米家扫拖机器人 6",
+      "imageKey": "real-210",
+      "imagePath": "/images/products/real-210.png",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=24243",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 211,
+      "name": "米家冰箱 十字430L 2026款",
+      "imageKey": "real-211",
+      "imagePath": "/images/products/real-211.png",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=22503",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 212,
+      "name": "米家洗衣机Pro 超电解智投 洗烘12kg",
+      "imageKey": "real-212",
+      "imagePath": "/images/products/real-212.jpg",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=22521",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 213,
+      "name": "巨省电 小米空调 1.5匹新1级能效",
+      "imageKey": "real-213",
+      "imagePath": "/images/products/real-213.jpg",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=13143",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 214,
+      "name": "米家微波炉",
+      "imageKey": "real-214",
+      "imagePath": "/images/products/real-214.jpg",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=10330",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 215,
+      "name": "米家无线吸尘器 3C",
+      "imageKey": "real-215",
+      "imagePath": "/images/products/real-215.png",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=20336",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 216,
+      "name": "REDMI手环 4",
+      "imageKey": "real-216",
+      "imagePath": "/images/products/real-216.png",
+      "sourceUrl": "https://www.mi.com/shop/buy?product_id=25768",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 217,
+      "name": "Nike Pegasus 42 GORE-TEX 跑鞋",
+      "imageKey": "real-217",
+      "imagePath": "/images/products/real-217.png",
+      "sourceUrl": "https://www.nike.com.cn/t/pegasus-42-gore-tex-耐克飞马男子防水公路跑步鞋-wzt6auPv/IQ0450-001",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 218,
+      "name": "Nike Pegasus Premium 跑鞋",
+      "imageKey": "real-218",
+      "imagePath": "/images/products/real-218.png",
+      "sourceUrl": "https://www.nike.com.cn/t/pegasus-premium-耐克顶级飞马男子公路跑步鞋-VQWzfn/HQ2592-020",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 219,
+      "name": "Nike Streakfly 2 跑鞋",
+      "imageKey": "real-219",
+      "imagePath": "/images/products/real-219.png",
+      "sourceUrl": "https://www.nike.com.cn/t/streakfly-2-男子公路竞速跑步鞋-m74iEgEy/HF6416-101",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 220,
+      "name": "Nike Zoom Fly 6 SE 跑鞋",
+      "imageKey": "real-220",
+      "imagePath": "/images/products/real-220.png",
+      "sourceUrl": "https://www.nike.com.cn/t/zoom-fly-6-se-男子公路竞速跑步鞋-Wp6eiX9I/IV4083-001",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 221,
+      "name": "Nike Elemental Premium 双肩包",
+      "imageKey": "real-221",
+      "imagePath": "/images/products/real-221.png",
+      "sourceUrl": "https://www.nike.com.cn/t/elemental-premium-双肩包-8xlHHcKA/DN2555-010",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 222,
+      "name": "Nike Hayward 双肩包",
+      "imageKey": "real-222",
+      "imagePath": "/images/products/real-222.png",
+      "sourceUrl": "https://www.nike.com.cn/t/hayward-双肩包-M6Hglw/HJ8200-525",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 223,
+      "name": "IKEA STELNA 斯黛纳 玻璃杯",
+      "imageKey": "real-223",
+      "imagePath": "/images/products/real-223.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/stelna-si-dai-na-da-bei-tou-ming-bo-li-50258912/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 224,
+      "name": "IKEA LACK 拉克 边桌",
+      "imageKey": "real-224",
+      "imagePath": "/images/products/real-224.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/lack-la-ke-bian-zhuo-hei-se-00352988/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 225,
+      "name": "IKEA TERTIAL 特提亚 工作灯",
+      "imageKey": "real-225",
+      "imagePath": "/images/products/real-225.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/30355438/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 226,
+      "name": "IKEA POÄNG 波昂 低背扶手椅",
+      "imageKey": "real-226",
+      "imagePath": "/images/products/real-226.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/poaeng-bo-ang-di-bei-fu-shou-yi-tian-ran-se-mi-se-kai-tuo-tian-ran-se-mi-se-s69551607/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 227,
+      "name": "IKEA GRANKÖLEN 格兰科伦 被套和枕套",
+      "imageKey": "real-227",
+      "imagePath": "/images/products/real-227.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/grankoelen-ge-lan-ke-lun-bei-tao-he-zhen-tao-shen-lan-se-60666981/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 228,
+      "name": "IKEA KAFFEREP 卡弗雷普 燕麦饼干",
+      "imageKey": "real-228",
+      "imagePath": "/images/products/real-228.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/kafferep-yan-mai-bing-gan-30374922/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 229,
+      "name": "IKEA VINTERSAGA 温特萨加 生姜饼干",
+      "imageKey": "real-229",
+      "imagePath": "/images/products/real-229.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/vintersaga-wen-te-sa-jia-bo-pian-sheng-jiang-bing-gan-70611974/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 230,
+      "name": "IKEA DRYCK 苹果越桔味碳酸饮料",
+      "imageKey": "real-230",
+      "imagePath": "/images/products/real-230.jpg",
+      "sourceUrl": "https://www.ikea.cn/cn/zh/p/dryck-bubbel-aepple-lingon-ping-guo-yue-jie-wei-tan-suan-yin-liao-20226767/",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 231,
+      "name": "MUJI 无印良品米糠发酵精华液",
+      "imageKey": "real-231",
+      "imagePath": "/images/products/real-231.jpg",
+      "sourceUrl": "https://www.muji.com.cn/cn/store/commodity/103226",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    },
+    {
+      "id": 232,
+      "name": "MUJI 敏感肌用基础补水乳霜",
+      "imageKey": "real-232",
+      "imagePath": "/images/products/real-232.jpg",
+      "sourceUrl": "https://www.muji.com.cn/cn/store/commodity/100563",
+      "priceBasis": "官网标价快照",
+      "publishedAt": null,
+      "checkedAt": "2026-11-16"
+    }
+  ]
+}

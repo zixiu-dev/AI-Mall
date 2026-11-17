@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bitmall.agent.user.dao.mapper.AddressMapper">
+    <!-- defaultAddressSql: 读取数据库投影 -->
+    <select id="defaultAddressSql" resultType="map">
+        SELECT id, user_id, receiver, phone, province, city, district, detail, is_default
+        FROM user_address WHERE user_id = #{userId} ORDER BY is_default DESC, id LIMIT 1
+    </select>
+</mapper>
