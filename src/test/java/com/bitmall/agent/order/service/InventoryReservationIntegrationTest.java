@@ -148,8 +148,8 @@ class InventoryReservationIntegrationTest {
                 .single())
         .isEqualTo(10);
     assertThat(displayed.getAsInt()).isEqualTo(9);
-    assertPool(9, 1);
-    client.template().delete(redis.keys(sku, "unused").subList(0, 2));
+    assertAvailable(9);
+    client.template().delete(redis.availableKey(sku));
     assertThatThrownBy(displayed::getAsInt)
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
     assertThat(redis.poolExists(sku)).isFalse();
@@ -169,7 +169,7 @@ class InventoryReservationIntegrationTest {
         new CreateOrderCommand("DIRECT", sku, 2, 20001L, null, command.getExpectedPayAmount());
     assertThatThrownBy(() -> submissions.submit(10001, id, changed)).hasMessageContaining("不能更改");
     assertThatThrownBy(() -> submissions.submit(10002, id, command)).hasMessageContaining("不属于");
-    assertPool(9, 1);
+    assertAvailable(9);
     assertThat(builds(id)).isEqualTo(1);
   }
 
@@ -178,27 +178,53 @@ class InventoryReservationIntegrationTest {
     double createdBefore = ((Number) metrics.snapshot().get("ordersCreatedTotal")).doubleValue();
     String id = prepare();
     assertThat(submissions.submit(10001, id).getStatus()).isEqualTo("PROCESSING");
-    assertPool(9, 1);
+    assertAvailable(9);
     assertThat(state(id)).isEqualTo("RESERVED");
+    assertThat(client.template().hasKey(legacyPendingKey())).isFalse();
+    assertThat(client.template().opsForHash().get(redis.reservationKey(sku, id), "quantity"))
+        .isEqualTo("1");
     assertThat(stock()).isEqualTo(10);
     assertThat(locked()).isZero();
     assertThat(orderCount(id)).isZero();
     assertThat(((Number) metrics.snapshot().get("ordersCreatedTotal")).doubleValue())
         .isEqualTo(createdBefore);
     submissions.submit(10001, id);
-    assertPool(9, 1);
+    assertAvailable(9);
     assertThat(builds(id)).isEqualTo(1);
     consumer.consume(id);
     settlement.settleTrace(id);
     consumer.consume(id);
     settlement.settleTrace(id);
-    assertPool(9, 0);
+    assertAvailable(9);
     assertThat(state(id)).isEqualTo("CONFIRMED");
     assertThat(stock()).isEqualTo(9);
     assertThat(locked()).isEqualTo(1);
     assertThat(orderCount(id)).isEqualTo(1);
     assertThat(((Number) metrics.snapshot().get("ordersCreatedTotal")).doubleValue())
         .isEqualTo(createdBefore + 1);
+  }
+
+  @Test
+  void queuedReservationCanFinishAfterUpgradeWithoutReadingLegacyPendingCounter() {
+    String id = prepare();
+    assertThat(submissions.submit(10001, id).getStatus()).isEqualTo("PROCESSING");
+    // 旧版本写出的可售量和预占 Hash 格式相同，另带一个 SKU 汇总键。
+    client.template().opsForValue().set(legacyPendingKey(), "1");
+
+    consumer.consume(id);
+    settlement.settleTrace(id);
+    String order = traces.get(10001, id).getOrderId();
+    assertThat(state(id)).isEqualTo("CONFIRMED");
+    assertAvailable(9);
+    assertThat(stock()).isEqualTo(9);
+
+    lifecycle.cancel(10001, order);
+    settlement.settleReturn(order, sku);
+    settlement.settleReturn(order, sku);
+    assertThat(state(id)).isEqualTo("RETURNED");
+    assertAvailable(10);
+    assertThat(stock()).isEqualTo(10);
+    assertThat(client.template().opsForValue().get(legacyPendingKey())).isEqualTo("1");
   }
 
   @Test
@@ -212,7 +238,7 @@ class InventoryReservationIntegrationTest {
     settlement.settleTrace(sync);
     consumer.consume(queued);
     settlement.settleTrace(queued);
-    assertPool(0, 0);
+    assertAvailable(0);
     assertThat(stock()).isZero();
     assertThat(orderCount(queued) + orderCount(sync)).isEqualTo(1);
   }
@@ -229,9 +255,9 @@ class InventoryReservationIntegrationTest {
     assertThat(traces.get(10001, id).getStatus()).isEqualTo("INIT");
     assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("RESERVING");
     assertThat(builds(id)).isZero();
-    assertPool(9, 1);
+    assertAvailable(9);
     submissions.submit(10001, id);
-    assertPool(9, 1);
+    assertAvailable(9);
     assertThat(builds(id)).isEqualTo(1);
   }
 
@@ -239,7 +265,7 @@ class InventoryReservationIntegrationTest {
   void abandonedPreDeductionIsReleasedOnceAndLateCallerCannotReserve() {
     String id = prepare();
     inventory.reserve(10001, id);
-    assertPool(9, 1);
+    assertAvailable(9);
     jdbc.sql("UPDATE order_submit_trace SET next_check_at=:at WHERE trace_id=:id")
         .param("at", LocalDateTime.now().minusMinutes(1))
         .param("id", id)
@@ -248,11 +274,11 @@ class InventoryReservationIntegrationTest {
     recovery.reconcile(id);
     settlement.settleTrace(id);
     assertThat(traces.get(10001, id).getFailureCode()).isEqualTo("ADMISSION_INTERRUPTED");
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(state(id)).isEqualTo("RELEASED");
     assertThat(builds(id)).isZero();
     assertThatThrownBy(() -> redis.reserve(sku, id, 1)).hasMessageContaining("已结束");
-    assertPool(10, 0);
+    assertAvailable(10);
   }
 
   @Test
@@ -265,7 +291,7 @@ class InventoryReservationIntegrationTest {
     consumer.consume(id);
     settlement.settleTrace(id);
     assertThat(traces.get(10001, id).getFailureCode()).isEqualTo("PRICE_CHANGED");
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(orderCount(id)).isZero();
     assertThat(stock()).isEqualTo(10);
   }
@@ -280,13 +306,13 @@ class InventoryReservationIntegrationTest {
         .attachTrace(anyString(), eq(id));
     assertThatThrownBy(() -> consumer.consume(id))
         .isInstanceOf(DataAccessResourceFailureException.class);
-    assertPool(9, 1);
+    assertAvailable(9);
     assertThat(stock()).isEqualTo(10);
     assertThat(orderCount(id)).isZero();
     assertThat(traces.get(10001, id).getStatus()).isEqualTo("PROCESSING");
     consumer.consume(id);
     settlement.settleTrace(id);
-    assertPool(9, 0);
+    assertAvailable(9);
     assertThat(stock()).isEqualTo(9);
     assertThat(orderCount(id)).isEqualTo(1);
   }
@@ -302,7 +328,7 @@ class InventoryReservationIntegrationTest {
     settlement.settleReturn(order, sku);
     lifecycle.cancel(10001, order);
     settlement.settleReturn(order, sku);
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(stock()).isEqualTo(10);
     assertThat(locked()).isZero();
     assertThat(state(id)).isEqualTo("RETURNED");
@@ -317,7 +343,7 @@ class InventoryReservationIntegrationTest {
     String order = traces.get(10001, id).getOrderId();
     lifecycle.payDemo(10001, order);
     lifecycle.payDemo(10001, order);
-    assertPool(9, 0);
+    assertAvailable(9);
     assertThat(stock()).isEqualTo(9);
     assertThat(locked()).isZero();
     assertThat(state(id)).isEqualTo("CONFIRMED");
@@ -327,14 +353,15 @@ class InventoryReservationIntegrationTest {
   void lostInitializedPoolFailsClosedWithoutDatabaseBypassOrBlindRebuild() {
     String first = prepare();
     submissions.submit(10001, first);
-    client.template().delete(redis.keys(sku, first).subList(0, 2));
+    client.template().opsForValue().set(legacyPendingKey(), "1");
+    client.template().delete(redis.availableKey(sku));
     String second = prepare();
     assertThatThrownBy(() -> submissions.submit(10001, second))
         .isInstanceOf(IllegalStateException.class);
     assertThat(orderCount(second)).isZero();
     assertThat(builds(second)).isZero();
     assertThat(stock()).isEqualTo(10);
-    assertThat(client.template().hasKey(redis.keys(sku, second).get(0))).isFalse();
+    assertThat(client.template().hasKey(redis.availableKey(sku))).isFalse();
   }
 
   @Test
@@ -345,7 +372,7 @@ class InventoryReservationIntegrationTest {
     redis.finish(sku, late, 1, "RELEASE");
     redis.finish(sku, late, 1, "RELEASE");
     assertThatThrownBy(() -> redis.reserve(sku, late, 1)).hasMessageContaining("已结束");
-    assertPool(9, 1);
+    assertAvailable(9);
   }
 
   @Test
@@ -358,10 +385,10 @@ class InventoryReservationIntegrationTest {
     doReturn(true).when(settings).isEnabled();
     lifecycle.cancel(10001, order);
     settlement.settleReturn(order, sku);
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(stock()).isEqualTo(10);
     assertThat(
-            client.template().opsForHash().get(redis.keys(sku, "legacy:" + order).get(2), "state"))
+            client.template().opsForHash().get(redis.reservationKey(sku, "legacy:" + order), "state"))
         .isEqualTo("RETURNED");
   }
 
@@ -376,7 +403,7 @@ class InventoryReservationIntegrationTest {
     recovery.reconcile(id);
     consumer.consume(id);
     settlement.settleTrace(id);
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(traces.get(10001, id).getFailureCode()).isEqualTo("QUEUE_TIMEOUT");
     assertThat(orderCount(id)).isZero();
   }
@@ -391,11 +418,11 @@ class InventoryReservationIntegrationTest {
     consumer.consume(id);
     String order = traces.get(10001, id).getOrderId();
     assertThat(traces.get(10001, id).getStatus()).isEqualTo("SUCCESS");
-    assertPool(9, 1);
+    assertAvailable(9);
     lifecycle.cancel(10001, order);
     settlement.settleReturn(order, sku);
     recovery.reconcile(id);
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(state(id)).isEqualTo("RETURNED");
     assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("RETURNED");
   }
@@ -427,7 +454,7 @@ class InventoryReservationIntegrationTest {
     timeoutConsumer.onMessage(payload);
     settlement.settleReturn(order, sku);
     settlement.settleReturn(order, sku);
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(stock()).isEqualTo(10);
     assertThat(locked()).isZero();
     assertThat(state(id)).isEqualTo("RETURNED");
@@ -460,7 +487,7 @@ class InventoryReservationIntegrationTest {
       for (var result : results)
         if ("PROCESSING".equals(result.get(15, TimeUnit.SECONDS))) accepted++;
       assertThat(accepted).isEqualTo(1);
-      assertPool(0, 1);
+      assertAvailable(0);
       assertThat(stock()).isEqualTo(1);
     } finally {
       executor.shutdownNow();
@@ -504,11 +531,11 @@ class InventoryReservationIntegrationTest {
             .getTraceId();
     assertThat(submissions.submit(10001, id).getFailureCode()).isEqualTo("OUT_OF_STOCK");
     settlement.settleTrace(id);
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(state(id)).isEqualTo("RELEASED");
     assertThat(builds(id)).isZero();
-    assertThat(client.template().opsForValue().get(redis.keys(second, id).get(0))).isEqualTo("0");
-    assertThat(client.template().opsForHash().get(redis.keys(second, id).get(2), "state"))
+    assertThat(client.template().opsForValue().get(redis.availableKey(second))).isEqualTo("0");
+    assertThat(client.template().opsForHash().get(redis.reservationKey(second, id), "state"))
         .isEqualTo("RELEASED");
     assertThatThrownBy(() -> redis.reserve(second, id, 1)).hasMessageContaining("已结束");
   }
@@ -546,7 +573,7 @@ class InventoryReservationIntegrationTest {
     reset(inventoryRows);
     settlement.settleTrace(id);
     settlement.settleTrace(id);
-    assertPool(10, 0);
+    assertAvailable(10);
     assertThat(state(id)).isEqualTo("RELEASED");
     assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("RELEASED");
   }
@@ -565,7 +592,7 @@ class InventoryReservationIntegrationTest {
     reset(inventoryRows);
     recovery.reconcile(id);
     settlement.settleTrace(id);
-    assertPool(9, 0);
+    assertAvailable(9);
     assertThat(state(id)).isEqualTo("CONFIRMED");
     assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("CONFIRMED");
     assertThat(orderCount(id)).isEqualTo(1);
@@ -580,15 +607,17 @@ class InventoryReservationIntegrationTest {
     return traces.prepare(10001, command(), null).getTraceId();
   }
 
-  private void assertPool(int available, int pending) {
-    var keys = redis.keys(sku, "unused");
-    assertThat(client.template().opsForValue().get(keys.get(0)))
+  private void assertAvailable(int available) {
+    assertThat(client.template().opsForValue().get(redis.availableKey(sku)))
         .isEqualTo(String.valueOf(available));
-    assertThat(client.template().opsForValue().get(keys.get(1))).isEqualTo(String.valueOf(pending));
+  }
+
+  private String legacyPendingKey() {
+    return namespace + "inventory:v1:{" + sku + "}:pending";
   }
 
   private String state(String id) {
-    return (String) client.template().opsForHash().get(redis.keys(sku, id).get(2), "state");
+    return (String) client.template().opsForHash().get(redis.reservationKey(sku, id), "state");
   }
 
   private int stock() {

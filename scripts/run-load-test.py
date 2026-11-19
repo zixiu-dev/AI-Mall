@@ -128,7 +128,9 @@ try:
  states=sql("SELECT status,COUNT(*) FROM order_submit_trace GROUP BY status",True)
  stock,locked=map(int,sql('SELECT stock,locked_stock FROM product_sku WHERE id=900001',True).split('\t'))
  order_count=int(sql('SELECT COUNT(*) FROM customer_order WHERE submit_trace_id IS NOT NULL',True));quantity=int(sql('SELECT COALESCE(SUM(quantity),0) FROM order_item WHERE sku_id=900001',True))
- available=int(subprocess.check_output(['redis-cli','-p',str(stock_port),'--raw','GET','load:'+database+':inventory:v1:{900001}:available'],text=True));pending=int(subprocess.check_output(['redis-cli','-p',str(stock_port),'--raw','GET','load:'+database+':inventory:v1:{900001}:pending'],text=True))
+ available=int(subprocess.check_output(['redis-cli','-p',str(stock_port),'--raw','GET','load:'+database+':inventory:v1:{900001}:available'],text=True))
+ unfinished_traces=int(sql("SELECT COUNT(*) FROM order_submit_trace WHERE status='PROCESSING' OR reserve_status IN ('RESERVING','RESERVED','CONFIRM_PENDING','RELEASE_PENDING','RETURN_PENDING')",True))
+ unfinished_returns=int(sql("SELECT COUNT(*) FROM order_inventory_return WHERE completed=FALSE",True))
  duplicate_traces=int(sql('SELECT COUNT(*) FROM (SELECT submit_trace_id FROM customer_order WHERE submit_trace_id IS NOT NULL GROUP BY submit_trace_id HAVING COUNT(*)>1) d',True))
  report['outboxStates']=sql("SELECT event_type,status,COUNT(*) FROM order_message_outbox GROUP BY event_type,status",True)
  planned={}
@@ -148,7 +150,8 @@ try:
   return {'count':len(values),'p50':percentile(.5),'p95':percentile(.95),'p99':percentile(.99),'max':percentile(1)}
  (run/'order-completions.json').write_text(json.dumps(completed_rows,indent=2))
  report['plannedArrivalToOrderCreatedMs']={mode:percentiles(values) for mode,values in completions.items()}
- report['consistency']={'initialStock':20000,'databaseAvailable':stock,'databaseLocked':locked,'redisAvailable':available,'redisPending':pending,'orders':order_count,'orderedQuantity':quantity,'duplicateTraceOrders':duplicate_traces,'traceStates':states};assert stock==20000-quantity and locked==quantity and available==stock and pending==0 and duplicate_traces==0,report['consistency']
+ report['consistency']={'initialStock':20000,'databaseAvailable':stock,'databaseLocked':locked,'redisAvailable':available,'unfinishedTraces':unfinished_traces,'unfinishedReturns':unfinished_returns,'orders':order_count,'orderedQuantity':quantity,'duplicateTraceOrders':duplicate_traces,'traceStates':states}
+ assert stock==20000-quantity and locked==quantity and available==stock and unfinished_traces==0 and unfinished_returns==0 and duplicate_traces==0,report['consistency']
  changes=[]
  for row in monitor_rows:
   if not changes or changes[-1]['mode']!=row['mode']:changes.append(row)

@@ -37,7 +37,7 @@
 | actionId | 用户待确认的助手提议 |
 | PROCESSING / SUCCESS | 已受理处理中 / 建单事务已提交，不等同支付状态 |
 | stock / locked_stock | 数据库可售 / 待支付占用 |
-| available / pending | Redis 可接单计数 / 尚待确认落库的预占 |
+| available / reservation | Redis SKU 可接单计数 / 该次预占的数量和状态 |
 
 ## 不得破坏的交易保证
 

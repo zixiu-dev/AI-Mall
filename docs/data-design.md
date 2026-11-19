@@ -47,7 +47,8 @@
 | MySQL stock | 当前可售库存 |
 | MySQL locked_stock | 已建单、尚未支付的占用 |
 | Redis available | 共享预扣池还允许接多少件 |
-| Redis pending | 已预扣、尚未确认落库的数量 |
+
+Redis 保存每个 SKU 与 trace 的预占 Hash，记录该笔预占的数量和状态。整理任务的待处理状态保存在数据库 trace 与返还任务表。
 
 建单：MySQL `stock-q / locked_stock+q`。支付：只消耗 locked_stock。关闭未支付订单：`stock+q / locked_stock-q`，同时记录 Redis RETURN 任务。
 

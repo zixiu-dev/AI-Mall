@@ -109,19 +109,24 @@ class BenchmarkEnvironment:
             if time.monotonic()-began>timeout:raise RuntimeError('异步任务未及时清空；状态已保存在 '+str(output))
             time.sleep(1)
     def consistency(self):
-        rows=self.sql("SELECT id,stock,locked_stock FROM product_sku WHERE id>=900001 AND id<900065 ORDER BY id")
+        unfinished=self.outstanding()
+        unfinished_returns=int(self.sql("SELECT COUNT(*) FROM order_inventory_return WHERE completed=FALSE"))
+        assert unfinished==0 and unfinished_returns==0,(unfinished,unfinished_returns)
+        rows=self.sql("SELECT id,stock,locked_stock,redis_inventory_initialized FROM product_sku WHERE id>=900001 AND id<900065 ORDER BY id")
         available=locked=0;detail=[]
         for row in rows.splitlines():
             if not row:continue
-            sku,stock,hold=map(int,row.split('\t'));prefix='peak:'+self.database+':inventory:v1:{'+str(sku)+'}:'
-            output=subprocess.check_output(['redis-cli','-p',str(self.stock_port),'--raw','MGET',prefix+'available',prefix+'pending'],text=True).splitlines()
-            redis_stock=int(output[0]) if output and output[0] else None;pending=int(output[1]) if len(output)>1 and output[1] else 0
-            if redis_stock is not None:assert redis_stock==stock and pending==0,(sku,output,stock)
-            available+=stock;locked+=hold;detail.append({'sku':sku,'stock':stock,'locked':hold,'redisAvailable':redis_stock,'redisPending':pending})
+            sku,stock,hold,initialized=map(int,row.split('\t'))
+            key='peak:'+self.database+':inventory:v1:{'+str(sku)+'}:available'
+            output=subprocess.check_output(['redis-cli','-p',str(self.stock_port),'--raw','GET',key],text=True).strip()
+            redis_stock=int(output) if output else None
+            expected_redis_stock=stock if initialized else None
+            assert redis_stock==expected_redis_stock,(sku,redis_stock,expected_redis_stock)
+            available+=stock;locked+=hold;detail.append({'sku':sku,'stock':stock,'locked':hold,'redisAvailable':redis_stock})
         quantity=int(self.sql('SELECT COALESCE(SUM(quantity),0) FROM order_item WHERE sku_id>=900001 AND sku_id<900065'))
         duplicate=int(self.sql('SELECT COUNT(*) FROM (SELECT submit_trace_id FROM customer_order WHERE submit_trace_id IS NOT NULL GROUP BY submit_trace_id HAVING COUNT(*)>1) d'))
         assert available+locked==len(detail)*5_000_000 and locked==quantity and duplicate==0
-        return {'skuCount':len(detail),'orderedQuantity':quantity,'databaseAvailable':available,'databaseLocked':locked,'duplicateOrders':duplicate,'skus':detail,'traceStates':self.sql('SELECT status,COUNT(*) FROM order_submit_trace GROUP BY status'),'outboxStates':self.sql('SELECT event_type,status,COUNT(*) FROM order_message_outbox GROUP BY event_type,status')}
+        return {'skuCount':len(detail),'orderedQuantity':quantity,'databaseAvailable':available,'databaseLocked':locked,'unfinishedTraces':unfinished,'unfinishedReturns':unfinished_returns,'duplicateOrders':duplicate,'skus':detail,'traceStates':self.sql('SELECT status,COUNT(*) FROM order_submit_trace GROUP BY status'),'outboxStates':self.sql('SELECT event_type,status,COUNT(*) FROM order_message_outbox GROUP BY event_type,status')}
     def close(self):
         for _,p in reversed(self.processes):self.stop(p)
         if self.created:

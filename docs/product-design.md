@@ -98,7 +98,7 @@ Bloom 使用 **Redisson 原生 `RBloomFilter<Long>` + LongCodec**，不再自己
 
 这是展示数据的最终一致性。Pub/Sub 不持久化，断线可能漏通知，短 TTL 继续兜底；直接改数据库不会自动发布应用事件。结算、报价、库存条件扣减仍以数据库为准。
 
-启用交易池时批读可接单量，不另存一份数量副本。池不存在则批查数据库：从未初始化才展示 SQL 库存；已初始化但丢键或交易 Redis 故障返回 503。代价是尚未初始化的 SKU 需要 SQL 核实。浏览不会初始化或修复库存池。
+启用交易池时直接批读各 SKU 的 `available`。仅当数据库标记该库存池从未初始化时，才展示 SQL 库存。已初始化但可售键缺失或交易 Redis 故障时返回 503。浏览不会初始化或修复库存池。
 
 源码：[ProductService](../src/main/java/com/bitmall/agent/product/service/ProductService.java)、[ProductSearchService](../src/main/java/com/bitmall/agent/product/service/ProductSearchService.java)、[CatalogCache](../src/main/java/com/bitmall/agent/product/cache/CatalogCache.java)、[CatalogBloomFilter](../src/main/java/com/bitmall/agent/product/cache/CatalogBloomFilter.java)。
 
@@ -106,7 +106,7 @@ Bloom 使用 **Redisson 原生 `RBloomFilter<Long>` + LongCodec**，不再自己
 
 商品缓存使用 RBucket、RLock、RBloomFilter、RTopic 和 RScript；库存 String/Hash 通过 Redisson RBucket/RMap 读取，预扣/整理及压力协调继续用 RScript 保持多步原子性。**MQ 消费去重是此次保留的旧适配例外**，没有顺手改变其标记和失败重试语义；MySQL、RocketMQ 和本地 Caffeine 各自仍承担原职责。
 
-RLock 名称使用 `load-lock:redisson:v2:`，与旧字符串锁隔离；切换时应停止旧缓存构建者再启动新版本，避免混跑两种锁实现。旧展示缓存可自然过期，原交易库存键、数量、状态与命名空间不变，不能清空库存 Redis 迁移。
+RLock 名称使用 `load-lock:redisson:v2:`，与旧字符串锁隔离；切换时应停止旧缓存构建者再启动新版本，避免混跑两种锁实现。旧展示缓存可自然过期。交易库存保留原可售数和预占记录，升级步骤见 [部署说明](deployment.md#交易库存池升级)。
 
 当前支持并验证的是多个应用客户端共享单 Redis 的协调；统一客户端不等于已经验证 Redis Cluster、故障切主或跨地域部署。数据库事务和唯一约束继续保证最终交易结果。
 

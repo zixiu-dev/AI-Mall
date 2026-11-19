@@ -21,6 +21,7 @@
 | [Spring AI 迁移](changes/archive/2026-11-17-migrate-to-spring-ai/proposal.md) | Boot 4 / Spring AI 2、工具与状态迁移、当前数据库结构资料 |
 | [PostgreSQL 向量存储](changes/archive/2026-11-17-add-pgvector-knowledge-store/proposal.md) | 原生vector/JSONB、独立连接与迁移、数据库精确/HNSW查询 |
 | [Agentic RAG 变更](changes/archive/2026-11-17-build-agentic-rag-pipeline/proposal.md) | 多问题契约、离线索引、百炼/DeepSeek 真实验证 |
+| [交易 Redis 库存精简](changes/archive/2026-11-19-simplify-redis-inventory/proposal.md) | 每 SKU 可售量、单笔预占、旧库存池接续 |
 | [verification-matrix.md](verification-matrix.md) | 哪份规格关联哪些测试和原始证据 |
 | [config.yaml](config.yaml) | 官方工作流读取的项目上下文与写作规则 |
 

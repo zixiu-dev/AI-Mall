@@ -10,7 +10,7 @@
 | [coupons](specs/coupons/spec.md) | COUPON-001, COUPON-002, COUPON-003 | [OrderSubmissionIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderSubmissionIntegrationTest.java) |
 | [checkout](specs/checkout/spec.md) | CHECKOUT-001, CHECKOUT-002, CHECKOUT-003 | [CommerceModulesIntegrationTest.java](../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java) |
 | [order-submission](specs/order-submission/spec.md) | ORDER-001, ORDER-002, ORDER-003, ORDER-004, ORDER-005 | [OrderSubmissionIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderSubmissionIntegrationTest.java) |
-| [inventory-reservation](specs/inventory-reservation/spec.md) | STOCK-001, STOCK-002, STOCK-003, STOCK-004 | [InventoryReservationIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/InventoryReservationIntegrationTest.java) |
+| [inventory-reservation](specs/inventory-reservation/spec.md) | STOCK-001, STOCK-002, STOCK-003, STOCK-004 | [库存预占集成测试](../src/test/java/com/bitmall/agent/order/service/InventoryReservationIntegrationTest.java)，覆盖缺少旧汇总键及旧预占数据接续 |
 | [order-lifecycle](specs/order-lifecycle/spec.md) | LIFE-001, LIFE-002, LIFE-003, LIFE-004 | [OrderPaymentTimeoutIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderPaymentTimeoutIntegrationTest.java) |
 | [order-messaging](specs/order-messaging/spec.md) | MQ-001, MQ-002, MQ-003, MQ-004 | [OrderMessagingIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderMessagingIntegrationTest.java) |
 | [order-routing](specs/order-routing/spec.md) | ROUTE-001, ROUTE-002, ROUTE-003 | [OrderAutoRoutingIntegrationTest.java](../src/test/java/com/bitmall/agent/order/monitor/OrderAutoRoutingIntegrationTest.java) |

@@ -101,19 +101,23 @@ sequenceDiagram
 
 ## 5. Lua 预扣和补偿到底做什么
 
-每 SKU 两个 String：`available` 是 Redis 可售数，`pending` 是尚未落库确认的预占数。每个 `SKU + trace` 再保存一个 Hash：数量和状态。相关键带同一个 `{skuId}`，保证单 SKU 脚本同槽。
+每个 SKU 用一个 String `available` 保存 Redis 可售数。每个 `SKU + trace` 用一个 Hash 保存预占数量和状态。相关键带同一个 `{skuId}`，保证单 SKU 脚本同槽。待确认、待释放和待返还任务通过数据库 trace 和返还表跟踪。
 
-假设 10 件库存，购买 1 件：
+以一笔单 SKU 订单为例，同步提交涉及可售数、预占记录、接口锁共三个业务 key。异步建单再使用一个 MQ 消费幂等 key。
 
-| 操作 | Redis available | Redis pending | 这笔预占的 Hash |
-|---|---:|---:|---|
-| 初始 | 10 | 0 | 不存在 |
-| RESERVE | 9 | 1 | quantity=1，RESERVED |
-| 数据库建单后 CONFIRM | 9 | 0 | CONFIRMED |
-| 或建单明确失败 RELEASE | 10 | 0 | RELEASED |
-| 已建单未支付，关单后 RETURN | 10 | 0 | RETURNED |
+下表展示从 10 件可售库存中购买 1 件时的变化。
+
+| 操作 | Redis available | 这笔预占的 Hash |
+|---|---:|---|
+| 初始 | 10 | 不存在 |
+| RESERVE | 9 | quantity=1，RESERVED |
+| 数据库建单后 CONFIRM | 9 | CONFIRMED |
+| 或建单明确失败 RELEASE | 10 | RELEASED |
+| 已建单未支付，关单后 RETURN | 10 | RETURNED |
 
 Lua 同时检查库存、改计数、写标志。重试先看 Hash，相同操作不会再扣一次、再加一次。释放还会为未成功预扣的 SKU 留关闭标志，防止暂停的旧线程恢复后才扣库存。
+
+库存 key 继续使用 `inventory:v1:` 前缀。旧库存池的可售数与预占 Hash 可直接接续，部署时须统一切换交易实例。 [库存池升级说明](deployment.md#交易库存池升级)
 
 **成功后不能立即删除 Hash。** 迟到消息和补偿仍需要它识别已处理状态。当前尚未实现终态自动清理，不能把无限保留当成最终生产方案。
 

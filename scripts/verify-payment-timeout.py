@@ -55,7 +55,7 @@ def verify(env,mode,seconds,index):
     def redis_value(key):
         return subprocess.check_output(['redis-cli','-h','127.0.0.1','-p',str(env.stock_port),'GET',key],text=True).strip()
     prefix='peak:'+env.database+':inventory:v1:{'+str(sku)+'}:'
-    wait_until(lambda: redis_value(prefix+'available')=='9' and redis_value(prefix+'pending')=='0')
+    wait_until(lambda: redis_value(prefix+'available')=='9' and env.outstanding()==0)
     assert env.sql('SELECT CONCAT(stock,\',\',locked_stock) FROM product_sku WHERE id='+str(sku))=='9,0'
     assert env.sql('SELECT status FROM user_coupon WHERE id='+str(coupon))=='AVAILABLE'
     assert env.sql("SELECT COUNT(*) FROM order_message_outbox WHERE order_id='"+unpaid['order']+"' AND event_type='ORDER_CANCELLED'")=='1'
@@ -63,7 +63,7 @@ def verify(env,mode,seconds,index):
     result={'mode':mode,'testPaymentSeconds':seconds,'defaultPaymentSeconds':900,
             'unpaid':'CLOSED','paid':'PAID','manualCancel':'CANCELLED','deadlineEpochMs':deadline,
             'observedClosedEpochMs':observed,'databaseStock':9,'databaseLocked':0,'redisAvailable':9,
-            'redisPending':0,'coupon':'AVAILABLE','timerMessagesConsumed':3,'scanIntervalSeconds':3600,
+            'unfinishedTraces':0,'unfinishedReturns':0,'coupon':'AVAILABLE','timerMessagesConsumed':3,'scanIntervalSeconds':3600,
             'orders':[unpaid,paid,cancelled]}
     print(json.dumps(result,ensure_ascii=False),flush=True)
     return result
