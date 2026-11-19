@@ -1,0 +1,6 @@
+schema: spec-driven
+change_type: enhancement
+capabilities:
+  - inventory-reservation
+  - observability
+status: active
