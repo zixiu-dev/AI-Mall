@@ -111,9 +111,49 @@ public LocalTransactionState checkLocalTransaction(MessageExt msg) {
 
 ## 兼容性
 
-- 消费者完全不需要改动
+- **建单消费者**：完全不需要改动
+- **死信消费者**：需要适配（见下文）
 - Outbox 表保留（用于订单事件）
 - 可以灰度切换（配置开关控制）
+
+### 死信消费者适配
+
+当前死信消费者依赖 Outbox 表的 `matchesBuild()` 方法匹配原消息。改用事务消息后：
+
+**方案 A：保留 ORDER_BUILD 的 Outbox 记录**
+```java
+// 事务消息发送，但仍写 Outbox（仅用于死信匹配）
+@Override
+public LocalTransactionState executeLocalTransaction(...) {
+    traceMapper.updateProcessing(traceId);
+    
+    // 仍写 Outbox（标记为 SENT_BY_TX_MSG）
+    outboxMapper.insert(new OutboxMessage(
+        eventId, "ORDER_BUILD", traceId, "SENT_BY_TX_MSG"
+    ));
+    
+    return COMMIT_MESSAGE;
+}
+```
+
+**方案 B：死信消费者直接查 trace**
+```java
+// 不依赖 Outbox，直接查 trace
+public boolean reconcileBuildDeadLetter(String traceId, String eventId) {
+    var trace = traces.lockIfPresent(traceId).orElse(null);
+    
+    // 去掉 Outbox 匹配
+    if (trace == null || !"ASYNC".equals(trace.getMode()) 
+        || "INIT".equals(trace.getStatus())) {
+        return false;
+    }
+    
+    reconcileLocked(trace);
+    return true;
+}
+```
+
+**推荐方案 A**：保留 Outbox 用于死信匹配，避免误恢复。
 
 ## 风险
 

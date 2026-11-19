@@ -90,19 +90,39 @@ private void reconcileStock(String skuId) {
         return;
     }
     
-    int diff = Math.abs(redisStock - dbStock);
+    // 计算在途预占（Redis 中 RESERVED 状态的）
+    Set<String> reserveKeys = redis.keys("inventory:v1:{" + skuId + "}:reservation:*");
+    int inFlightReserved = 0;
+    for (String key : reserveKeys) {
+        String state = redis.hget(key, "state");
+        if ("RESERVED".equals(state)) {  // 只统计未确认的预占
+            Integer quantity = redis.hget(key, "quantity");
+            inFlightReserved += (quantity != null ? quantity : 0);
+        }
+    }
+    
+    // 期望值 = MySQL stock + 在途预占
+    // 因为预占时已经从 available 扣了，所以应该等于 dbStock + inFlightReserved
+    int expected = dbStock + inFlightReserved;
+    int diff = Math.abs(redisStock - expected);
     
     if (diff > 5) {
-        // 大差异：告警
+        // 大差异：只告警，不自动修正
         alert("库存差异过大", skuId, diff);
-        logReconciliation(skuId, dbStock, redisStock, "ALERT");
+        logReconciliation(skuId, dbStock, redisStock, expected, inFlightReserved, "ALERT");
     } else if (diff > 0) {
-        // 小差异：自动修正
-        redis.set("inventory:v1:{" + skuId + "}:available", dbStock);
-        logReconciliation(skuId, dbStock, redisStock, "AUTO_FIX");
+        // 小差异：告警但不自动修正（改为人工确认）
+        log.warn("库存差异: skuId={}, MySQL={}, Redis={}, expected={}, diff={}", 
+            skuId, dbStock, redisStock, expected, diff);
+        logReconciliation(skuId, dbStock, redisStock, expected, inFlightReserved, "MANUAL_CHECK");
     }
 }
 ```
+
+**关键修正：**
+1. ❌ **不自动修正**：避免把有效预扣加回来
+2. ✅ **计算在途预占**：期望值 = MySQL stock + RESERVED 预占
+3. ✅ **只记录和告警**：人工确认后再修正
 
 ### 2. 预占记录对账
 
@@ -121,9 +141,10 @@ private void reconcileReservations(String skuId) {
             Long timestamp = redis.hget(key, "timestamp");
             if (timestamp != null && 
                 System.currentTimeMillis() - timestamp > 300000) {
-                // 超过 5 分钟的孤儿预占，删除
-                redis.del(key);
-                log.info("清理孤儿预占: traceId={}", traceId);
+                // 超过 5 分钟的孤儿预占
+                // ⚠️ 不直接删除，记录告警，人工确认后通过 RELEASE 操作清理
+                log.warn("发现孤儿预占: traceId={}, 需人工确认", traceId);
+                logOrphanReservation(traceId, skuId);
             }
             continue;
         }
@@ -131,40 +152,51 @@ private void reconcileReservations(String skuId) {
         // 检查 trace 是否过期
         if (trace.getExpiresAt() != null && 
             trace.getExpiresAt().isBefore(LocalDateTime.now())) {
-            redis.del(key);
-            log.info("清理过期 trace 的预占: traceId={}", traceId);
+            // trace 过期，但不直接删除 Hash
+            // 通过 RELEASE 操作清理，保证库存正确加回
+            log.info("发现过期 trace 预占: traceId={}, 触发释放", traceId);
+            inventoryOps.release(skuId, traceId, getReservedQuantity(key));
             continue;
         }
         
         // 根据 trace 状态判断
         String status = trace.getStatus();
         if ("FAILED".equals(status)) {
-            // 明确失败，删除
-            redis.del(key);
-            log.info("清理失败 trace 的预占: traceId={}", traceId);
+            // 明确失败，通过 RELEASE 清理
+            log.info("发现失败 trace 预占: traceId={}, 触发释放", traceId);
+            inventoryOps.release(skuId, traceId, getReservedQuantity(key));
         } else if ("INIT".equals(status) || "RESERVING".equals(status)) {
             // 检查是否超时（10 分钟）
             if (trace.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(10))) {
-                redis.del(key);
-                log.info("清理超时 trace 的预占: traceId={}", traceId);
+                log.info("发现超时 trace 预占: traceId={}, 触发释放", traceId);
+                inventoryOps.release(skuId, traceId, getReservedQuantity(key));
             }
         } else if ("PROCESSING".equals(status)) {
             // 异步处理中，检查 processing_expires_at
             if (trace.getProcessingExpiresAt() != null &&
                 trace.getProcessingExpiresAt().isBefore(LocalDateTime.now())) {
-                redis.del(key);
-                log.info("清理异步超时预占: traceId={}", traceId);
+                log.info("发现异步超时预占: traceId={}, 触发释放", traceId);
+                inventoryOps.release(skuId, traceId, getReservedQuantity(key));
             }
         } else if ("SUCCESS".equals(status) || "CLOSED".equals(status)) {
-            // 终态，超过 7 天清理
+            // 终态，超过 7 天清理（使用 RETURN 操作）
             if (trace.getUpdatedAt().isBefore(LocalDateTime.now().minusDays(7))) {
-                redis.del(key);
-                log.info("清理过期终态预占: traceId={}", traceId);
+                log.info("发现过期终态预占: traceId={}, 触发返还", traceId);
+                inventoryOps.returnReservation(skuId, traceId, getReservedQuantity(key));
             }
         }
     }
 }
+
+private Integer getReservedQuantity(String key) {
+    return Integer.parseInt(redis.hget(key, "quantity"));
+}
 ```
+
+**关键修正：**
+1. ❌ **不直接删除 Hash**：避免释放时找不到数量
+2. ✅ **使用 RELEASE/RETURN 操作**：通过 Lua 幂等脚本清理，保证库存正确
+3. ✅ **孤儿预占只记录**：人工确认后再清理
 
 ### 3. trace 状态对账
 
