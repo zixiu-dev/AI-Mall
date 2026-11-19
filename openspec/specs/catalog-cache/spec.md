@@ -4,6 +4,21 @@
 
 约定公共商品查询在命中、未命中、数据变化和缓存故障时的可见行为，以减少无效请求与并发重建对数据库的影响，同时保留明确的容量边界和最终一致性约束，不将缓存展示值用于决定交易成功。
 
+## 当前实现
+
+**详情读取顺序**　校验正整数 ID → 按策略查 Caffeine → 本地未命中时检查 Redisson Bloom → 查 Redis → 分布式锁 → 拿锁后再查 Redis → 限并发查库 → 回填 → 批读 SKU 价格与库存。Bloom 判定明确不存在时直接结束，未就绪或故障时放行。
+
+| 设计点 | 当前做法 |
+|---|---|
+| 防穿透 | Bloom 记录可能存在的商品 ID；仍未查到时短期缓存空值。空值基础 TTL 3 秒。 |
+| 防击穿 | Redisson RLock 合并跨实例重建。等锁时可重查缓存，拿锁后双检；失去执行权的旧请求无法回填。 |
+| 缓解雪崩 | 回填 TTL 设随机偏移。Redis 故障时限并发回源，等锁或回源容量不足返回 503。 |
+| 本地策略 | Caffeine 默认 TTL 2 秒，支持 HOTKEY / ALL / OFF。默认 HOTKEY，热点开关默认关闭。 |
+
+Redis 分开存商品资料、SKU 价格与展示库存。资料基础 TTL 10 分钟，价格 60 秒，数据库展示库存 3 秒。启用交易预扣时，已初始化 SKU 的可售量直接读交易 Redis。建单与关单提交后失效相关 SKU 的展示库存，商品资料及价格可继续复用。业务事务读取数据库，防止使用展示缓存核价或回填未提交数据。
+
+[缓存流程图](../../../docs/images/catalog-cache-flow.png) · [CatalogCache](../../../src/main/java/com/bitmall/agent/product/cache/CatalogCache.java) · [SKU 展示查询](../../../src/main/java/com/bitmall/agent/product/service/SkuDisplayService.java)
+
 ## Requirements
 
 ### Requirement: CACHE-001 公共缓存隔离
@@ -110,4 +125,4 @@
 
 ## References
 
-[设计与流程](../../../docs/product-design.md) · [验证入口](../../../src/test/java/com/bitmall/agent/product/service/CatalogCacheIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/product/service/CatalogCacheIntegrationTest.java)

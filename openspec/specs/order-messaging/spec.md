@@ -4,6 +4,24 @@
 
 约定购买受理、订单变更及定时检查的可靠发送和消费语义，保证已提交的发送意图可以恢复重试、消息重复不会重复办理交易，并明确发送成功、消费完成和真实订单成功这几种不同事实。
 
+## 当前实现
+
+| 消息标签 | 消费者职责 |
+|---|---|
+| `ORDER_BUILD` | 按 trace 读取快照并建单，正文只传 traceId。 |
+| `ORDER_PAYMENT_TIMEOUT` | 到期锁订单查状态，按原截止时间处理关单。 |
+| `ORDER_CREATED` / `ORDER_PAID` / `ORDER_CANCELLED` | 保存按 eventId 唯一的订单审计回执。 |
+
+业务状态和 Outbox 在同一个 MySQL 事务内保存。提交后立即尝试发送，扫描负责补发。转发器用带持有者令牌的数据库租约抢任务；Broker 收到但本地没标 `SENT` 时，下次按原 eventId 和正文重试。订单状态查 trace 与订单表。
+
+建单消费的 Redis String 键是 `idempotent:ORDER_BUILD:{traceId}`，值由 `PROCESSING:<ownerToken>` 变为 `DONE`。失败只能移除自己的标记；标记过期或 Redis 故障时，MySQL 行锁、状态和唯一关联仍防重复建单。明确业务拒绝在事务回滚后保存失败及释放进度，临时异常则交给 RocketMQ 重试。
+
+### 死信处理
+
+普通建单消费者最多重试 5 次。开启 `ROCKETMQ_BUILD_DLQ_ENABLED` 后，独立组订阅原建单组的死信 Topic。按 eventId 与 traceId 核对原 Outbox、锁住 trace，再判断：仍有效且符合重投条件则重发原消息；未建单且超时则标记失败并释放；已有终态只整理库存。格式或关联异常留日志，数据库故障继续重试。定时恢复负责兜底，Prometheus 从 Broker 指标观察新增死信。
+
+[Outbox 与恢复图](../../../docs/images/outbox-recovery.png) · [转发服务](../../../src/main/java/com/bitmall/agent/order/service/OrderMessageRelayService.java) · [死信消费者](../../../src/main/java/com/bitmall/agent/order/mq/consumer/OrderBuildDeadLetterConsumer.java)
+
 ## Requirements
 
 ### Requirement: MQ-001 业务与发送意图共同提交
@@ -107,4 +125,4 @@
 
 ## References
 
-[设计与流程](../../../docs/messaging-recovery.md) · [验证入口](../../../src/test/java/com/bitmall/agent/order/service/OrderMessagingIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/order/service/OrderMessagingIntegrationTest.java)

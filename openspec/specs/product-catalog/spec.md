@@ -4,6 +4,22 @@
 
 约定页面和助手读取公共商品目录时的筛选、规格、分页与详情语义，确保用户看到的价格和规格属于同一个可核实的商品候选，避免把商品聚合展示信息当成具体规格可成交的承诺。
 
+## 当前实现
+
+| 接口 | 执行过程 |
+|---|---|
+| `GET /api/store/products` | 解析关键词、品类、品牌、价格带、属性、库存、排序及分页，按完整条件查缓存，未命中执行 MySQL 查询。 |
+| `GET /api/store/product-filters` | 按品类读取可用筛选项，如品牌、颜色、尺码；走独立查询。 |
+| `GET /api/store/products/{productId}` | 校验商品 ID，查商品资料，再批读可见 SKU 的价格、可售量和规格属性。 |
+
+商品 ID 指款式，SKU ID 指规格。颜色、尺码、价格和库存约束命中**同一个 SKU**后商品才入选。列表查询使用数据库筛选、排序和分页，避免跨规格凑出不存在的商品组合。详情复用[商品缓存 Spec](../catalog-cache/spec.md)，页面和 Agent 共用商品服务。
+
+### 真实商品与价格从哪里来
+
+当前目录收录 32 款、38 个 SKU、8 个品类，覆盖 Apple、小米/米家、Nike、IKEA、MUJI。[商品数据](../../../src/main/resources/catalog/real-products.json)按 SKU 保存规格、参考价、出处、核对日期及本地图像。价格采用记录中的官网快照或发布价。图片存在静态资源中，销售库存和结算规则由本项目提供。已经成交的订单继续展示购买时的商品名称、规格与金额快照。
+
+[商品接口](../../../src/main/java/com/bitmall/agent/product/controller/ProductController.java) · [商品搜索](../../../src/main/java/com/bitmall/agent/product/service/ProductSearchService.java)
+
 ## Requirements
 
 ### Requirement: CAT-001 公共商品查询契约
@@ -67,4 +83,4 @@
 
 ## References
 
-[设计与流程](../../../docs/product-design.md) · [验证入口](../../../src/test/java/com/bitmall/agent/product/controller/CatalogSearchIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/product/controller/CatalogSearchIntegrationTest.java)

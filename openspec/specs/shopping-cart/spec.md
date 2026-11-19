@@ -4,6 +4,19 @@
 
 约定用户管理待购买 SKU、数量与勾选状态的行为，明确购物车展示与最终交易之间的边界，保证条目操作带有用户归属范围，并避免把购物车中的可见库存检查解释为已经预留库存。
 
+## 当前实现
+
+| 接口 | 执行过程 |
+|---|---|
+| `GET /api/store/cart` | 按用户读取条目，汇总勾选数量与金额。 |
+| `POST /api/store/cart` | 校验 SKU、数量和库存提示，在原 SKU 条目上累加数量。 |
+| `PATCH /api/store/cart/{itemId}` | 核对归属，更新数量或勾选状态。 |
+| `DELETE /api/store/cart/{itemId}` | 按用户及条目 ID 删除，返回更新后的购物车。 |
+
+购物车保存条目与选中状态；库存由下单时统一预扣。结算重查已选条目，正式下单绑定的快照独立保存，之后修改购物车不会改动原购买。
+
+[购物车服务](../../../src/main/java/com/bitmall/agent/cart/service/CartService.java) · [结算 Spec](../checkout/spec.md)
+
 ## Requirements
 
 ### Requirement: CART-001 读取用户购物车
@@ -43,4 +56,4 @@
 
 ## References
 
-[设计与流程](../../../docs/api-flows.md) · [验证入口](../../../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java)

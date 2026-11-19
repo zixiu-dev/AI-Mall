@@ -102,7 +102,8 @@ class BenchmarkEnvironment:
             if self.app.poll() is not None:raise RuntimeError('应用退出 '+str(self.folder/'application.log'))
             try:
                 state=self.api('/actuator/ordermonitor',True)
-                if 'ordersCreatedTotal' in state:
+                # 固定异步启动完成后还需要等订单 Topic 探针成功。
+                if 'ordersCreatedTotal' in state and (mode != 'ASYNC' or state['routing']['accepting']):
                     assert self.api('/actuator/catalogcache',True)['localMode']==local_mode;return
             except (OSError,ValueError):pass
             time.sleep(.3)

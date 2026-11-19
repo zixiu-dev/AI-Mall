@@ -4,6 +4,18 @@
 
 约定助手如何处理用户输入、选择受控业务工具并返回有依据的结果，同时区分真实模型与确定性演示路径，保证工具调用不会绕过页面使用的交易服务，并使流式交互的中断与真实业务状态相互区分。
 
+## 当前实现
+
+| 接口 | 实际流程 |
+|---|---|
+| `POST /api/agent/chat` | 校验会话归属与执行门禁，保存输入，组装对话上下文，运行模型或演示规则，持久化回复。 |
+| `POST /api/agent/chat/stream` | 共用聊天流程，通过 SSE 返回文本片段、工具进度与最终结果。 |
+| `GET /api/agent/status` | 返回当前配置使用模型或演示模式。 |
+
+启用真实模型后，Spring AI `ChatClient` 组织模型与工具循环。工具目录保存参数 Schema、读写分类和所需 Skill；模型看到当前允许的工具，真正执行时再校验。Skills 是数据库中的操作手册，由 `load_skill` 读取。工具从服务端上下文取用户与会话，查询直连业务 Service，写操作交给[确认流程](../agent-confirmation/spec.md)。演示模式由确定性规则调用业务。流式连接中断后，交易结果按原 trace 查询。
+
+[Agent 流程图](../../../docs/images/agent-execution.png) · [聊天服务](../../../src/main/java/com/bitmall/agent/agent/service/chat/AgentChatService.java) · [模型执行](../../../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [工具分发](../../../src/main/java/com/bitmall/agent/agent/service/tool/ToolDispatcher.java)
+
 ## Requirements
 
 ### Requirement: AGENT-001 真实模式与演示模式可区分
@@ -79,4 +91,4 @@
 
 ## References
 
-[设计与流程](../../../docs/agent-design.md) · [验证入口](../../../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java)

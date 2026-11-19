@@ -4,36 +4,13 @@
 
 **面试主线：商品查询怎样保护数据库；一次购买怎样只建一单；异步建单怎样处理失败；Agent 怎样可靠调用真实业务。**
 
+打开 [功能 Spec](openspec/README.md)，按商品、交易、消息和 Agent 查看当前接口与实现。运行、测试和面试资料见 [项目资料](docs/README.md)。
+
 ## 整体架构图
 
 [![智购整体架构：访问入口、Agent 编排、业务服务、核心设计、外部组件，以及商品查询和同步／异步下单链路](docs/images/system-architecture.png)](docs/images/system-architecture.svg)
 
 左侧按职责分层，右侧串起三条关键链路。**页面与 Agent 共用业务 Service；同步与异步共用建单事务；已受理、建单成功、已支付是不同状态。** 点击图片可查看可缩放的 SVG，也可打开 [高清 PNG](docs/images/system-architecture.png)。
-
-## 先看这四份
-
-| 顺序 | 文档 | 要能讲清楚的问题 |
-|---|---|---|
-| 1 | [整体架构](docs/architecture.md) | 模块怎么分？Controller、Service、DAO 各做什么？数据放在哪里？ |
-| 2 | [接口与功能流程](docs/api-flows.md) | 每个 HTTP 接口经过哪些步骤？购物车、券、结算、查询怎么设计？ |
-| 3 | [下单设计](docs/order-design.md) | 同步/异步完整链路、trace、幂等、Lua、Outbox、库存和补偿 |
-| 4 | [Agent 设计](docs/agent-design.md) | ReAct、工具、Skills、用户确认、记忆与 SSE 怎样串起来？ |
-
-## 按设计点继续阅读
-
-| 主题 | 文档 |
-|---|---|
-| 商品检索与缓存 | [SKU 条件、缓存读取、Bloom、空值、双检锁、随机 TTL、HotKey](docs/product-design.md) |
-| 品牌知识检索 | [多子问题、版本化向量索引、双路召回、RRF、渠道与来源](docs/knowledge-design.md) |
-| trace 与幂等 | [购买与重试、接口锁、数据库兜底、MQ 去重](docs/idempotency-design.md) |
-| 消息与恢复 | [Outbox、消费结果、预扣补偿、关单返还](docs/messaging-recovery.md) |
-| 自动切换与监控 | [压力采样、模式切换、队列与积压](docs/pressure-monitoring.md) |
-| 当前数据库结构 | [MySQL / PG 完整 DDL 与初始化入口](docs/database/README.md) |
-| 数据模型与事务 | [核心表、库存含义、状态、约束与 Mapper](docs/data-design.md) |
-| 运行与验证 | [启动和排查](docs/deployment.md) · [测试与压测总报告](docs/testing.md) |
-| 面试准备 | [讲述提纲、追问、指标表达与演示](docs/interview-guide.md) |
-
-实现讲解与架构图在 [docs 阅读导航](docs/README.md)，测试说明和压测结果已统一合并。后续功能开发按 [OpenSpec 规格与变更流程](openspec/README.md)推进：当前行为、差异提案、设计、任务和验收都有记录。
 
 ## 一分钟介绍项目
 
@@ -70,14 +47,14 @@ ORDER_SUBMISSION_MODE=SYNC mvn spring-boot:run -Dspring-boot.run.profiles=demo
 
 - 这是单应用按业务分包，尚未拆成独立部署的微服务，也没有实现分库分表。
 - 使用演示用户身份，未接入真实登录；支付是显式启用的模拟入口，售后没有接入真实退款渠道。
-- 知识检索默认数据库关键词；已实现可配置 HYBRID 与查询增强，并完成百炼 embedding / DeepSeek 真实联调。向量存储已接 PostgreSQL + pgvector，支持数据库精确/HNSW 检索；当前未做大库容量评测，见 [RAG 设计](docs/knowledge-design.md)。
+- 知识检索默认数据库关键词；已实现可配置 HYBRID 与查询增强，并完成百炼 embedding / DeepSeek 真实联调。向量存储已接 PostgreSQL + pgvector，支持数据库精确/HNSW 检索；当前未做大库容量评测，见 [RAG Spec](openspec/specs/knowledge-retrieval/spec.md)。
 - Agent 会话互斥目前是单进程能力；订单具备的数据库幂等不能直接等同于 Agent 会话跨实例串行。
 - 压测记录代表对应机器、参数和场景。数据库建单成功后可能仍有 Redis 整理或 Outbox 发送积压，不能把单秒峰值写成生产持续容量。
 
 验证命令：`mvn test`。本次文档的源码入口和接口清单均对应当前代码；各项边界见对应主题文档。
 
-商城前台已提供独立商品详情、购物车、结算、优惠券与订单页面，支持手机布局。页面设计与购买交互见 [商城前台设计](docs/storefront-design.md)。
+商城前台已提供独立商品详情、购物车、结算、优惠券与订单页面，支持手机布局。页面设计与购买交互见 [商城前台 Spec](openspec/specs/storefront-experience/spec.md)。
 
-当前商品目录已换为 32 款真实品牌商品（Apple、米家、Nike、IKEA、MUJI），规格、品牌图片及参考价格均保留来源与核对日期，见[商品来源清单](docs/storefront-design.md#真实商品与价格从哪里来)。库存与支付仍为本地演示数据。
+当前目录收录 32 款真实品牌商品（Apple、米家、Nike、IKEA、MUJI），规格、品牌图片及参考价格均保留来源与核对日期，见 [商品来源](openspec/specs/product-catalog/spec.md#真实商品与价格从哪里来)。库存与支付仍为本地演示数据。
 
-当前数据库 DDL 与初始化入口见 [docs/database](docs/database/README.md)；Spring AI 用法及源码职责见 [Agent 设计第 9 节](docs/agent-design.md#9-spring-ai-2-的使用方式)。
+当前数据库 DDL 与初始化入口见 [docs/database](docs/database/README.md)；Spring AI 用法及源码职责见 [Agent 运行 Spec](openspec/specs/agent-runtime/spec.md)。

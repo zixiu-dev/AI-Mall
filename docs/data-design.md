@@ -1,6 +1,6 @@
 # 数据模型、事务与状态
 
-返回 [文档导航](README.md) · 请求顺序见 [接口流程](api-flows.md)
+返回 [文档导航](README.md) · 请求顺序见 [接口流程](../openspec/README.md)
 
 ## 1. 先理解这些表，不用背全部字段
 
@@ -74,7 +74,7 @@ Controller 处理参数与返回值；Service 管理业务事务；Repository �
 
 MyBatis-Plus 不会自动补库存条件或状态机。显式 SQL 仍需要用户归属、当前状态、版本和影响行数判断；排序与动态表选择采用白名单，用户值使用参数绑定。
 
-绑定 trace、记录预占意图用独立事务；建单库存/券/订单/结果/Outbox 用同一事务。跨 Redis/MQ 的恢复规则见 [消息与恢复](messaging-recovery.md)。
+绑定 trace、记录预占意图用独立事务；建单库存/券/订单/结果/Outbox 用同一事务。跨 Redis/MQ 的恢复规则见 [消息与恢复](../openspec/specs/order-messaging/spec.md)。
 
 ## 6. 直接看当前结构，不用追演化过程
 

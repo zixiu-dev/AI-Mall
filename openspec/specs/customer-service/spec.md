@@ -4,6 +4,20 @@
 
 约定助手可查询的订单物流、售后资格和商城规则，以及用户确认后可提交的售后申请，强调数据归属、金额复核和申请与真实退款的区别，不将预检或规则检索误报为业务已经执行成功。
 
+## 当前实现
+
+| 工具 | 当前执行过程 |
+|---|---|
+| `logistics_query` | 按当前用户核对订单归属，查询本库物流轨迹。 |
+| `after_sales_precheck` | 检查订单归属、状态、金额和已有申请，返回资格及金额。 |
+| `after_sales_submit` | 用户确认后再校验资格，创建 `REVIEWING` 售后申请。 |
+| `after_sales_query` | 按用户及订单号或售后单号查询进度。 |
+| `search_knowledge` | 按品牌、政策类别与渠道查询证据，引用文档来源。对本站订单的办理资格仍由业务服务判断。 |
+
+物流与售后通过 Agent 工具使用服务端用户上下文。当前轨迹来自本地数据库，申请流程记录受理和进度；真实物流回调与退款渠道未接入。
+
+[售后服务](../../../src/main/java/com/bitmall/agent/aftersales/service/AfterSalesService.java) · [物流查询服务](../../../src/main/java/com/bitmall/agent/order/service/OrderService.java) · [政策检索 Spec](../knowledge-retrieval/spec.md)
+
 ## Requirements
 
 ### Requirement: SUPPORT-001 物流查询归属
@@ -89,4 +103,4 @@
 
 ## References
 
-[设计与流程](../../../docs/api-flows.md) · [验证入口](../../../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java)

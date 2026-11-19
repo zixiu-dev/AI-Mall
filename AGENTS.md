@@ -2,7 +2,7 @@
 
 ## 功能变更
 
-- 先阅读 openspec/README.md、openspec/project.md 和相关能力规格；架构及实现讲解在 docs/。
+- 先阅读 openspec/README.md、openspec/project.md 和相关功能 Spec；功能实现直接维护在对应 spec.md，架构、运行和测试资料在 docs/。
 - 新增/修改/删除可观察行为时，建立 openspec/changes/<change-name>/，记录 proposal、delta specs、必要 design、tasks 与实际验证；按 openspec/workflow.md 推进。
 - 修复违反原契约的缺陷时保留原要求；行为未变的重构/说明可使用 skip_specs，不伪造业务差异。
 - 已有明确用户授权时，在同一次任务中推进规格、代码和验证，无需逐文件再次确认；歧义或超出授权范围再具体澄清。

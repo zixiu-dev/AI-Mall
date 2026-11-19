@@ -9,12 +9,14 @@ import com.bitmall.agent.order.config.*;
 import com.bitmall.agent.order.dao.repository.*;
 import com.bitmall.agent.order.idempotent.OrderIdempotencyBackend;
 import com.bitmall.agent.order.model.CreateOrderCommand;
+import com.bitmall.agent.order.mq.BrokerHealthChecker;
 import com.bitmall.agent.order.mq.consumer.OrderBuildConsumer;
 import com.bitmall.agent.order.mq.message.*;
 import com.bitmall.agent.order.mq.producer.OrderEventProducer;
 import com.bitmall.agent.order.vo.OrderSubmitVO;
 import java.net.*;
 import java.nio.file.Files;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
@@ -27,6 +29,7 @@ import org.springframework.context.annotation.*;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.*;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -61,6 +64,8 @@ class OrderAsyncSubmissionIntegrationTest {
   @Autowired CommitProbe probe;
   @MockitoSpyBean OrderProcessingProperties processing;
   @MockitoSpyBean OrderMessagingProperties messaging;
+  @MockitoBean BrokerHealthChecker broker;
+  @Autowired OrderTraceRepository traceRows;
   @MockitoSpyBean OrderMessageRepository outbox;
   @MockitoSpyBean OrderRepository orderRepository;
   @MockitoSpyBean OrderIdempotencyBackend idempotency;
@@ -114,6 +119,7 @@ class OrderAsyncSubmissionIntegrationTest {
     doReturn("ASYNC").when(processing).getSubmissionMode();
     // Spring 的远程 MQ 装配仍关闭，只在策略检查中模拟可用传输。
     doReturn(true).when(messaging).isEnabled();
+    when(broker.isHealthy()).thenReturn(true);
     jdbc.sql("DELETE FROM order_message_outbox").update();
     probe.events.clear();
     jdbc.sql(
@@ -138,6 +144,9 @@ class OrderAsyncSubmissionIntegrationTest {
     assertThat(ordersFor(p)).isZero();
     assertThat(buildMessages(p)).isEqualTo(1);
     assertThat(tracesRow(p, "processing_expires_at")).isNotNull();
+    var acceptedRow = traceRows.find(p.getTraceId()).orElseThrow();
+    assertThat(Duration.between(acceptedRow.getAcceptedAt(), acceptedRow.getProcessingExpiresAt()).toSeconds())
+        .isBetween(598L, 601L);
     var message = outbox.findReady(10).get(0);
     assertThat(message.getEventType()).isEqualTo("ORDER_BUILD");
     assertThat(message.getPayload())
@@ -145,6 +154,8 @@ class OrderAsyncSubmissionIntegrationTest {
         .doesNotContain("userId", "price", "address");
     assertThat(submit(p).getStatus()).isEqualTo("PROCESSING");
     assertThat(buildMessages(p)).isEqualTo(1);
+    assertThat(traceRows.find(p.getTraceId()).orElseThrow().getProcessingExpiresAt())
+        .isEqualTo(acceptedRow.getProcessingExpiresAt());
   }
 
   @Test

@@ -46,7 +46,7 @@ public class OrderAsyncAdmissionService {
     if (!"ASYNC".equals(trace.getMode())) throw new IllegalArgumentException("该购买凭证不是排队下单");
     if (!trace.getExpiresAt().isAfter(LocalDateTime.now()))
       throw new OrderRejectedException("EXPIRED", "确认已过期，请重新结算");
-    policy.requireQueueEnabled();
+    policy.requireQueueAvailable();
     var deadline = LocalDateTime.now().plusSeconds(properties.getAsyncTimeoutSeconds());
     if (!traces.claim(trace, deadline)) return;
     inventory.verifyPrepared(traces.lock(id));

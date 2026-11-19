@@ -4,6 +4,21 @@
 
 规定现有 Agent 搜索工具的多知识子问题、可信原意约束、版本化向量索引、同范围关键词与语义召回、排名融合、预算/故障和完整证据契约。搜索返回可核对资料，由原有外层工具循环综合；不授予知识文档交易执行权限。
 
+## 当前实现
+
+**入口**　`GET /api/store/knowledge/search` 支持单查询与可选范围；`POST /api/store/knowledge/search` 支持多子问题。Agent 的 `search_knowledge` 调同一个检索服务。
+
+1. 外层模型可将组合请求拆出知识子问题，订单查询仍由订单工具处理。检索服务核对问题结构、原文与可用历史，归一化品牌、政策类别及渠道。对应关系不明确时返回澄清。
+2. 默认直接检索子问题。开启增强后，受限地批量生成表达变体；超时、改错品牌或越界时回退到原问题。
+3. KEYWORD 默认用数据库 LIKE。HYBRID 在同一已发布的 pgvector 索引版本及范围内执行关键词与语义召回，默认精确余弦距离，可配置 HNSW 并在候选不足时精确补充。
+4. 通道内按文档、版本和切片身份去重取最佳名次，双路结果经 RRF 排序融合。每个子问题保留有限完整证据，返回来源、覆盖及实际检索模式。当前排序没有额外的模型重排服务。
+
+### 向量库与离线索引
+
+MySQL 保存源文档。离线流程校验 Markdown、来源与哈希，按段落切分，候选版本的向量生成完成后才在 PostgreSQL 一次提交切片和发布指针。切片表保存正文、来源 JSONB 和 `vector(1024)`；版本表记录模型身份，发布指针供在线读取。失败保留旧指针，遇到索引或模型不可用时按现有回退路径显式报告。
+
+[检索流程图](../../../docs/images/knowledge-retrieval.png) · [检索服务](../../../src/main/java/com/bitmall/agent/knowledge/service/KnowledgeService.java) · [双路召回](../../../src/main/java/com/bitmall/agent/knowledge/service/retrieval/KnowledgeRetriever.java) · [索引服务](../../../src/main/java/com/bitmall/agent/knowledge/service/KnowledgeIndexService.java)
+
 ## Requirements
 
 ### Requirement: RAG-001 兼容的多子问题入口
@@ -121,4 +136,4 @@
 
 ## References
 
-[检索设计](../../../docs/knowledge-design.md) · [验证记录](../../changes/archive/2026-11-17-build-agentic-rag-pipeline/verification.md) · [统一测试](../../../docs/testing.md#15-agentic-rag-检索流水线2026-11-17)
+[检索集成测试](../../../src/test/java/com/bitmall/agent/knowledge/KnowledgePipelineIntegrationTest.java) · [测试与压测](../../../docs/testing.md)

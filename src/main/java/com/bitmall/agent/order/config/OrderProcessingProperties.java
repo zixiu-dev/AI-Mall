@@ -71,7 +71,7 @@ public class OrderProcessingProperties {
         submissionMode == null ? "SYNC" : submissionMode.trim().toUpperCase(java.util.Locale.ROOT);
     if (!java.util.Set.of("SYNC", "ASYNC", "AUTO").contains(this.submissionMode))
       throw new IllegalArgumentException("submission-mode 只能配置 SYNC、ASYNC 或 AUTO");
-    this.asyncTimeoutSeconds = asyncTimeoutSeconds > 0 ? asyncTimeoutSeconds : 120;
+    this.asyncTimeoutSeconds = asyncTimeoutSeconds > 0 ? asyncTimeoutSeconds : 600;
     this.paymentTtlSeconds = paymentTtlSeconds > 0 ? paymentTtlSeconds : 900;
     this.maxConcurrent = maxConcurrent > 0 ? maxConcurrent : 32;
     this.latencyTargetMs = latencyTargetMs > 0 ? latencyTargetMs : 500;

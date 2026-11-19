@@ -9,6 +9,7 @@ import com.bitmall.agent.order.dao.repository.OrderTraceRepository;
 import com.bitmall.agent.order.idempotent.OrderRedisClient;
 import com.bitmall.agent.order.inventory.InventorySettlementService;
 import com.bitmall.agent.order.model.CreateOrderCommand;
+import com.bitmall.agent.order.mq.BrokerHealthChecker;
 import com.bitmall.agent.order.service.*;
 import java.net.*;
 import java.nio.file.Files;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.*;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -91,6 +93,7 @@ class OrderAutoRoutingIntegrationTest {
   @Autowired InventorySettlementService settlement;
   @MockitoSpyBean OrderPressureWindow window;
   @MockitoSpyBean OrderMessagingProperties messaging;
+  @MockitoBean BrokerHealthChecker broker;
   @MockitoSpyBean OrderAutoRoutingProperties limits;
   @MockitoSpyBean OrderTraceRepository traceRows;
 
@@ -104,6 +107,7 @@ class OrderAutoRoutingIntegrationTest {
         .template()
         .delete(List.of(state(), namespace + "{routing}:nodes", namespace + "{routing}:samples"));
     doReturn(true).when(messaging).isEnabled();
+    when(broker.isHealthy()).thenReturn(true);
     low();
     tick();
   }
@@ -197,7 +201,7 @@ class OrderAutoRoutingIntegrationTest {
 
   @Test
   void unavailableMqRejectsHighPressureInsteadOfReturningToSync() {
-    doReturn(false).when(messaging).isEnabled();
+    when(broker.isHealthy()).thenReturn(false);
     high();
     tick();
     tick();

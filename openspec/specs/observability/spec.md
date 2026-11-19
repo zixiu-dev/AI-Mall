@@ -4,6 +4,19 @@
 
 约定运行时可查看的交易与缓存状态，以及查询、异步受理、成功建单和后置恢复的计量边界，保证压测结果具有场景、环境和原始证据，避免把接口快速响应或短时峰值当成完整业务链路的持续容量。
 
+## 当前实现
+
+| 指标 | 统计口径 |
+|---|---|
+| 商品查询 QPS | 每秒查询请求，配合 Caffeine / Redis 命中和数据库 loader 次数查看。 |
+| 下单提交与受理 QPS | 分别统计提交到达和可靠受理；异步受理完成时可返回 `PROCESSING`。 |
+| 建单 TPS | 每秒真实提交的建单事务，可按同步与异步区分。 |
+| 消息与库存积压 | 分开观察建单处理中、最老等待、Broker 新增死信，以及库存待确认、待释放。 |
+
+`/actuator/ordermonitor` 查看路由与积压，`/actuator/catalogcache` 查看缓存，显式开启后 `/actuator/throughput` 可读固定一秒桶。Prometheus 监测 Broker 建单消费组的死信与应用积压。排查单笔购买沿 trace、Outbox、Broker、订单事务和库存整理查，峰值数据记录机器、场景和窗口。
+
+[统计流程图](../../../docs/images/measurement-pipeline.png) · [测试与压测](../../../docs/testing.md) · [一秒计数器](../../../src/main/java/com/bitmall/agent/common/monitor/OneSecondThroughput.java)
+
 ## Requirements
 
 ### Requirement: OBS-001 运行状态可观察

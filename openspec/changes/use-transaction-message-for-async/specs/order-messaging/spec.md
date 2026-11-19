@@ -1,36 +1,23 @@
-# 可靠消息发送与消费（差异）
+## ADDED Requirements
 
-## MODIFIED Requirements
+### Requirement: MQ-007 异步建单事务消息回查
 
-### Requirement: MSG-001 本地事务与消息原子
+系统 SHALL 在显式启用事务消息时，按稳定消息身份核对本地受理决定，并保留原消息的持久化恢复依据和 Outbox 转发能力。
 
-系统 SHALL 保证建单意图 ORDER_BUILD 命令与本地 trace 状态在同一逻辑事务中，通过 **RocketMQ 事务消息机制** 实现，不使用独立 Outbox 表。
+#### Scenario: 本地受理已经提交
 
-#### Scenario: 使用事务消息发送
+- **GIVEN** Broker 未收到本地事务提交结果
+- **WHEN** Broker 按消息身份回查
+- **THEN** 应用从该消息对应的已提交证据得出提交结论，后续 trace 终态不会改变原受理决定。
 
-- **GIVEN** 需要发送 ORDER_BUILD 命令
-- **WHEN** 执行异步受理
-- **THEN** 
-  - 发送 RocketMQ prepare 消息
-  - 执行本地事务（更新 trace）
-  - 本地事务成功返回 COMMIT_MESSAGE
-  - RocketMQ 将消息设为可消费
+#### Scenario: 本地结果暂不可知
 
-#### Scenario: 本地事务失败不发送
+- **GIVEN** 回查时本地事务未完成、数据库不可用或结果缺乏证据
+- **WHEN** Broker 回查
+- **THEN** 返回未知并允许再次回查，只有能够确认回滚时才返回回滚。
 
-- **GIVEN** 执行本地事务
-- **WHEN** 本地事务抛出异常
-- **THEN** 
-  - 返回 ROLLBACK_MESSAGE
-  - RocketMQ 删除 prepare 消息
-  - 消费者不会收到消息
+#### Scenario: 消息需要补发
 
-## REMOVED Requirements
-
-### Requirement: MSG-001 Outbox 模式（原版本）
-
-**Reason:** 改用 RocketMQ 事务消息替代
-
-**Migration:** 
-- ORDER_BUILD 命令使用事务消息
-- 订单事件（ORDER_CREATED/PAID/CANCELLED）保留 Outbox
+- **GIVEN** 已提交的建单消息超过确认宽限期，或已匹配的有效购买需要死信重发
+- **WHEN** 持久化恢复接手
+- **THEN** 复用原消息身份、正文和购买截止时间，支持至少一次投递和幂等消费。

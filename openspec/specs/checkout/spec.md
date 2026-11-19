@@ -4,6 +4,14 @@
 
 约定立即购买和购物车结算如何形成可确认报价，要求后端核对真实 SKU、用户地址和可用优惠并计算金额，明确报价是提交前的确认依据而不是已经建单或冻结资源的成功回执。
 
+## 当前实现
+
+`POST /api/store/checkout/quote` 将购买来源分为 `DIRECT` 和 `CART`。直接购买取指定 SKU，购物车取当前用户已勾选的条目。服务端读取数据库中的价格、库存、收货地址归属和券资格，使用 BigDecimal 计算商品额、优惠、运费和应付额。
+
+返回的报价用于用户确认。正式提交重新核价，并核对商品与数量。购物车额外比对 `expectedItems`，能拦截总金额相同但 SKU 已被替换的请求。试算阶段只读取业务数据，预扣和锁券发生在后续下单事务相应阶段。
+
+[结算服务](../../../src/main/java/com/bitmall/agent/checkout/service/CheckoutService.java) · [下单 Spec](../order-submission/spec.md)
+
 ## Requirements
 
 ### Requirement: CHECKOUT-001 立即购买与购物车试算
@@ -48,4 +56,4 @@
 
 ## References
 
-[设计与流程](../../../docs/api-flows.md) · [验证入口](../../../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java)

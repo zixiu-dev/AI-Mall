@@ -1,6 +1,1 @@
 schema: spec-driven
-change_type: enhancement
-capabilities:
-  - order-submission
-  - order-messaging
-status: active

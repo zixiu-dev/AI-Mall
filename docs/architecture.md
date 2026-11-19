@@ -1,8 +1,8 @@
 # 整体架构：先理解业务边界
 
-返回 [学习导航](README.md) · 下一篇 [接口流程](api-flows.md)
+返回 [学习导航](README.md) · 下一篇 [接口流程](../openspec/README.md)
 
-深入各设计点：[商品缓存](product-design.md) · [幂等](idempotency-design.md) · [可靠消息](messaging-recovery.md) · [压力路由](pressure-monitoring.md) · [数据模型](data-design.md)。
+深入各设计点：[商品缓存](../openspec/specs/catalog-cache/spec.md) · [幂等](../openspec/specs/order-submission/spec.md) · [可靠消息](../openspec/specs/order-messaging/spec.md) · [压力路由](../openspec/specs/order-routing/spec.md) · [数据模型](data-design.md)。
 
 ## 1. 项目是什么架构
 
@@ -15,9 +15,9 @@
 左侧按职责分层，右侧串起查询与同步／异步下单。 点击图片查看可缩放 SVG。
 
 
-图中的 Outbox 是 MySQL 表：先与业务状态同事务写入，再在提交后发送 MQ。架构图表达组件关系，具体事务顺序见 [下单设计](order-design.md)。
+图中的 Outbox 是 MySQL 表：先与业务状态同事务写入，再在提交后发送 MQ。架构图表达组件关系，具体事务顺序见 [下单设计](../openspec/specs/order-submission/spec.md)。
 
-前台使用独立页面组织商品详情、购物车、结算、优惠券与订单，Hash 路由支持直达和浏览器返回；仍由同一个 Spring Boot 进程提供静态资源，详见 [商城前台设计](storefront-design.md)。
+前台使用独立页面组织商品详情、购物车、结算、优惠券与订单，Hash 路由支持直达和浏览器返回；仍由同一个 Spring Boot 进程提供静态资源，详见 [商城前台设计](../openspec/specs/storefront-experience/spec.md)。
 
 ## 2. 目录为什么按业务拆
 

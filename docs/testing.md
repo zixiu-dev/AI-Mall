@@ -226,7 +226,7 @@ Redis 业务访问已改为 Redisson，MQ 消费去重为保留例外；Bloom �
 | 设备布局 | 桌面 1440×1000；360/390/768 宽度的首页、目录、详情、购物车、券、订单、结算均无横向溢出；另保存有商品的手机购物车和结算截图 |
 | 失败反馈 | 商品不存在时显示错误和返回入口；没有用默认商品冒充查询成功 |
 
-[原始报告](../.runtime/storefront-tests/report.json)和同目录截图保存本机证据；[验收脚本](../scripts/verify-storefront.cjs)可重复执行。设计和部分页面预览在 [商城前台设计](storefront-design.md)。
+[原始报告](../.runtime/storefront-tests/report.json)和同目录截图保存本机证据；[验收脚本](../scripts/verify-storefront.cjs)可重复执行。设计和部分页面预览在 [商城前台设计](../openspec/specs/storefront-experience/spec.md)。
 
 先构建，再启动独立进程：
 
@@ -293,7 +293,7 @@ PLAYWRIGHT_MODULE=/private/tmp/bitmall-storefront-browser/node_modules/playwrigh
 
 ## 14. 品牌政策知识检索验证（2026-11-17）
 
-本轮将知识库改为 16 篇品牌政策摘要和 6 篇本站规则，新增品牌/类别/渠道识别与只读查询接口。实现流程见 [知识检索设计](knowledge-design.md)。
+本轮将知识库改为 16 篇品牌政策摘要和 6 篇本站规则，新增品牌/类别/渠道识别与只读查询接口。实现流程见 [知识检索设计](../openspec/specs/knowledge-retrieval/spec.md)。
 
 **全量 200 项通过，0 失败、0 错误、0 跳过**，包含隔离 MySQL 和真实临时 Redis；[汇总](../.runtime/brand-policies/regression-summary.json)、[日志](../.runtime/brand-policies/regression.log)为本机原始证据。此前 179 项是商品目录变更当时的记录。
 
@@ -362,7 +362,7 @@ PLAYWRIGHT_MODULE=/private/tmp/bitmall-storefront-browser/node_modules/playwrigh
 
 当前JAR预览 `http://127.0.0.1:18082` 已用真实百炼重建22块到PG，版本 `knowledge-e9aed650-58e3-48d5-b203-60caa59f5167`；POST原生混合查询和真实Agent政策问答都通过。预览保留原H2演示业务数据，交易主库没有迁到PG。
 
-证据：本机 `.runtime/pgvector/full-tests.log / full-tests-summary.json / preview-index.log / http-report.json / preview.json`。图与流程见 [RAG设计](knowledge-design.md)，逐项规格映射见 [本次验证记录](../openspec/changes/archive/2026-11-17-add-pgvector-knowledge-store/verification.md)。源码已加入独立连接失败清理、锁等待/语句超时及测试库隔离，未重跑业务压测，没有大库容量或ANN质量结论。容器配置已提供，但本轮只实测本机服务。
+证据：本机 `.runtime/pgvector/full-tests.log / full-tests-summary.json / preview-index.log / http-report.json / preview.json`。图与流程见 [RAG设计](../openspec/specs/knowledge-retrieval/spec.md)，逐项规格映射见 [本次验证记录](../openspec/changes/archive/2026-11-17-add-pgvector-knowledge-store/verification.md)。源码已加入独立连接失败清理、锁等待/语句超时及测试库隔离，未重跑业务压测，没有大库容量或ANN质量结论。容器配置已提供，但本轮只实测本机服务。
 
 ## 17. Spring Boot 4 与 Spring AI 2 迁移验证（2026-11-17）
 
@@ -420,3 +420,9 @@ MQ 验证仅将本轮支付窗口设为 12 秒，默认仍 900 秒。恢复扫�
 `mvn -o -B package` 通过，232 项通过、21 项按配置跳过，0 失败、0 错误。库存测试覆盖期限内补投、超时后重复释放、已成功订单补确认、无效身份和数据库故障。
 
 `python3 scripts/verify-order-build-dead-letter.py --consume-dead-letters` 验证独立消费组读取真实死信。本轮同时传入 `--prometheus-bin` 验证原告警。在隔离环境让真实建单事务持续失败后，启用死信消费者，确认在定时扫描尚未到期的情况下，超时购买被标记失败，Redis 可售由 6 回到 8。 [OpenSpec 验证记录](../openspec/changes/archive/2026-11-19-consume-order-build-dead-letters/verification.md)
+
+## 23. 异步下单 Broker 受理保护（2026-11-19）
+
+隔离环境运行 `mvn -o -B package`，235 项通过、21 项按配置跳过。固定 ASYNC 的回归覆盖未预扣拒绝、原 trace 重试、已受理结果保持和期限不延长。
+
+真实 RocketMQ 5.3.2、MySQL 和交易 Redis 联调中，Broker 断线后新单返回 503，库存保持 8，无建单 Outbox。重启 Broker 后，原 trace 重试成功且只创建一笔订单，库存降为 6。测试进程停止，临时库已清理。 [OpenSpec 验证记录](../openspec/changes/archive/2026-11-19-fix-async-routing-and-dlq-timing/verification.md)

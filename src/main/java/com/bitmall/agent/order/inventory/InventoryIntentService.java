@@ -36,9 +36,11 @@ public class InventoryIntentService {
     if (!"INIT".equals(t.getStatus())) return t.getMode();
     if (!t.getExpiresAt().isAfter(LocalDateTime.now()))
       throw new OrderRejectedException("EXPIRED", "确认已过期，请重新结算");
-    String mode = t.getMode();
-    if ("NONE".equals(t.getReserveStatus())) {
-      mode = policy.firstSubmissionMode(mode);
+    boolean firstReservation = "NONE".equals(t.getReserveStatus());
+    String mode = firstReservation ? policy.firstSubmissionMode(t.getMode()) : t.getMode();
+    // 仍在 INIT 的重试也要检查，避免 Broker 故障期间继续执行未完成的预扣。
+    if ("ASYNC".equals(mode)) policy.requireQueueAvailable();
+    if (firstReservation) {
       mapper.route(Map.of("id", id, "mode", mode));
       mapper.intent(
           Map.of(

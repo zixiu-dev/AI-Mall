@@ -3,6 +3,22 @@
 ## Purpose
 为商品浏览、规格选择、购物车、优惠券、结算和订单提供统一的商城页面体验，让用户能够通过真实接口完成购买并理解每一步状态，同时在桌面和移动设备上保留清晰导航与可访问的操作。
 
+## 当前实现
+
+静态 HTML、CSS 和 JavaScript 由 Spring Boot 提供。Hash 路由组织独立页面，支持详情直达、刷新与返回；手机布局包含底部导航及适配的商品和交易页面。
+
+| 页面 | 主要操作 |
+|---|---|
+| `#/`、`#/catalog` | 首页浏览与推荐，商品关键词、条件筛选、排序及分页。 |
+| `#/product/{id}` | 查看 SKU、价格、可售量，选择规格后收藏、加购或立即买。 |
+| `#/cart`、`#/coupons` | 修改勾选或数量、管理券领取和使用状态。 |
+| `#/checkout` | 服务端试算与核对，提交原购买参数及 trace。 |
+| `#/orders` | 订单查看、筛选、支付倒计时、物流与取消。 |
+
+收藏和足迹存于当前浏览器；购物车和订单以接口数据为准。提交后保留 trace，`PROCESSING` 时轮询原请求。页面从服务端截止时间计算倒计时，到期刷新订单状态。确认框和 SSE 展示 Agent 的操作回执。
+
+[首页](../../../docs/images/storefront-home.png) · [购物车](../../../docs/images/storefront-cart.png) · [前端入口](../../../src/main/resources/static/app.js) · [商品来源](../product-catalog/spec.md#真实商品与价格从哪里来)
+
 ## Requirements
 
 ### Requirement: FRONT-001 页面导航与商品选购
@@ -64,3 +80,7 @@
 
 - **WHEN** 从真实商品详情加购、试算和提交
 - **THEN** 页面、后端与助手使用相同的新 SKU 和参考价格，结算优惠仍为本项目规则，建单成功后显示真实下单快照
+
+## References
+
+[浏览器验收脚本](../../../scripts/verify-storefront.cjs)

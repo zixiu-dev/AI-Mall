@@ -2,8 +2,8 @@
 schema: spec-driven
 context: |
   项目是智购智能商城，Java 17 / Spring Boot / MyBatis-Plus，按业务分包的模块化单体。
-  面试解释和架构图在 docs/；当前行为契约在 openspec/specs/；一次变更在 openspec/changes/。
-  完整项目约定见 openspec/project.md，操作方式见 openspec/README.md 与 workflow.md。
+  当前功能实现与行为契约在 openspec/specs/；架构图、运行与测试资料在 docs/；变更在 openspec/changes/。
+  当前实现概览见 openspec/README.md，项目约定见 openspec/project.md，维护方式见 openspec/workflow.md。
   使用普通 Java 类，不使用 record；允许按需使用 Lombok；类、关键方法和复杂步骤写中文说明。
   Redis 访问采用 Redisson（原生对象/RScript），MQ消费去重保留例外；缓存未命中先Bloom再RLock。
   页面和 Agent 共用业务 Service；数据库保存成交事实，展示缓存不决定价格/库存成交。

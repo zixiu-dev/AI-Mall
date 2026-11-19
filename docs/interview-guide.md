@@ -73,4 +73,4 @@
 
 demo 只能演示其实际开启的能力；真实组件和真实模型需要按 [启动文档](deployment.md) 准备。演示结束能说明一个尚未完成的边界及优化验证方法，比背组件名更有说服力。
 
-RAG 可以准确描述为：版本化小型政策库、DB_KEYWORD + PostgreSQL + pgvector 原生距离查询、RRF、逐组证据预算、真实网关联调。LIKE 不是 BM25，默认精确 SQL 和可选 HNSW 需要分开说明，未做海量 ANN 基准；三项真实模型测试也不等于大规模检索质量评测，见 [知识设计](knowledge-design.md)。
+RAG 可以准确描述为：版本化小型政策库、DB_KEYWORD + PostgreSQL + pgvector 原生距离查询、RRF、逐组证据预算、真实网关联调。LIKE 不是 BM25，默认精确 SQL 和可选 HNSW 需要分开说明，未做海量 ANN 基准；三项真实模型测试也不等于大规模检索质量评测，见 [知识设计](../openspec/specs/knowledge-retrieval/spec.md)。

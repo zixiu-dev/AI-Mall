@@ -1,6 +1,6 @@
 # 参考 Codex 源码：模型决定下一步，运行时负责执行
 
-返回 [阅读导航](README.md) · 配套 [Agent 设计](agent-design.md) / [当前知识检索](knowledge-design.md)
+返回 [阅读导航](README.md) · 配套 [Agent 设计](../openspec/specs/agent-runtime/spec.md) / [当前知识检索](../openspec/specs/knowledge-retrieval/spec.md)
 
 本文区分源码事实、官方产品说明和商城后续方案。2026-11-17 已再次更新官方仓库；最新记录在前，原始快照分析在后。商城运行行为没有变化。
 

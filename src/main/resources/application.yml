@@ -56,7 +56,9 @@ app:
     locks-enabled: ${ORDER_LOCKS_ENABLED:true}
     database-fallback: true
     submission-mode: ${ORDER_SUBMISSION_MODE:AUTO}
-    async-timeout-seconds: 120
+    # 异步建单超时（默认 600 秒，考虑 MQ 重试时间）
+    # 建单期限内允许恢复重投；过期后按购买结果释放库存
+    async-timeout-seconds: ${ORDER_ASYNC_TIMEOUT_SECONDS:600}
     trace-ttl-seconds: 600
     payment-ttl-seconds: ${ORDER_PAYMENT_TTL_SECONDS:900}
     demo-payment-enabled: ${ORDER_DEMO_PAYMENT_ENABLED:false}

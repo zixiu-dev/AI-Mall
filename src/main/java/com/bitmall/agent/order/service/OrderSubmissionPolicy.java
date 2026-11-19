@@ -3,9 +3,11 @@ package com.bitmall.agent.order.service;
 import com.bitmall.agent.order.config.OrderMessagingProperties;
 import com.bitmall.agent.order.config.OrderProcessingProperties;
 import com.bitmall.agent.order.monitor.OrderPressureRouter;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
-/** 后端下单策略：按部署配置选择同步或排队，不绑定 SKU，也AUTO 根据交易压力选择，浏览 HotKey 不直接决定交易模式。 */
+/** 按部署配置选择下单模式，AUTO 根据交易压力选择，浏览热点不参与交易路由。 */
 @Service
 public class OrderSubmissionPolicy {
   private final OrderProcessingProperties processing;
@@ -34,8 +36,15 @@ public class OrderSubmissionPolicy {
     return "AUTO".equals(processing.getSubmissionMode()) ? router.select() : preparedMode;
   }
 
-  /** 暂停消息服务时明确拒绝新的排队受理，不假装队列可用，也不临时改成直接建单。 */
-  public void requireQueueEnabled() {
+  /** 异步购买在预扣和受理前读取探针快照，短暂故障可用原购买编号重试。 */
+  public void requireQueueAvailable() {
+    requireQueueEnabled();
+    if (!router.isAsyncReady())
+      throw new ResponseStatusException(
+          HttpStatus.SERVICE_UNAVAILABLE, "排队下单暂不可用，请稍后使用原购买编号重试");
+  }
+
+  private void requireQueueEnabled() {
     if (!messaging.isEnabled()) throw new IllegalStateException("排队下单暂未开放，请稍后使用原购买编号重试");
   }
 }

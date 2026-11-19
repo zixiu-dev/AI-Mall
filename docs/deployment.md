@@ -65,9 +65,13 @@ Compose 当前没有 RocketMQ 服务，须单独准备 Broker。延时关单采�
 
 ### 异步建单死信消费者
 
+固定 ASYNC 启动时，订单 Topic 的首次发送探针成功后才能接单。探针用 `HEALTH_CHECK` 标签，订单消费组各自订阅业务标签。`mall.order.broker.healthy` 可观察探针结果，`/actuator/ordermonitor` 的 `routing.accepting` 反映当前状态。探针故障时可用原购买编号重试。
+
+`ORDER_ASYNC_TIMEOUT_SECONDS` 默认 600 秒，控制从可靠受理到实际建单最长等待多久。各环境可覆盖该配置，已受理购买保留原有截止时间。待支付 15 分钟仍从实际建单起算。延长建单期限会增加故障期间库存预占的最长时间。
+
 确认部署实例共享同一业务 MySQL、交易 Redis 和建单消费组后，设置 `ROCKETMQ_BUILD_DLQ_ENABLED=true`。仓库默认连接共享开发 Broker，因此死信消费者默认关闭。需要启用 RocketMQ；独立组名为 `<ROCKETMQ_BUILD_CONSUMER_GROUP>_dlq`，读取 `%DLQ%<ROCKETMQ_BUILD_CONSUMER_GROUP>`。启用 ACL 时，给独立消费组配置该死信 Topic 的订阅权限。
 
-核对应用日志中的“异步建单死信核对完成”和“异步建单死信无法匹配原建单记录”。死信处理本身重试耗尽时，在 Dashboard 检查独立组自己的死信队列，订单状态仍由既有恢复任务处理。 [完整流程](messaging-recovery.md#7-异步建单死信怎么处理)
+核对应用日志中的“异步建单死信核对完成”和“异步建单死信无法匹配原建单记录”。死信处理本身重试耗尽时，在 Dashboard 检查独立组自己的死信队列，订单状态仍由既有恢复任务处理。 [完整流程](../openspec/specs/order-messaging/spec.md#死信处理)
 
 可用变量见 [.env.example](../.env.example)，最终默认值看 [application.yml](../src/main/resources/application.yml)。**普通 `mvn spring-boot:run` 不自动导入 `.env` 文件**，应用通过进程环境读取变量。
 
@@ -191,7 +195,7 @@ python3 scripts/verify-pgvector.py --full
 - embedding 仍独立使用百炼与 `RAG_EMBEDDING_*`，不会把 DeepSeek 聊天模型当向量模型。必须支持标准 `/embeddings`；聊天 endpoint 必须以 `/chat/completions` 结尾。
 - 应用 JSON 已迁移 Jackson 3（`tools.jackson`），注解仍用 `com.fasterxml.jackson.annotation`。`spring.jackson.use-jackson2-defaults=true` 只保留原 JSON 缺省字段/日期语义，并不是用回 Jackson 2；第三方 SDK 的 Jackson 2 依赖由该 SDK 使用。
 - MyBatis-Plus 换为 Boot 4 starter；Flyway 显式使用 Boot 4 starter。H2 固定 2.3.232：Boot 新带入的 2.4.240 在本项目旧 CHECK 约束迁移测试中出现连接关闭回归，未通过修改历史 SQL 绕开。
-- PostgreSQL 表与发布版本不变。旧 Agent 会话状态保持原记录，新消息写 `spring-ai-v1` 键；详见 [Agent 设计](agent-design.md#旧会话怎么处理)。
+- PostgreSQL 表与发布版本不变。旧 Agent 会话状态保持原记录，新消息写 `spring-ai-v1` 键；详见 [Agent 设计](../openspec/specs/agent-memory/spec.md#旧会话怎么处理)。
 - 性能压测历史结果来自旧版本，不能直接当作此次升级后的峰值或生产 SLA。
 
 本机当前预览 `http://localhost:18082` 使用真实 Spring AI + PGVECTOR，主业务为保留数据的 demo/H2，显式 SYNC 下单；Redis 缓存与 MQ 未在该预览开启。真实 Redis/MQ 的同步/异步链路已在独立验收环境验证，不能把此预览当完整生产部署。

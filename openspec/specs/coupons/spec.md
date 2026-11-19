@@ -4,6 +4,14 @@
 
 约定券模板和用户持有券的区别、领取约束与订单生命周期中的占用规则，保证优惠资格和金额由后端检查，领取成功并不构成后续永远可用的承诺，失败或关闭订单时也能够恢复可用资格。
 
+## 当前实现
+
+- `GET /api/store/coupons` 查询券活动与当前用户领用状态。活动用 `couponId`，领到的那张券用 `userCouponId`。
+- `POST /api/store/coupons/{couponId}/claim` 检查领取条件，以数据库条件更新控制领取上限，在同一事务写用户券。唯一约束防同一用户重复领取，事务失败时领用计数随之回滚。
+- 试算校验门槛、有效期和归属。建单时重新核对并锁券，支付时核销，取消与超时关单时释放。券状态和订单结果随交易事务提交。
+
+[优惠券服务](../../../src/main/java/com/bitmall/agent/coupon/service/CouponService.java) · [支付与取消 Spec](../order-lifecycle/spec.md)
+
 ## Requirements
 
 ### Requirement: COUPON-001 券查询与领取
@@ -49,4 +57,4 @@
 
 ## References
 
-[设计与流程](../../../docs/api-flows.md) · [验证入口](../../../src/test/java/com/bitmall/agent/order/service/OrderSubmissionIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/order/service/OrderSubmissionIntegrationTest.java)

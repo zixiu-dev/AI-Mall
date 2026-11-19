@@ -11,6 +11,7 @@ import com.bitmall.agent.order.dao.repository.*;
 import com.bitmall.agent.order.idempotent.OrderRedisClient;
 import com.bitmall.agent.order.inventory.*;
 import com.bitmall.agent.order.model.CreateOrderCommand;
+import com.bitmall.agent.order.mq.BrokerHealthChecker;
 import com.bitmall.agent.order.mq.consumer.OrderBuildDeadLetterConsumer;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
@@ -24,9 +25,12 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.*;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
 /** 使用真实 Redis 执行 Lua，使用真实事务检验库存边界；不向共享 RocketMQ 集群发送测试消息。 */
@@ -63,6 +67,7 @@ class InventoryReservationIntegrationTest {
   @Autowired ObjectMapper json;
   @MockitoSpyBean OrderProcessingProperties processing;
   @MockitoSpyBean OrderMessagingProperties messaging;
+  @MockitoBean BrokerHealthChecker broker;
   @MockitoSpyBean OrderMessageRepository outbox;
   @MockitoSpyBean OrderRepository orders;
   @MockitoSpyBean InventoryReservationProperties settings;
@@ -114,6 +119,7 @@ class InventoryReservationIntegrationTest {
     sku = ids.incrementAndGet();
     doReturn("ASYNC").when(processing).getSubmissionMode();
     doReturn(true).when(messaging).isEnabled();
+    when(broker.isHealthy()).thenReturn(true);
     jdbc.sql(
             "INSERT INTO"
                 + " product_sku(id,product_id,sku_code,spec,price,original_price,stock,enabled)"
@@ -687,6 +693,32 @@ class InventoryReservationIntegrationTest {
     assertThat(state(id)).isEqualTo("CONFIRMED");
     assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("CONFIRMED");
     assertThat(orderCount(id)).isEqualTo(1);
+  }
+
+  /** 固定异步故障时不预扣，恢复后可用同一凭证，已受理的重试仍读取原结果。 */
+  @Test
+  void unavailableBrokerRejectsBeforeStockReservationAndAllowsSameTraceToRetry() {
+    String id = prepare();
+    when(broker.isHealthy()).thenReturn(false);
+    assertThatThrownBy(() -> submissions.submit(10001, id))
+        .isInstanceOfSatisfying(ResponseStatusException.class,
+            error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
+    var trace = traceRows.find(id).orElseThrow();
+    assertThat(trace.getStatus()).isEqualTo("INIT");
+    assertThat(trace.getReserveStatus()).isEqualTo("NONE");
+    assertThat(state(id)).isNull();
+    assertThat(client.template().opsForValue().get(redis.availableKey(sku))).isNull();
+    assertThat(stock()).isEqualTo(10);
+    assertThat(jdbc.sql("SELECT COUNT(*) FROM order_message_outbox WHERE trace_id=:id")
+        .param("id", id).query(Long.class).single()).isZero();
+
+    when(broker.isHealthy()).thenReturn(true);
+    assertThat(submissions.submit(10001, id).getStatus()).isEqualTo("PROCESSING");
+    assertAvailable(9);
+    assertThat(outbox.findById(buildEventId(id))).isPresent();
+    when(broker.isHealthy()).thenReturn(false);
+    assertThat(submissions.submit(10001, id).getStatus()).isEqualTo("PROCESSING");
+    assertAvailable(9);
   }
 
   private CreateOrderCommand command() {

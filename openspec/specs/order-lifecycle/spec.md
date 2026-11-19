@@ -4,6 +4,18 @@
 
 约定已建立订单在待支付、已支付和关闭之间的合法转换，明确十五分钟支付窗口如何通过可靠延时检查和扫描兜底执行，保证重复消息与支付竞争不会让已支付购买被取消或让库存与优惠券重复返还。
 
+## 当前实现
+
+| 入口 | 实际动作 |
+|---|---|
+| `POST /api/store/orders/{orderId}/demo-pay` | 显式启用模拟支付后，锁订单，核对状态及期限，改为 `PAID`、减少锁定库存并核销券。 |
+| `POST /api/store/orders/{orderId}/cancel` | 锁当前用户订单，核对仍待支付，关单、返还数据库库存、释放券和登记 Redis 返还任务。 |
+| RocketMQ 延时消息与数据库扫描 | 共用关单服务，锁单后再次检查数据库期限。 |
+
+支付默认从实际建单起算 900 秒。定时消息保存在 Outbox，使用持久化的原截止时刻投递；迟到仍能关单，提前投递须重试。关单提交后 Lua 才增加 Redis 可售量，重复取消和重复消费不会多返。已付订单保留付款状态，售后另走申请流程。
+
+[关单流程图](../../../docs/images/payment-timeout.png) · [生命周期服务](../../../src/main/java/com/bitmall/agent/order/service/OrderLifecycleService.java)
+
 ## Requirements
 
 ### Requirement: LIFE-001 新订单支付窗口
@@ -94,4 +106,4 @@
 
 ## References
 
-[设计与流程](../../../docs/order-design.md) · [验证入口](../../../src/test/java/com/bitmall/agent/order/service/OrderPaymentTimeoutIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/order/service/OrderPaymentTimeoutIntegrationTest.java)

@@ -4,6 +4,23 @@
 
 约定页面消息、模型原生工具上下文、较早轮次摘要和跨会话偏好的保存与读取边界，保证恢复聊天时保持工具调用关系完整，控制上下文体积，并避免把临时交易事实或模型推断自动写成长期用户偏好。
 
+## 当前实现
+
+| 数据 | 用途 |
+|---|---|
+| `conversation`、`chat_message` | 页面历史、摘要及水位；`GET /api/agent/conversations/{conversationId}/messages` 按归属读取。 |
+| `agent_scope_state` | Spring AI 消息、工具调用和工具结果，模型状态使用 `spring-ai-v1` 键保存。 |
+| `user_memory` | 保存用户明确授权长期记住的偏好。 |
+| `conversation_skill` | 维护当前会话的技能加载状态；工具授权还需检查模型可见的手册结果。 |
+
+模型上下文按完整轮次裁剪，默认保留最近 6 轮且有 32000 字符上限。工具调用与结果一起保留，较早对话由摘要辅助；已经裁掉的技能文档不再为工具提供授权依据。
+
+### 旧会话怎么处理
+
+会话第一次进入 Spring AI 时，从普通聊天历史恢复，技能手册须重新加载。已保存但缺少结果的工具调用在下一轮补上中断回执，不自动重放写操作，实际交易状态通过业务服务查询。
+
+[历史裁剪](../../../src/main/java/com/bitmall/agent/agent/service/conversation/AgentHistorySelector.java) · [用户偏好](../../../src/main/java/com/bitmall/agent/agent/service/memory/MemoryService.java)
+
 ## Requirements
 
 ### Requirement: MEMORY-001 页面历史归属
@@ -63,4 +80,4 @@
 
 ## References
 
-[设计与流程](../../../docs/agent-design.md) · [验证入口](../../../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java)

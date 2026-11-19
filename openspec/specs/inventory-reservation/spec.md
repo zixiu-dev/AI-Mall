@@ -4,6 +4,21 @@
 
 约定同步和异步共用的可售承诺、预占恢复和最终库存判定，确保同一购买重试或多次补偿不会重复改变库存，明确多规格部分预占失败、建单后确认失败和交易库存池丢失时如何处理。
 
+## 当前实现
+
+普通配置下，同步和异步一起消耗同一套 Redis 可售池。MySQL `stock` 是数据库可售，`locked_stock` 是待支付占用。Redis 可能提前扣掉在途购买，建单事务仍按 `stock >= quantity` 条件扣减 MySQL。
+
+| 键 | 内容 |
+|---|---|
+| `inventory:v1:{skuId}:available` | String，SKU 当前可接单数量。 |
+| `inventory:v1:{skuId}:reservation:{traceId}` | Hash，保存本次预扣数量和状态。 |
+
+写 Lua 前先在独立事务持久化预占意图。单 SKU 脚本在同槽检查余额、扣可售、写 `RESERVED`；多 SKU 每项独立执行。建单成功后 `CONFIRM` 只推进状态。建单失败用 `RELEASE`，未支付关单用 `RETURN`，Lua 按旧状态决定是否加回。即使该 SKU 还没来得及预扣，失败释放也可留下关闭标记，防止迟到执行再扣。
+
+Redis 整理失败由 SQL 的待确认、待释放及返还任务重试。库存池丢失会停止相应 SKU 接单，需人工核对；终态预占记录保留供迟到重试判断。跨 Redis 和 MySQL 的一致性依靠持久化进度、幂等与恢复逐步收敛。
+
+[库存服务](../../../src/main/java/com/bitmall/agent/order/inventory/OrderInventoryService.java) · [预扣 Lua](../../../src/main/resources/lua/inventory_reserve.lua) · [确认与返还 Lua](../../../src/main/resources/lua/inventory_finish.lua)
+
 ## Requirements
 
 ### Requirement: STOCK-001 共享可售承诺
@@ -75,4 +90,4 @@
 
 ## References
 
-[设计与流程](../../../docs/order-design.md) · [验证入口](../../../src/test/java/com/bitmall/agent/order/service/InventoryReservationIntegrationTest.java)
+[验证入口](../../../src/test/java/com/bitmall/agent/order/service/InventoryReservationIntegrationTest.java)

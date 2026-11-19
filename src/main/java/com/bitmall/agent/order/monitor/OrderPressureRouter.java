@@ -3,6 +3,7 @@ package com.bitmall.agent.order.monitor;
 import com.bitmall.agent.common.persistence.RedissonSupport;
 import com.bitmall.agent.order.config.*;
 import com.bitmall.agent.order.dao.repository.OrderTraceRepository;
+import com.bitmall.agent.order.mq.BrokerHealthChecker;
 import com.zaxxer.hikari.HikariDataSource;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.*;
@@ -30,6 +31,7 @@ public class OrderPressureRouter {
   private final OrderMetrics metrics;
   private final OrderTraceRepository traces;
   private final ObjectProvider<RedissonClient> redis;
+  private final ObjectProvider<BrokerHealthChecker> brokerHealthChecker;
   private final ObjectMapper json;
   private final DataSource dataSource;
   private final MeterRegistry registry;
@@ -48,6 +50,7 @@ public class OrderPressureRouter {
       OrderMetrics metrics,
       OrderTraceRepository traces,
       @Qualifier("orderRedisson") ObjectProvider<RedissonClient> redis,
+      ObjectProvider<BrokerHealthChecker> brokerHealthChecker,
       ObjectMapper json,
       DataSource dataSource,
       MeterRegistry registry) {
@@ -59,6 +62,7 @@ public class OrderPressureRouter {
     this.metrics = metrics;
     this.traces = traces;
     this.redis = redis;
+    this.brokerHealthChecker = brokerHealthChecker;
     this.json = json;
     this.dataSource = dataSource;
     this.registry = registry;
@@ -89,6 +93,13 @@ public class OrderPressureRouter {
     if (!fresh() || !Boolean.TRUE.equals(last.get("accepting")))
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "下单服务繁忙，请稍后使用原购买编号重试");
     return hint();
+  }
+
+  /** 读取本实例的探针快照，供自动路由和固定异步受理共用。 */
+  public boolean isAsyncReady() {
+    if (!messaging.isEnabled()) return false;
+    var checker = brokerHealthChecker.getIfAvailable();
+    return checker != null && checker.isHealthy();
   }
 
   /** SQL 积压是后台采样，绝不在每个请求里 COUNT；异常不能被转换成零压力。 */
@@ -126,7 +137,7 @@ public class OrderPressureRouter {
           "oldestSeconds",
           time == null ? 0 : Math.max(0, Duration.between(time, LocalDateTime.now()).getSeconds()));
       sample.put("healthy", true);
-      sample.put("asyncReady", messaging.isEnabled());
+      sample.put("asyncReady", isAsyncReady());
       Map<String, Object> config = configuration();
       String prefix = processing.getNamespace() + "{routing}:";
       String value =
@@ -221,22 +232,25 @@ public class OrderPressureRouter {
   }
 
   public Map<String, Object> status() {
-    if (!automatic())
+    if (!automatic()) {
+      String mode = processing.getSubmissionMode();
+      boolean accepting = !"ASYNC".equals(mode) || isAsyncReady();
       return Map.of(
           "automatic",
           false,
           "mode",
-          processing.getSubmissionMode(),
+          mode,
           "configuredMode",
-          processing.getSubmissionMode(),
+          mode,
           "accepting",
-          true,
+          accepting,
           "reason",
-          "MANUAL_MODE",
+          accepting ? "MANUAL_MODE" : "ASYNC_UNAVAILABLE",
           "fresh",
           true,
           "instance",
           instance);
+    }
     var result = new LinkedHashMap<String, Object>(last);
     result.put("automatic", automatic());
     result.put("fresh", fresh());
