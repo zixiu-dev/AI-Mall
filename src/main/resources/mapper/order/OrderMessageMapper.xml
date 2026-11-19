@@ -14,6 +14,11 @@
     <select id="findByIdSql" resultType="map">
         SELECT event_id,topic,event_type,payload,attempts,deliver_at_epoch_ms FROM order_message_outbox WHERE event_id=#{id}
     </select>
+    <!-- 只允许已持久化的同一建单命令触发死信恢复。 -->
+    <select id="matchesBuildSql" resultType="int">
+        SELECT COUNT(*) FROM order_message_outbox
+        WHERE event_id=#{id} AND trace_id=#{trace} AND event_type='ORDER_BUILD'
+    </select>
     <!-- 消费重试耗尽或丢失唤醒后可重新投递，仍使用原事件编号。 -->
     <update id="requeueBuildSql">
         UPDATE order_message_outbox SET status='PENDING',next_attempt_at=CURRENT_TIMESTAMP(6),

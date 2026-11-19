@@ -1,5 +1,6 @@
 package com.bitmall.agent.order.service;
 
+import com.bitmall.agent.order.dao.entity.OrderTraceDO;
 import com.bitmall.agent.order.dao.mapper.OrderInventoryMapper;
 import com.bitmall.agent.order.dao.repository.OrderMessageRepository;
 import com.bitmall.agent.order.dao.repository.OrderTraceRepository;
@@ -33,7 +34,21 @@ public class OrderRecoveryService {
   /** 与建单争抢同一 trace 行锁，成功购买不会被过期扫描覆盖。 */
   @Transactional
   public void reconcile(String id) {
-    var trace = traces.lock(id);
+    reconcileLocked(traces.lock(id));
+  }
+
+  /** 按原消息和购买记录匹配死信，沿用建单和扫描使用的同一把行锁。 */
+  @Transactional
+  public boolean reconcileBuildDeadLetter(String traceId, String eventId) {
+    var trace = traces.lockIfPresent(traceId).orElse(null);
+    if (trace == null || !"ASYNC".equals(trace.getMode()) || "INIT".equals(trace.getStatus())
+        || !messages.matchesBuild(eventId, traceId)) return false;
+    reconcileLocked(trace);
+    return true;
+  }
+
+  private void reconcileLocked(OrderTraceDO trace) {
+    String id = trace.getTraceId();
     if ("INIT".equals(trace.getStatus()) && !trace.getExpiresAt().isAfter(LocalDateTime.now()))
       failures.fail(id, "EXPIRED", "确认已过期，请重新结算");
     else if ("INIT".equals(trace.getStatus())

@@ -11,12 +11,15 @@ import com.bitmall.agent.order.dao.repository.*;
 import com.bitmall.agent.order.idempotent.OrderRedisClient;
 import com.bitmall.agent.order.inventory.*;
 import com.bitmall.agent.order.model.CreateOrderCommand;
+import com.bitmall.agent.order.mq.consumer.OrderBuildDeadLetterConsumer;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.rocketmq.common.message.MessageExt;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,6 +27,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.*;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import tools.jackson.databind.ObjectMapper;
 
 /** 使用真实 Redis 执行 Lua，使用真实事务检验库存边界；不向共享 RocketMQ 集群发送测试消息。 */
 @com.bitmall.agent.support.LegacyCatalogFixture
@@ -56,6 +60,7 @@ class InventoryReservationIntegrationTest {
   @MockitoSpyBean InventoryRedisStore redis;
   @Autowired OrderRedisClient client;
   @Autowired JdbcClient jdbc;
+  @Autowired ObjectMapper json;
   @MockitoSpyBean OrderProcessingProperties processing;
   @MockitoSpyBean OrderMessagingProperties messaging;
   @MockitoSpyBean OrderMessageRepository outbox;
@@ -406,6 +411,92 @@ class InventoryReservationIntegrationTest {
     assertAvailable(10);
     assertThat(traces.get(10001, id).getFailureCode()).isEqualTo("QUEUE_TIMEOUT");
     assertThat(orderCount(id)).isZero();
+  }
+
+  @Test
+  void verifiedDeadLetterRequeuesWithinDeadlineAndReleasesOnlyOnceAfterDeadline() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    String eventId = buildEventId(id);
+    var originalDeadline = traceRows.find(id).orElseThrow().getProcessingExpiresAt();
+    jdbc.sql("UPDATE order_message_outbox SET status='SENT',sent_at=:at WHERE event_id=:event")
+        .param("at", LocalDateTime.now().minusMinutes(1))
+        .param("event", eventId)
+        .update();
+    var listener = new OrderBuildDeadLetterConsumer(json, recovery);
+    listener.onMessage(buildDeadLetter(id, eventId));
+    assertThat(outbox.findById(eventId)).isPresent();
+    assertThat(jdbc.sql("SELECT status FROM order_message_outbox WHERE event_id=:event")
+        .param("event", eventId).query(String.class).single()).isEqualTo("PENDING");
+    assertThat(traceRows.find(id).orElseThrow().getProcessingExpiresAt()).isEqualTo(originalDeadline);
+    assertThat(traces.get(10001, id).getStatus()).isEqualTo("PROCESSING");
+    assertAvailable(9);
+
+    jdbc.sql("UPDATE order_submit_trace SET processing_expires_at=:at WHERE trace_id=:id")
+        .param("at", LocalDateTime.now().minusSeconds(1))
+        .param("id", id)
+        .update();
+    listener.onMessage(buildDeadLetter(id, eventId));
+    listener.onMessage(buildDeadLetter(id, eventId));
+    consumer.consume(id);
+    assertThat(traces.get(10001, id).getFailureCode()).isEqualTo("QUEUE_TIMEOUT");
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("RELEASED");
+    assertThat(orderCount(id)).isZero();
+    assertThat(builds(id)).isEqualTo(1);
+    assertAvailable(10);
+  }
+
+  @Test
+  void deadLetterWithInvalidIdentityLeavesInventoryAndDatabaseErrorCanRetry() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    String eventId = buildEventId(id);
+    jdbc.sql("UPDATE order_submit_trace SET processing_expires_at=:at WHERE trace_id=:id")
+        .param("at", LocalDateTime.now().minusSeconds(1))
+        .param("id", id)
+        .update();
+    var listener = new OrderBuildDeadLetterConsumer(json, recovery);
+    listener.onMessage(buildDeadLetter("无效购买编号", eventId));
+    listener.onMessage(buildDeadLetter(UUID.randomUUID().toString(), eventId));
+    listener.onMessage(buildDeadLetter(id, UUID.randomUUID().toString()));
+
+    doThrow(new DataAccessResourceFailureException("模拟死信核对数据库失败"))
+        .when(outbox).matchesBuild(eventId, id);
+    assertThatThrownBy(() -> listener.onMessage(buildDeadLetter(id, eventId)))
+        .isInstanceOf(DataAccessResourceFailureException.class);
+    assertThat(traces.get(10001, id).getStatus()).isEqualTo("PROCESSING");
+    assertThat(state(id)).isEqualTo("RESERVED");
+    assertAvailable(9);
+  }
+
+  @Test
+  void deadLetterForSuccessfulOrderOnlyFinishesInventoryConfirmation() {
+    String id = prepare();
+    submissions.submit(10001, id);
+    doThrow(new IllegalStateException("模拟提交后确认失败"))
+        .when(redis).finish(eq(sku), eq(id), eq(1), eq("CONFIRM"));
+    consumer.consume(id);
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("CONFIRM_PENDING");
+    reset(redis);
+
+    var listener = new OrderBuildDeadLetterConsumer(json, recovery);
+    listener.onMessage(buildDeadLetter(id, buildEventId(id)));
+    assertThat(traceRows.find(id).orElseThrow().getReserveStatus()).isEqualTo("CONFIRMED");
+    assertThat(orderCount(id)).isEqualTo(1);
+    assertAvailable(9);
+  }
+
+  /** 构造 Broker 投递的原消息身份，直接验证消费入口与真实业务事务。 */
+  private MessageExt buildDeadLetter(String traceId, String eventId) {
+    var message = new MessageExt();
+    message.setKeys(eventId);
+    message.setBody(("{\"traceId\":\"" + traceId + "\"}").getBytes(StandardCharsets.UTF_8));
+    return message;
+  }
+
+  private String buildEventId(String traceId) {
+    return jdbc.sql("SELECT event_id FROM order_message_outbox WHERE trace_id=:id AND event_type='ORDER_BUILD'")
+        .param("id", traceId).query(String.class).single();
   }
 
   @Test

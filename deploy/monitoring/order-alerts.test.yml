@@ -1,0 +1,92 @@
+rule_files:
+  - order-alerts.yml
+evaluation_interval: 5s
+
+tests:
+  - interval: 5s
+    input_series:
+      - series: 'rocketmq_send_to_dlq_messages_total{job="wowo-order-brokers",instance="broker",consumer_group="wowo_mall_order_build_dev"}'
+        values: '_ _ 1+0x78 2+0x10'
+      - series: 'rocketmq_send_to_dlq_messages_total{job="wowo-order-brokers",instance="broker",consumer_group="another_group"}'
+        values: '0+1x91'
+    alert_rule_test:
+      - eval_time: 5s
+        alertname: AsyncOrderBuildDeadLetter
+        exp_alerts: []
+      - eval_time: 10s
+        alertname: AsyncOrderBuildDeadLetter
+        exp_alerts:
+          - exp_labels:
+              job: wowo-order-brokers
+              instance: broker
+              consumer_group: wowo_mall_order_build_dev
+              severity: warning
+            exp_annotations:
+              summary: "异步建单消费组发现死信，请在 RocketMQ Dashboard 排查"
+      - eval_time: 6m
+        alertname: AsyncOrderBuildDeadLetter
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: AsyncOrderBuildDeadLetter
+        exp_alerts:
+          - exp_labels:
+              job: wowo-order-brokers
+              instance: broker
+              consumer_group: wowo_mall_order_build_dev
+              severity: warning
+            exp_annotations:
+              summary: "异步建单消费组发现死信，请在 RocketMQ Dashboard 排查"
+  - interval: 5s
+    input_series:
+      - series: 'mall_order_build_sample_timestamp_seconds{job="wowo-orders",instance="app"}'
+        values: '5+5x3 20+0x12'
+      - series: 'mall_order_build_oldest_wait_seconds{job="wowo-orders",instance="app",stage="processing"}'
+        values: '65+0x16'
+      - series: 'mall_order_build_oldest_wait_seconds{job="wowo-orders",instance="app",stage="confirm_pending"}'
+        values: '80+0x16'
+      - series: 'mall_order_build_oldest_wait_seconds{job="wowo-orders",instance="app",stage="release_pending"}'
+        values: '10+0x16'
+      - series: 'up{job="wowo-order-brokers",instance="broker"}'
+        values: '0+0x16'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: AsyncOrderBuildBacklog
+        exp_alerts:
+          - exp_labels:
+              job: wowo-orders
+              severity: warning
+            exp_annotations:
+              summary: "异步建单等待至少 60 秒，请检查 Outbox 发送和建单消费"
+      - eval_time: 15s
+        alertname: AsyncOrderInventoryBacklog
+        exp_alerts:
+          - exp_labels:
+              job: wowo-orders
+              stage: confirm_pending
+              severity: warning
+            exp_annotations:
+              summary: "异步订单库存整理滞后，请检查 Redis 和恢复任务"
+      - eval_time: 1m
+        alertname: AsyncOrderBuildBacklog
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: AsyncOrderInventoryBacklog
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: AsyncOrderBuildSampleStale
+        exp_alerts:
+          - exp_labels:
+              job: wowo-orders
+              instance: app
+              severity: warning
+            exp_annotations:
+              summary: "异步建单监控采样失效，请检查应用和数据库"
+      - eval_time: 1m
+        alertname: OrderBrokerMetricsUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: wowo-order-brokers
+              instance: broker
+              severity: warning
+            exp_annotations:
+              summary: "RocketMQ 指标抓取失败，无法确认是否有新增死信"

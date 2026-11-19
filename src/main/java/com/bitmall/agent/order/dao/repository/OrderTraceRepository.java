@@ -69,10 +69,14 @@ public class OrderTraceRepository {
 
   /** 锁定读取必须用于建单、失败和恢复的状态判断。 */
   public OrderTraceDO lock(String id) {
+    return lockIfPresent(id).orElseThrow(() -> new IllegalArgumentException("下单任务不存在"));
+  }
+
+  /** 死信核对时允许记录缺失，数据库查询异常仍向调用方传播。 */
+  public Optional<OrderTraceDO> lockIfPresent(String id) {
     return mapper.lockSql(parameters("id", id)).stream()
         .findFirst()
-        .map(this::row)
-        .orElseThrow(() -> new IllegalArgumentException("下单任务不存在"));
+        .map(this::row);
   }
 
   public Optional<OrderTraceDO> findOrigin(String origin) {
@@ -168,6 +172,11 @@ public class OrderTraceRepository {
   /** 定期采样业务积压，不能在每一次请求里聚合全表。 */
   public Map<String, Object> backlog() {
     return RowValues.required(mapper.backlogSql(java.util.Map.of()));
+  }
+
+  /** 待建单与待确认、待释放分别计量，供后台监控采样。 */
+  public List<Map<String, Object>> asyncBuildBacklog() {
+    return mapper.asyncBuildBacklogSql();
   }
 
   /** 参数按原类型绑定，允许可选字段为 null。 */

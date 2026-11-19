@@ -12,7 +12,7 @@
 | [order-submission](specs/order-submission/spec.md) | ORDER-001, ORDER-002, ORDER-003, ORDER-004, ORDER-005 | [OrderSubmissionIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderSubmissionIntegrationTest.java) |
 | [inventory-reservation](specs/inventory-reservation/spec.md) | STOCK-001, STOCK-002, STOCK-003, STOCK-004 | [库存预占集成测试](../src/test/java/com/bitmall/agent/order/service/InventoryReservationIntegrationTest.java)，覆盖缺少旧汇总键及旧预占数据接续 |
 | [order-lifecycle](specs/order-lifecycle/spec.md) | LIFE-001, LIFE-002, LIFE-003, LIFE-004 | [OrderPaymentTimeoutIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderPaymentTimeoutIntegrationTest.java) |
-| [order-messaging](specs/order-messaging/spec.md) | MQ-001, MQ-002, MQ-003, MQ-004 | [OrderMessagingIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderMessagingIntegrationTest.java) |
+| [order-messaging](specs/order-messaging/spec.md) | MQ-001, MQ-002, MQ-003, MQ-004, MQ-005, MQ-006 | [消息集成测试](../src/test/java/com/bitmall/agent/order/service/OrderMessagingIntegrationTest.java) · [库存和死信恢复](../src/test/java/com/bitmall/agent/order/service/InventoryReservationIntegrationTest.java) · [真实死信与告警验证](../scripts/verify-order-build-dead-letter.py) |
 | [order-routing](specs/order-routing/spec.md) | ROUTE-001, ROUTE-002, ROUTE-003 | [OrderAutoRoutingIntegrationTest.java](../src/test/java/com/bitmall/agent/order/monitor/OrderAutoRoutingIntegrationTest.java) |
 | [agent-runtime](specs/agent-runtime/spec.md) | AGENT-001, AGENT-002, AGENT-003, AGENT-004, AGENT-005 | [SpringAiIntegrationTest.java](../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java) |
 | [agent-confirmation](specs/agent-confirmation/spec.md) | CONFIRM-001, CONFIRM-002, CONFIRM-003 | [AgentFlowIntegrationTest.java](../src/test/java/com/bitmall/agent/agent/controller/AgentFlowIntegrationTest.java) |
@@ -20,7 +20,7 @@
 | [customer-service](specs/customer-service/spec.md) | SUPPORT-001, SUPPORT-002, SUPPORT-003, SUPPORT-004, SUPPORT-005 | [CommerceModulesIntegrationTest.java](../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java) |
 | [storefront-experience](specs/storefront-experience/spec.md) | FRONT-001, FRONT-002, FRONT-003, FRONT-004, FRONT-005 | [verify-storefront.cjs](../scripts/verify-storefront.cjs)，实际范围见 [测试总文档第 12 节](../docs/testing.md#12-商城前台浏览器验收) |
 | [knowledge-retrieval](specs/knowledge-retrieval/spec.md) | RAG-001～009 | [KnowledgePipelineIntegrationTest](../src/test/java/com/bitmall/agent/knowledge/KnowledgePipelineIntegrationTest.java)、[RealRagIntegrationTest](../src/test/java/com/bitmall/agent/knowledge/RealRagIntegrationTest.java) |
-| [observability](specs/observability/spec.md) | OBS-001, OBS-002, OBS-003 | [OneSecondThroughputTest.java](../src/test/java/com/bitmall/agent/common/monitor/OneSecondThroughputTest.java) |
+| [observability](specs/observability/spec.md) | OBS-001, OBS-002, OBS-003, OBS-004 | [一秒吞吐测试](../src/test/java/com/bitmall/agent/common/monitor/OneSecondThroughputTest.java) · [监控快照测试](../src/test/java/com/bitmall/agent/order/monitor/OrderBuildBacklogMonitorTest.java) · [告警规则测试](../deploy/monitoring/order-alerts.test.yml) |
 
 ## 跨组件补充入口
 

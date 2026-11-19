@@ -83,3 +83,27 @@ Redis 与 MySQL 不在一个原子事务中。恢复线索要先独立提交，�
 压测已经观察到订单成功但审计 Outbox 积压，以及大量 CONFIRM_PENDING。优化方向是分别测即时发送/整理吞吐、批量扫描与重试速度、监控最老任务；同时保留租约和幂等。不能只调大发压速率就宣称链路支持更高持续 TPS。
 
 配置入口：[application.yml](../src/main/resources/application.yml)。关键源码：[OrderBuildCommandService](../src/main/java/com/bitmall/agent/order/service/OrderBuildCommandService.java)、[InventorySettlementService](../src/main/java/com/bitmall/agent/order/inventory/InventorySettlementService.java)、[OrderRecoveryService](../src/main/java/com/bitmall/agent/order/service/OrderRecoveryService.java)。
+
+## 7. 异步建单死信怎么处理
+
+建单监听器配置最多重试 5 次。无法正常处理的消息由 RocketMQ 隔离到 `%DLQ%<建单消费组>`，例如 `%DLQ%wowo_mall_order_build_dev`。建单成功后的重复投递和已持久化的明确业务失败都可以正常确认。数据库连接异常或找不到对应的购买记录会抛异常，经过 Broker 重试。死信计数上涨代表消息处理异常，购买结果仍由数据库确定。
+
+| 场景 | 现有业务处理 |
+|---|---|
+| 发给 Broker 失败 | Outbox 回到 PENDING，记录下次发送时间。 |
+| 消费者明确拒绝购买 | 回滚建单事务，另开事务记录失败与待释放，随后通过原预占记录幂等释放 Redis。 |
+| 临时消费失败 | Broker 重试。购买未到期且符合恢复条件时，数据库恢复任务也可补投原 Outbox，沿用 eventId。 |
+| 建单窗口已到且仍未建单 | 恢复任务锁住购买记录再提交 QUEUE_TIMEOUT，随后释放库存。待发或发送中的建单 Outbox 转为 CANCELLED，之前已确认为 SENT 的记录保留发送结果。 |
+| 其他投递已成功 | 保留成功结果，只跟踪尚未完成的库存确认。 |
+
+开启 `ROCKETMQ_BUILD_DLQ_ENABLED=true` 后，应用用独立组 `<建单消费组>_dlq` 订阅建单组的死信 Topic，并读取此前仍可用的死信。监听器用消息 Key `eventId` 和正文里的 `traceId` 核对原 Outbox，再调用表中的原有恢复逻辑。
+
+| 死信消费者查到什么 | 怎么办 |
+|---|---|
+| 异步购买仍有效 | 按原规则检查已发送间隔，符合条件时重新排入原 Outbox。购买截止时间沿用原值。 |
+| 购买超时且尚未建单 | 行锁下写入超时结果，按预占记录幂等释放库存。 |
+| 购买已经是成功或失败 | 只处理尚待确认或待释放的预占。 |
+| 消息格式错误，或对不上原购买及 Outbox | 记录 Broker 消息编号及可用的业务编号，结束这条死信的消费。 |
+| MySQL 查询或提交异常 | 交给 RocketMQ 重试死信处理。若处理仍耗尽重试，消息进入该独立组的死信队列，运维可在 Dashboard 查看。Redis 整理失败时，待整理状态由现有扫描继续重试。 |
+
+Prometheus 负责告警，独立消费者负责逐条核对，定时扫描在两种订阅开关下都继续运行。运维在 Dashboard 和应用日志核查异常。若报“无法匹配原建单记录”，核对生产和消费实例使用的 Topic、消费组和数据库是否属于同一环境。 [告警配置](pressure-monitoring.md#6-异步建单与死信告警) · [启用说明](deployment.md#异步建单死信消费者)

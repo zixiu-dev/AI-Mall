@@ -52,7 +52,7 @@ class BenchmarkEnvironment:
         url='http://127.0.0.1:'+str(self.management_port if management else self.app_port)+path
         request=urllib.request.Request(url,data=None if body is None else json.dumps(body).encode(),headers={'Content-Type':'application/json'})
         with urllib.request.urlopen(request,timeout=timeout) as r:return json.load(r)
-    def start(self):
+    def start(self, broker_overrides=None):
         self.sql('CREATE DATABASE `'+self.database+'` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin',False);self.created=True
         user=self.metadata['username'];assert re.fullmatch(r'[a-zA-Z0-9_]+',user)
         for host in self.sql("SELECT Host FROM mysql.user WHERE User='"+user+"'",False).splitlines():
@@ -65,10 +65,24 @@ class BenchmarkEnvironment:
         common=['java','-Duser.home='+str(home),'-Drocketmq.home.dir='+str(self.rocketmq),'--add-opens=java.base/java.nio=ALL-UNNAMED','--add-opens=java.base/sun.nio.ch=ALL-UNNAMED']
         config=self.folder/'namesrv.conf';config.write_text('listenPort='+str(self.nameserver_port)+'\nbindAddress=127.0.0.1\n')
         p=self.launch(common+['-Xms64m','-Xmx128m','-cp',classpath,'org.apache.rocketmq.namesrv.NamesrvStartup','-c',str(config)],'nameserver');self.wait_port(self.nameserver_port,p)
-        config=self.folder/'broker.conf';config.write_text('\n'.join(['brokerClusterName=IsolatedPeak','brokerName='+self.database,'brokerId=0','brokerIP1=127.0.0.1','bindAddress=127.0.0.1','listenPort='+str(self.broker_port),'namesrvAddr=127.0.0.1:'+str(self.nameserver_port),'storePathRootDir='+str(self.folder/'store'),'storePathCommitLog='+str(self.folder/'store'/'commitlog'),'brokerRole=ASYNC_MASTER','flushDiskType=ASYNC_FLUSH','timerWheelEnable=true','autoCreateTopicEnable=true','mappedFileSizeCommitLog=16777216','mappedFileSizeConsumeQueue=600000','diskMaxUsedSpaceRatio=95']))
+        # Broker 名称会被注册为系统 Topic，业务 Topic 需要使用另一名称。
+        config=self.folder/'broker.conf';settings=['brokerClusterName=IsolatedPeak','brokerName='+self.database+'_broker','brokerId=0','brokerIP1=127.0.0.1','bindAddress=127.0.0.1','listenPort='+str(self.broker_port),'namesrvAddr=127.0.0.1:'+str(self.nameserver_port),'storePathRootDir='+str(self.folder/'store'),'storePathCommitLog='+str(self.folder/'store'/'commitlog'),'brokerRole=ASYNC_MASTER','flushDiskType=ASYNC_FLUSH','timerWheelEnable=true','autoCreateTopicEnable=true','mappedFileSizeCommitLog=16777216','mappedFileSizeConsumeQueue=600000','diskMaxUsedSpaceRatio=95']
+        if broker_overrides:settings.extend(f'{key}={value}' for key,value in broker_overrides.items())
+        config.write_text('\n'.join(settings))
         p=self.launch(common+['-Xms128m','-Xmx384m','-XX:MaxDirectMemorySize=128m','-cp',classpath,'org.apache.rocketmq.broker.BrokerStartup','-c',str(config)],'broker');self.wait_port(self.broker_port,p)
-        with (self.folder/'mq-admin.log').open('w') as log:
-            subprocess.run(common+['-Xms32m','-Xmx128m','-cp',classpath,'org.apache.rocketmq.tools.command.MQAdminStartup','updateTopic','-n','127.0.0.1:'+str(self.nameserver_port),'-b','127.0.0.1:'+str(self.broker_port),'-t',self.database,'-r','4','-w','4'],check=True,timeout=30,stdout=log,stderr=subprocess.STDOUT)
+        admin=common+['-Xms32m','-Xmx128m','-cp',classpath,'org.apache.rocketmq.tools.command.MQAdminStartup']
+        route_options=['-n','127.0.0.1:'+str(self.nameserver_port),'-t',self.database]
+        topic_setup=subprocess.check_output(admin+['updateTopic',*route_options,'-b','127.0.0.1:'+str(self.broker_port),'-r','4','-w','4'],timeout=30,text=True,stderr=subprocess.STDOUT)
+        (self.folder/'mq-admin.log').write_text(topic_setup)
+        if 'create topic to ' not in topic_setup.lower() or 'success' not in topic_setup.lower():
+            raise RuntimeError('隔离业务 Topic 创建失败，请检查 '+str(self.folder/'mq-admin.log'))
+        # Broker 刚启动时接受建 Topic 请求可能早于 NameServer 可查到路由。
+        until=time.monotonic()+35
+        while time.monotonic()<until:
+            route=subprocess.check_output(admin+['topicRoute',*route_options],timeout=10,text=True,stderr=subprocess.STDOUT)
+            if '"queueDatas"' in route and self.database+'_broker' in route:return
+            time.sleep(.5)
+        raise RuntimeError('隔离业务 Topic 路由未就绪，请检查 '+str(self.folder))
     def start_app(self, mode='SYNC', local_mode='OFF', one_second=False, overrides=None, replace=True):
         if replace:self.stop(self.app)
         env={k:v for k,v in os.environ.items() if not k.startswith(('SPRING_','ROCKETMQ_','ORDER_','CATALOG_','HOTKEY_','AGENT_','OPENAI_','MANAGEMENT_','SERVER_','LOGGING_'))}

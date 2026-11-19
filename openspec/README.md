@@ -22,6 +22,8 @@
 | [PostgreSQL 向量存储](changes/archive/2026-11-17-add-pgvector-knowledge-store/proposal.md) | 原生vector/JSONB、独立连接与迁移、数据库精确/HNSW查询 |
 | [Agentic RAG 变更](changes/archive/2026-11-17-build-agentic-rag-pipeline/proposal.md) | 多问题契约、离线索引、百炼/DeepSeek 真实验证 |
 | [交易 Redis 库存精简](changes/archive/2026-11-19-simplify-redis-inventory/proposal.md) | 每 SKU 可售量、单笔预占、旧库存池接续 |
+| [异步建单死信告警](changes/archive/2026-11-19-monitor-order-build-dead-letters/proposal.md) | Broker 死信、异步积压与库存整理监控 |
+| [异步建单死信消费](changes/archive/2026-11-19-consume-order-build-dead-letters/proposal.md) | 独立订阅原生死信、核对原命令与幂等库存恢复 |
 | [verification-matrix.md](verification-matrix.md) | 哪份规格关联哪些测试和原始证据 |
 | [config.yaml](config.yaml) | 官方工作流读取的项目上下文与写作规则 |
 
@@ -60,7 +62,7 @@ openspec/
 | order-submission | [购买意图与同步异步提交](specs/order-submission/spec.md) | 5 |
 | inventory-reservation | [共享库存预占与幂等整理](specs/inventory-reservation/spec.md) | 4 |
 | order-lifecycle | [支付取消与十五分钟超时关闭](specs/order-lifecycle/spec.md) | 4 |
-| order-messaging | [可靠消息发送与消费](specs/order-messaging/spec.md) | 4 |
+| order-messaging | [可靠消息发送与消费](specs/order-messaging/spec.md) | 6 |
 | order-routing | [下单压力路由](specs/order-routing/spec.md) | 3 |
 | agent-runtime | [助手会话与受控工具执行](specs/agent-runtime/spec.md) | 5 |
 | agent-confirmation | [持久化确认与业务写操作](specs/agent-confirmation/spec.md) | 3 |
@@ -68,7 +70,7 @@ openspec/
 | customer-service | [物流售后与规则查询](specs/customer-service/spec.md) | 5 |
 | storefront-experience | [商城前台与购买体验](specs/storefront-experience/spec.md) | 5 |
 | knowledge-retrieval | [多查询、混合检索与证据](specs/knowledge-retrieval/spec.md) | 9 |
-| observability | [运行指标与验证口径](specs/observability/spec.md) | 3 |
+| observability | [运行指标与验证口径](specs/observability/spec.md) | 4 |
 
 每个要求都有稳定编号，例如 LIFE-003；修改时保留完整 Requirement 标题，新增时使用新编号，不重新编号整篇文档。`SHALL` 表示明确要求；Scenario 中 `GIVEN` 是前提、`WHEN` 是触发、`THEN` 是验收结果，关键字保留英文，说明用中文。
 

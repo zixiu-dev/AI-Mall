@@ -23,6 +23,8 @@ public class OrderMonitorEndpoint {
 
   private final OrderPressureRouter routing;
 
+  private final OrderBuildBacklogMonitor buildBacklog;
+
   /** 定期读取持久化积压。 */
   private final OrderTraceRepository traces;
 
@@ -34,10 +36,12 @@ public class OrderMonitorEndpoint {
       OrderMetrics metrics,
       OrderTraceRepository traces,
       io.micrometer.core.instrument.MeterRegistry registry,
-      OrderPressureRouter routing) {
+      OrderPressureRouter routing,
+      OrderBuildBacklogMonitor buildBacklog) {
     this.routing = routing;
     this.metrics = metrics;
     this.traces = traces;
+    this.buildBacklog = buildBacklog;
     io.micrometer.core.instrument.Gauge.builder(
             "mall.order.pending", pending, java.util.concurrent.atomic.AtomicLong::get)
         .register(registry);
@@ -74,6 +78,7 @@ public class OrderMonitorEndpoint {
   public Map<String, Object> status() {
     var result = new LinkedHashMap<>(metrics.snapshot());
     result.put("backlog", backlog);
+    result.put("asyncBuild", buildBacklog.status());
     result.put("routing", routing.status());
     return result;
   }

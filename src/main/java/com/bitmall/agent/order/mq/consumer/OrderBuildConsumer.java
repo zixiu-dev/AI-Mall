@@ -17,8 +17,9 @@ import tools.jackson.databind.ObjectMapper;
     selectorExpression = "ORDER_BUILD",
     consumeThreadNumber = 2,
     consumeThreadMax = 4,
-    maxReconsumeTimes = 5)
+    maxReconsumeTimes = OrderBuildConsumer.MAX_RETRIES)
 public class OrderBuildConsumer implements RocketMQListener<String> {
+  static final int MAX_RETRIES = 5;
   private final ObjectMapper json;
   private final OrderBuildCommandService commands;
 

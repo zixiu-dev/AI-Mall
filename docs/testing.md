@@ -408,3 +408,15 @@ MQ 验证仅将本轮支付窗口设为 12 秒，默认仍 900 秒。恢复扫�
 `mvn -o -B package` 成功。228 项通过，21 项需要额外环境配置而跳过，0 失败、0 错误。22 项库存集成测试和 25 项商品缓存集成测试全部通过。覆盖旧库存预占接续、重复补偿、已初始化可售键缺失和数据库提交后的恢复。
 
 `python3 scripts/verify-payment-timeout.py` 使用隔离 MySQL、Redis 和真实 RocketMQ 验证同步和异步各 3 笔订单。6 条关单检查均被消费，待确认及待返还任务归零，两组数据库和 Redis 最终可售量均为 9。对账现按待处理任务和可售量核对，本轮未重新测量峰值。
+
+## 21. 异步建单死信告警（2026-11-19）
+
+`mvn -o -B package` 通过，229 项通过、21 项按配置跳过，零失败或错误。使用 Prometheus 3.5.0 的 `promtool` 校验配置与告警规则。模拟首条死信、稳定历史计数、后续增量、其他消费组、库存积压及采样失效。
+
+`python3 scripts/verify-order-build-dead-letter.py --prometheus-bin <本机 Prometheus 路径>` 使用隔离 RocketMQ 5.3.2、MySQL、Redis 和 Prometheus。不存在对应购买的消息经过首次失败和 5 次重试后，按原消息 Key 在死信 Topic 查到一条，真实告警进入 firing。同组有效订单成功，库存从 10 降到 8。关单脚本另行回归同步和异步两条链路，6 条定时消息均被消费。详情见 [OpenSpec 验证记录](../openspec/changes/archive/2026-11-19-monitor-order-build-dead-letters/verification.md)。
+
+## 22. 异步建单死信消费者（2026-11-19）
+
+`mvn -o -B package` 通过，232 项通过、21 项按配置跳过，0 失败、0 错误。库存测试覆盖期限内补投、超时后重复释放、已成功订单补确认、无效身份和数据库故障。
+
+`python3 scripts/verify-order-build-dead-letter.py --consume-dead-letters` 验证独立消费组读取真实死信。本轮同时传入 `--prometheus-bin` 验证原告警。在隔离环境让真实建单事务持续失败后，启用死信消费者，确认在定时扫描尚未到期的情况下，超时购买被标记失败，Redis 可售由 6 回到 8。 [OpenSpec 验证记录](../openspec/changes/archive/2026-11-19-consume-order-build-dead-letters/verification.md)

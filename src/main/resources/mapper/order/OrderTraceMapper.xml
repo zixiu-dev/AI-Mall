@@ -50,4 +50,17 @@
     <select id="backlogSql" resultType="map">
         SELECT COUNT(*) AS pending,MIN(accepted_at) AS oldest FROM order_submit_trace WHERE status='PROCESSING'
     </select>
+    <!-- 受理时间用于建单积压，业务终态的写入时间用于库存整理积压。 -->
+    <select id="asyncBuildBacklogSql" resultType="map">
+        SELECT 'processing' AS stage, COUNT(*) AS pending, MIN(accepted_at) AS oldest
+        FROM order_submit_trace WHERE mode='ASYNC' AND status='PROCESSING'
+        UNION ALL
+        SELECT 'confirm_pending' AS stage, COUNT(*) AS pending, MIN(finished_at) AS oldest
+        FROM order_submit_trace
+        WHERE mode='ASYNC' AND status='SUCCESS' AND reserve_status='CONFIRM_PENDING'
+        UNION ALL
+        SELECT 'release_pending' AS stage, COUNT(*) AS pending, MIN(finished_at) AS oldest
+        FROM order_submit_trace
+        WHERE mode='ASYNC' AND status IN ('FAILED','EXPIRED') AND reserve_status='RELEASE_PENDING'
+    </select>
 </mapper>

@@ -11,6 +11,8 @@ public interface OrderMessageMapper extends BaseMapper<OrderMessageEntity> {
 
   java.util.List<java.util.Map<String, Object>> findByIdSql(java.util.Map<String, Object> values);
 
+  int matchesBuildSql(java.util.Map<String, Object> values);
+
   int requeueBuildSql(java.util.Map<String, Object> values);
 
   int cancelBuildSql(java.util.Map<String, Object> values);

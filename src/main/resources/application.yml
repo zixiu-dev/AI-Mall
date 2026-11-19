@@ -86,6 +86,7 @@ app:
     topic: ${ROCKETMQ_ORDER_TOPIC:wowo_mall_order_events_dev}
     consumer-group: ${ROCKETMQ_ORDER_CONSUMER_GROUP:wowo_mall_order_receipt_dev}
     build-consumer-group: ${ROCKETMQ_BUILD_CONSUMER_GROUP:wowo_mall_order_build_dev}
+    build-dead-letter-enabled: ${ROCKETMQ_BUILD_DLQ_ENABLED:false}
     timeout-consumer-group: ${ROCKETMQ_TIMEOUT_CONSUMER_GROUP:wowo_mall_order_timeout_dev}
     batch-size: 20
     relay-interval-ms: 5000

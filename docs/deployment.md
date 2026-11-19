@@ -63,6 +63,12 @@ Compose 当前没有 RocketMQ 服务，须单独准备 Broker。延时关单采�
 
 参考：[官方定时投递 API](https://github.com/apache/rocketmq-spring/blob/rocketmq-spring-all-2.3.6/rocketmq-spring-boot/src/main/java/org/apache/rocketmq/spring/core/RocketMQTemplate.java)、[5.3.2 时间轮配置](https://github.com/apache/rocketmq/blob/rocketmq-all-5.3.2/store/src/main/java/org/apache/rocketmq/store/config/MessageStoreConfig.java)。上述部署方式由配置提供，本机既有联调/压测采用本地进程，未把 Compose 启动视为本轮实跑结果。
 
+### 异步建单死信消费者
+
+确认部署实例共享同一业务 MySQL、交易 Redis 和建单消费组后，设置 `ROCKETMQ_BUILD_DLQ_ENABLED=true`。仓库默认连接共享开发 Broker，因此死信消费者默认关闭。需要启用 RocketMQ；独立组名为 `<ROCKETMQ_BUILD_CONSUMER_GROUP>_dlq`，读取 `%DLQ%<ROCKETMQ_BUILD_CONSUMER_GROUP>`。启用 ACL 时，给独立消费组配置该死信 Topic 的订阅权限。
+
+核对应用日志中的“异步建单死信核对完成”和“异步建单死信无法匹配原建单记录”。死信处理本身重试耗尽时，在 Dashboard 检查独立组自己的死信队列，订单状态仍由既有恢复任务处理。 [完整流程](messaging-recovery.md#7-异步建单死信怎么处理)
+
 可用变量见 [.env.example](../.env.example)，最终默认值看 [application.yml](../src/main/resources/application.yml)。**普通 `mvn spring-boot:run` 不自动导入 `.env` 文件**，应用通过进程环境读取变量。
 
 ## 4. 本机既有数据与真实模型

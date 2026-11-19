@@ -37,6 +37,11 @@ public class OrderMessageRepository {
     mapper.requeueBuildSql(parameters("trace", trace, "cutoff", cutoff));
   }
 
+  /** 死信正文和消息 Key 必须同时对应原建单 Outbox。 */
+  public boolean matchesBuild(String eventId, String traceId) {
+    return mapper.matchesBuildSql(parameters("id", eventId, "trace", traceId)) == 1;
+  }
+
   /** 只取消尚未完成发送的建单命令；明确记录 CANCELLED，不冒充成功发送。 */
   public void cancelBuild(String trace) {
     mapper.cancelBuildSql(parameters("trace", trace));

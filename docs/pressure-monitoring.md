@@ -65,8 +65,30 @@ OrderPressureRouter 每秒采样本机和数据库积压，通过 Redis Lua 聚�
 
 开启逐秒统计还需将 `app.throughput.enabled=true` 并在 `management.endpoints.web.exposure.include` 中加入 throughput；压测脚本会显式配置。
 
-现有 [Prometheus 示例](../deploy/monitoring/prometheus.yml) 和 [告警规则](../deploy/monitoring/order-alerts.yml) 提供抓取及入口/超时告警；它们不是完整监控平台，告警本身也不直接改变路由。
+现有 [Prometheus 示例](../deploy/monitoring/prometheus.yml) 和 [告警规则](../deploy/monitoring/order-alerts.yml) 提供应用与 Broker 指标抓取、入口压力、异步建单和库存整理告警。
 
-QPS、建单 TPS 和缓存 loader 的口径及结果统一看 [测试与压测](testing.md)。线上需要另外补 Outbox 分类待发送数、最老消息、库存整理尾延迟和 Broker 消费积压告警。
+QPS、建单 TPS 和缓存 loader 的口径及结果统一看 [测试与压测](testing.md)。Outbox 分类待发送数、关单库存返还和完整的通知平台仍是独立监控项。
 
 源码：[OrderPressureRouter](../src/main/java/com/bitmall/agent/order/monitor/OrderPressureRouter.java)、[路由 Lua](../src/main/resources/lua/order_auto_route.lua)、[OrderMonitorEndpoint](../src/main/java/com/bitmall/agent/order/monitor/OrderMonitorEndpoint.java)。
+
+## 6. 异步建单与死信告警
+
+`/actuator/ordermonitor` 的 `asyncBuild` 每 10 秒采样一次，显示 `sampledAtEpochSeconds`、`fresh` 和三个阶段。每个阶段都有 `pending` 与 `oldestWaitSeconds`。只统计异步购买，多个应用实例观察同一数据库时取最大值。
+
+| 阶段 | 年龄起点 | 告警后先检查 |
+|---|---|---|
+| `processing` | 应用受理时间 | Outbox 发不出去，还是 Broker 收到了但建单消费变慢 |
+| `confirm_pending` | 建单结果落库时间 | 订单已经存在，核对 Redis 预占确认 |
+| `release_pending` | 失败结果落库时间 | 用户已得到失败结果，核对 Redis 预占释放 |
+
+等待至少 60 秒并持续 10 秒时预警。采样在 30 秒内没有更新时，新建单和库存告警停止使用陈旧数据，并提示采样失效。购买的处理期限以各笔 trace 保存的截止时间为准，告警不触发建单或库存状态更新。
+
+在 RocketMQ 5.x Broker 上启用 `metricsExporterType=PROM`。同机部署可将 `metricsPromExporterHost` 设为 `127.0.0.1`，端口默认 5557。在 `deploy/monitoring/prometheus.yml` 配置每个 Broker 的指标地址。若覆盖了 `ROCKETMQ_BUILD_CONSUMER_GROUP`，同步更新 `order-alerts.yml` 中的建单消费组。规则读取 Broker 指标 `rocketmq_send_to_dlq_messages_total`，兼顾近期增量和首次观察到的正值。接入一个已有历史计数的 Broker 时，首次采集也可能发出一次核查提醒。Broker 指标抓取失败有独立告警。 [RocketMQ Broker 指标说明](https://rocketmq.apache.org/docs/observability/01metrics/)
+
+可用下面的命令校验和运行样例。在 Prometheus 的 Alerts 页面确认告警，接入现有 Alertmanager 后可发送通知。 [死信排查流程](messaging-recovery.md#7-异步建单死信怎么处理)
+
+```bash
+promtool check config deploy/monitoring/prometheus.yml
+promtool test rules deploy/monitoring/order-alerts.test.yml
+prometheus --config.file=deploy/monitoring/prometheus.yml
+```

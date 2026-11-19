@@ -26,4 +26,6 @@ public interface OrderTraceMapper extends BaseMapper<OrderTraceEntity> {
   int checkedSql(java.util.Map<String, Object> values);
 
   java.util.List<java.util.Map<String, Object>> backlogSql(java.util.Map<String, Object> values);
+
+  java.util.List<java.util.Map<String, Object>> asyncBuildBacklogSql();
 }

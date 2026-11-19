@@ -16,3 +16,57 @@ groups:
           severity: warning
         annotations:
           summary: "下单等待过长，请检查本地消息、MQ 和库存 Redis"
+  - name: order-build-recovery
+    rules:
+      - alert: AsyncOrderBuildBacklog
+        expr: |
+          max by (job) (
+            mall_order_build_oldest_wait_seconds{job="wowo-orders",stage="processing"}
+            and on (job, instance)
+            (time() - mall_order_build_sample_timestamp_seconds{job="wowo-orders"} < 30)
+          ) >= 60
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "异步建单等待至少 60 秒，请检查 Outbox 发送和建单消费"
+      - alert: AsyncOrderInventoryBacklog
+        expr: |
+          max by (job, stage) (
+            mall_order_build_oldest_wait_seconds{job="wowo-orders",stage=~"confirm_pending|release_pending"}
+            and on (job, instance)
+            (time() - mall_order_build_sample_timestamp_seconds{job="wowo-orders"} < 30)
+          ) >= 60
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "异步订单库存整理滞后，请检查 Redis 和恢复任务"
+      - alert: AsyncOrderBuildSampleStale
+        expr: |
+          time() - mall_order_build_sample_timestamp_seconds{job="wowo-orders"} >= 30
+          or up{job="wowo-orders"} == 0
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "异步建单监控采样失效，请检查应用和数据库"
+      - alert: AsyncOrderBuildDeadLetter
+        # Broker 在首次计数时才出现这一时间序列，兼顾已有序列的增量和首次出现。
+        expr: |
+          increase(rocketmq_send_to_dlq_messages_total{job="wowo-order-brokers",consumer_group="wowo_mall_order_build_dev"}[5m]) > 0
+          or (
+            rocketmq_send_to_dlq_messages_total{job="wowo-order-brokers",consumer_group="wowo_mall_order_build_dev"} > 0
+            unless rocketmq_send_to_dlq_messages_total{job="wowo-order-brokers",consumer_group="wowo_mall_order_build_dev"} offset 5m
+          )
+        labels:
+          severity: warning
+        annotations:
+          summary: "异步建单消费组发现死信，请在 RocketMQ Dashboard 排查"
+      - alert: OrderBrokerMetricsUnavailable
+        expr: up{job="wowo-order-brokers"} == 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "RocketMQ 指标抓取失败，无法确认是否有新增死信"
