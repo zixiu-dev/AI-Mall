@@ -23,6 +23,8 @@ public class ProductService {
   /** 依赖组件：商品和规格的基础数据访问组件。 */
   private final ProductRepository mapper;
 
+  private final SkuDisplayService offers;
+
   /** 依赖组件：商品搜索的数据库读取服务。 */
   private final ProductSearchService catalog;
 
@@ -41,7 +43,9 @@ public class ProductService {
       ProductSearchService catalog,
       CatalogCache cache,
       CatalogCacheProperties cacheProperties,
-      ObjectMapper json) {
+      ObjectMapper json,
+      SkuDisplayService offers) {
+    this.offers = offers;
     this.mapper = mapper;
     this.catalog = catalog;
     this.cache = cache;
@@ -106,8 +110,8 @@ public class ProductService {
             cacheProperties.getDetailTtl(),
             () ->
                 new CatalogCache.DetailValue(
-                    mapper.findProduct(productId).map(catalog::enrich).orElse(null)));
+                    mapper.findProfile(productId).map(catalog::enrich).orElse(null)));
     if (value.getProduct() == null) throw new IllegalArgumentException("商品不存在或已经下架");
-    return value.getProduct();
+    return offers.detail(value.getProduct());
   }
 }

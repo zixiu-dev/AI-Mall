@@ -143,7 +143,7 @@ public class OrderCreationService {
     messages.enqueue(OrderEventMessage.CREATED, orderId, user, quote.getPayAmount());
     // 与订单同事务保存定时关单意图；提交后才由 Outbox 向 Broker 发送。
     messages.enqueuePaymentTimeout(orderId, user, deadline);
-    events.publishEvent(new CatalogChanged());
+    events.publishEvent(new CatalogChanged(quote.getItems().stream().map(item -> item.getSkuId()).toList()));
     events.publishEvent(new InventorySettlementEvent(id, null));
   }
 }

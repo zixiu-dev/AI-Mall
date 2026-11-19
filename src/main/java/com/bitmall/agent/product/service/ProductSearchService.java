@@ -2,7 +2,7 @@ package com.bitmall.agent.product.service;
 
 import com.bitmall.agent.product.dao.repository.ProductSearchRepository;
 import com.bitmall.agent.product.dto.ProductSearchRequest;
-import com.bitmall.agent.product.vo.ProductDetailVO;
+import com.bitmall.agent.product.cache.ProductProfile;
 import com.bitmall.agent.product.vo.ProductSearchResultVO;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +27,7 @@ public class ProductSearchService {
   }
 
   /** 为商品详情补齐商品和规格属性。 */
-  public ProductDetailVO enrich(ProductDetailVO product) {
+  public ProductProfile enrich(ProductProfile product) {
     return mapper.enrich(product);
   }
 

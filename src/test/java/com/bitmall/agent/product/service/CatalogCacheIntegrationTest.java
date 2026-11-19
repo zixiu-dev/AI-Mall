@@ -184,7 +184,7 @@ class CatalogCacheIntegrationTest {
       Thread.sleep(10);
     }
     hot.hot.set(false);
-    store.invalidate();
+    store.client().getKeys().deleteByPattern(namespace + ":{catalog}:display:*");
     cache.invalidateLocal();
     // Drain the asynchronous notification before measuring a cache hit.
     Thread.sleep(80);
@@ -284,8 +284,7 @@ class CatalogCacheIntegrationTest {
   @Test
   void corruptedRedisValueIsDiscardedAndRebuilt() {
     var found = store.lookup("product:108");
-    assertThat(
-            store.fill("product:108", found.getGeneration(), "broken-json", Duration.ofSeconds(10)))
+    assertThat(store.fill("product:108", found.getTicket(), "broken-json", Duration.ofSeconds(10)))
         .isTrue();
     long before = count("corrupt_entry");
     assertThat(catalog.product(108).getId()).isEqualTo(108);
@@ -322,9 +321,9 @@ class CatalogCacheIntegrationTest {
     }
   }
 
-  /** 旧查询进行中切换代际，验证旧结果不能回填污染新缓存。 */
+  /** 旧查询进行中删除同一键，验证旧结果不能回填污染新缓存。 */
   @Test
-  void oldLoaderCannotFillCacheAfterConcurrentGenerationChange() throws Exception {
+  void oldLoaderCannotFillCacheAfterKeyInvalidation() throws Exception {
     CountDownLatch reading = new CountDownLatch(1), finish = new CountDownLatch(1);
     var pool = Executors.newSingleThreadExecutor();
     try {
@@ -346,7 +345,7 @@ class CatalogCacheIntegrationTest {
                         return "old";
                       }));
       assertThat(reading.await(3, TimeUnit.SECONDS)).isTrue();
-      store.invalidate();
+      store.invalidate(List.of("racing-miss"), true);
       finish.countDown();
       assertThat(result.get(3, TimeUnit.SECONDS))
           .isEqualTo("old"); // In-flight response may finish.
@@ -373,7 +372,12 @@ class CatalogCacheIntegrationTest {
             .getStock();
     var quote = checkout.checkoutQuote(10001, 1001, 1, null);
     var command = new CreateOrderCommand("DIRECT", 1001L, 1, null, null, quote.getPayAmount());
-    String generation = store.lookup("product:101").getGeneration();
+    catalog.product(108);
+    String profile = store.lookup("product:101").getValue();
+    assertThat(profile).doesNotContain("\"price\"", "\"stock\"", "originalPrice");
+    String other = store.lookup("product:108").getValue();
+    String price = store.lookup("sku:price:1001").getValue();
+    long before = count("database_load");
     new TransactionTemplate(transactions)
         .execute(
             status -> {
@@ -381,13 +385,18 @@ class CatalogCacheIntegrationTest {
               status.setRollbackOnly();
               return null;
             });
-    assertThat(store.lookup("product:101").getGeneration()).isEqualTo(generation);
+    assertThat(store.lookup("sku:availability:1001").getValue()).isEqualTo(String.valueOf(stock));
     assertThat(
             jdbc.sql("SELECT stock FROM product_sku WHERE id=1001").query(Integer.class).single())
         .isEqualTo(stock);
     var order = orders.createOrder(10001, orderTraces.prepare(10001, command, null).getTraceId());
     try {
-      assertThat(store.lookup("product:101").getGeneration()).isNotEqualTo(generation);
+      assertThat(store.lookup("sku:availability:1001").getValue()).isNull();
+      assertThat(store.lookup("product:101").getValue()).isEqualTo(profile);
+      assertThat(store.lookup("product:108").getValue()).isEqualTo(other);
+      assertThat(store.lookup("sku:price:1001").getValue()).isEqualTo(price);
+      catalog.product(108);
+      assertThat(count("database_load")).isEqualTo(before);
       assertThat(
               catalog.product(101).getSkus().stream()
                   .filter(s -> s.getId() == 1001)
@@ -407,6 +416,64 @@ class CatalogCacheIntegrationTest {
         .isEqualTo(stock);
   }
 
+  /** 慢 SQL 读取后发生建单：同批中的价格可以填，已经失效的库存不能被旧查询复活。 */
+  @Test
+  void staleOfferBatchCannotRestoreInvalidatedStock() {
+    var names = List.of("sku:price:1001", "sku:availability:1001");
+    assertThat(store.acquireLoad("offers:101")).isTrue();
+    String owner = store.ownerToken();
+    try {
+      var read = store.lookupMany(names);
+      store.invalidate(List.of(names.get(1)), false);
+      store.fillOffers(
+          "offers:101",
+          owner,
+          read,
+          Map.of(names.get(0), "999/1000", names.get(1), "10"),
+          key -> 3000L);
+      var after = store.lookupMany(names);
+      assertThat(after.get(names.get(0)).getValue()).isEqualTo("999/1000");
+      assertThat(after.get(names.get(1)).getValue()).isNull();
+    } finally {
+      store.releaseLoad("offers:101", owner);
+    }
+  }
+
+  /** 连续购买一百次；每次读取两款商品并检查库存下降，两款资料都不应再次回源。 */
+  @Test
+  void hundredOrdersKeepBothProfilesWarm() {
+    int previous =
+        jdbc.sql("SELECT stock FROM product_sku WHERE id=1001").query(Integer.class).single();
+    jdbc.sql("UPDATE product_sku SET stock=120 WHERE id=1001").update();
+    var created = new ArrayList<String>();
+    try {
+      catalog.product(101);
+      catalog.product(108);
+      long loads = count("database_load");
+      var quote = checkout.checkoutQuote(10001, 1001, 1, null);
+      var command = new CreateOrderCommand("DIRECT", 1001L, 1, null, null, quote.getPayAmount());
+      for (int n = 1; n <= 100; n++) {
+        var order =
+            orders.createOrder(10001, orderTraces.prepare(10001, command, null).getTraceId());
+        created.add(order.get("orderId").toString());
+        assertThat(
+                catalog.product(101).getSkus().stream()
+                    .filter(sku -> sku.getId() == 1001)
+                    .findFirst()
+                    .orElseThrow()
+                    .getStock())
+            .isEqualTo(120 - n);
+        assertThat(catalog.product(108).getId()).isEqualTo(108);
+      }
+      assertThat(count("database_load")).isEqualTo(loads);
+    } finally {
+      for (String id : created) orders.cancelOrder(10001, id);
+      jdbc.sql("UPDATE product_sku SET stock=:stock WHERE id=1001")
+          .param("stock", previous)
+          .update();
+    }
+  }
+
   /** 故意污染商品展示缓存，验证结算仍读取数据库价格和库存。 */
   @Test
   void checkoutReadsRealDatabaseEvenWhenCachedDetailIsPoisoned() {
@@ -415,7 +482,7 @@ class CatalogCacheIntegrationTest {
             .query(java.math.BigDecimal.class)
             .single();
     var found = store.lookup("product:101");
-    store.fill("product:101", found.getGeneration(), "{\"product\":null}", Duration.ofSeconds(10));
+    store.fill("product:101", found.getTicket(), "{\"product\":null}", Duration.ofSeconds(10));
     assertThatThrownBy(() -> catalog.product(101)).isInstanceOf(IllegalArgumentException.class);
     assertThat(checkout.checkoutQuote(10001, 1001, 1, null).getGoodsAmount()).isEqualTo(expected);
   }
@@ -440,7 +507,7 @@ class CatalogCacheIntegrationTest {
     catalog.product(108);
     catalog.product(108);
     long before = count("local_invalidation");
-    redis.convertAndSend(store.channel(), "external-instance-update");
+    redis.convertAndSend(store.channel(), "product:108");
     long until = System.nanoTime() + Duration.ofSeconds(5).toNanos();
     while (count("local_invalidation") == before && System.nanoTime() < until) Thread.sleep(20);
     assertThat(count("local_invalidation")).isGreaterThan(before);
@@ -549,11 +616,11 @@ class CatalogCacheIntegrationTest {
       assertThat(store.acquireLoad("owner-test")).isFalse();
       assertThat(
               store.fillOwned(
-                  "owner-test", found.getGeneration(), "obsolete", Duration.ofSeconds(2), old))
+                  "owner-test", found.getTicket(), "obsolete", Duration.ofSeconds(2), old))
           .isFalse();
       assertThat(
               second.fillOwned(
-                  "owner-test", found.getGeneration(), "current", Duration.ofSeconds(2), next))
+                  "owner-test", found.getTicket(), "current", Duration.ofSeconds(2), next))
           .isTrue();
       second.releaseLoad("owner-test", next);
     } finally {
@@ -592,13 +659,10 @@ class CatalogCacheIntegrationTest {
   @Test
   void ttlRandomDelayUsesConfiguredRatioAndDoesNotExpireAllKeysTogether() {
     var ttlsSeen = new HashSet<Long>();
-    String generation = store.lookup("ttl-probe").getGeneration();
     for (int i = 0; i < 12; i++) {
       String key = "ttl-probe-" + i;
       cache.get(key, String.class, Duration.ofSeconds(10), () -> "value");
-      Long remaining =
-          redis.getExpire(
-              namespace + ":{catalog}:" + generation + ":" + key, TimeUnit.MILLISECONDS);
+      Long remaining = redis.getExpire(store.key(key), TimeUnit.MILLISECONDS);
       assertThat(remaining).isBetween(9700L, 12000L);
       ttlsSeen.add(remaining);
     }

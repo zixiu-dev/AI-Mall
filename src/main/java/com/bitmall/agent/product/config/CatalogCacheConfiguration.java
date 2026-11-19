@@ -54,7 +54,7 @@ public class CatalogCacheConfiguration {
     if (!properties.isEnabled() || listenerId != null) return;
     try {
       RTopic topic = clients.getObject().getTopic(stores.getObject().channel(), StringCodec.INSTANCE);
-      listenerId = topic.addListener(String.class, (channel, generation) -> caches.getObject().invalidateLocal());
+      listenerId = topic.addListener(String.class, (channel, key) -> caches.getObject().invalidateLocal(key));
       subscribed = topic;
     } catch (RuntimeException ex) {
       org.slf4j.LoggerFactory.getLogger(getClass()).debug("Redisson 失效订阅暂不可用，稍后重试");

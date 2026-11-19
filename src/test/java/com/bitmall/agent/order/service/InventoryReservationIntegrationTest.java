@@ -40,6 +40,7 @@ class InventoryReservationIntegrationTest {
   private static final AtomicLong ids = new AtomicLong(95000);
   private static final String namespace = "test:inventory:" + UUID.randomUUID() + ":";
   private long sku;
+  @Autowired com.bitmall.agent.product.service.ProductService catalog;
   @Autowired OrderController controller;
   @Autowired com.bitmall.agent.order.monitor.OrderMetrics metrics;
   @Autowired CheckoutService checkout;
@@ -116,6 +117,42 @@ class InventoryReservationIntegrationTest {
         .param("id", sku)
         .param("code", "RESERVE-" + sku)
         .update();
+  }
+
+  @Test
+  void detailShowsReservationBeforeDatabaseDeductionWithoutInitializingOnRead() {
+    long product = sku;
+    jdbc.sql(
+            "INSERT INTO"
+                + " product(id,name,category,brand,summary,image_key,rating,sales_count,enabled)"
+                + " SELECT :id,name,category,brand,summary,image_key,rating,sales_count,TRUE FROM"
+                + " product WHERE id=101")
+        .param("id", product)
+        .update();
+    jdbc.sql("UPDATE product_sku SET product_id=:id WHERE id=:id").param("id", product).update();
+    java.util.function.IntSupplier displayed =
+        () ->
+            catalog.product(product).getSkus().stream()
+                .filter(v -> v.getId() == sku)
+                .findFirst()
+                .orElseThrow()
+                .getStock();
+    assertThat(displayed.getAsInt()).isEqualTo(10);
+    assertThat(redis.poolExists(sku)).isFalse();
+    assertThat(submissions.submit(10001, controller.issue().get("traceId"), command()).getStatus())
+        .isEqualTo("PROCESSING");
+    assertThat(
+            jdbc.sql("SELECT stock FROM product_sku WHERE id=:id")
+                .param("id", sku)
+                .query(Integer.class)
+                .single())
+        .isEqualTo(10);
+    assertThat(displayed.getAsInt()).isEqualTo(9);
+    assertPool(9, 1);
+    client.template().delete(redis.keys(sku, "unused").subList(0, 2));
+    assertThatThrownBy(displayed::getAsInt)
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    assertThat(redis.poolExists(sku)).isFalse();
   }
 
   @Test

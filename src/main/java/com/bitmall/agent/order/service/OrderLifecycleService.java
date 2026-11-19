@@ -50,7 +50,6 @@ public class OrderLifecycleService {
     orders.finishStock(order, true);
     orders.finishCoupon(order, true);
     messages.enqueue(OrderEventMessage.PAID, orderId, userId, order.getPayAmount());
-    events.publishEvent(new CatalogChanged());
     return result(order, "PAID", "演示支付成功，未发起真实扣款");
   }
 
@@ -85,7 +84,7 @@ public class OrderLifecycleService {
     inventory.recordReturn(order);
     messages.enqueue(
         OrderEventMessage.CANCELLED, order.getId(), order.getUserId(), order.getPayAmount());
-    events.publishEvent(new CatalogChanged());
+    events.publishEvent(new CatalogChanged(order.getItems().stream().map(item -> item.getSkuId()).toList()));
     events.publishEvent(new InventorySettlementEvent(null, order.getId()));
     return result(order, status, message);
   }

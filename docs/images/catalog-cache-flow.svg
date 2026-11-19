@@ -12,7 +12,7 @@
 <rect x="32" y="262" width="766" height="105" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
 <rect x="46" y="279" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
 <text x="60" y="298" font-size="22" fill="#2466b5" style="fill:#2466b5" font-weight="600">② Caffeine 本地缓存</text>
-<text x="49" y="331" font-size="19" fill="#43566f" style="fill:#43566f">命中即返回，本地命中不查询 Bloom</text>
+<text x="49" y="331" font-size="19" fill="#43566f" style="fill:#43566f">资料命中跳到 SKU 批读，无需查询 Bloom</text>
 <path d="M415 367 L415 392" fill="none" stroke="#7b8ba5" stroke-width="1.7" marker-end="url(#a)"/>
 <rect x="32" y="392" width="766" height="105" rx="12" fill="#ffffff" stroke="#b8d0ee"/>
 <rect x="46" y="409" width="4" height="23" rx="2" fill="#2466b5" stroke="none"/>
@@ -32,7 +32,7 @@
 <rect x="32" y="782" width="766" height="105" rx="12" fill="#ffffff" stroke="#b5ded5"/>
 <rect x="46" y="799" width="4" height="23" rx="2" fill="#247d71" stroke="none"/>
 <text x="60" y="818" font-size="22" fill="#247d71" style="fill:#247d71" font-weight="600">⑥ 校验后回填并释放自己的锁</text>
-<text x="49" y="851" font-size="19" fill="#43566f" style="fill:#43566f">有商品：详情；查不到：短 TTL 空结果</text>
+<text x="49" y="851" font-size="19" fill="#43566f" style="fill:#43566f">有资料：批读 SKU 价格与可售量；查不到：短 TTL 空值</text>
 <rect x="832" y="132" width="576" height="195" rx="12" fill="#f6f3ff" stroke="#d4c4ef"/>
 <text x="852" y="166" font-size="23" fill="#7151a6" style="fill:#7151a6" font-weight="600">穿透 / 击穿 / 雪崩分别应对</text>
 <text x="853" y="211" font-size="21" fill="#172b4d" style="fill:#172b4d">穿透：Bloom + 空值缓存</text>
@@ -40,14 +40,14 @@
 <text x="853" y="301" font-size="21" fill="#172b4d" style="fill:#172b4d">雪崩：TTL 抖动 + 有界回源</text>
 <rect x="832" y="350" width="576" height="230" rx="12" fill="#fff7ed" stroke="#ebccaa"/>
 <text x="852" y="384" font-size="23" fill="#b66824" style="fill:#b66824" font-weight="600">默认缓存策略</text>
-<text x="853" y="425" font-size="21" fill="#172b4d" style="fill:#172b4d">详情 20～24s；空值 3～3.6s</text>
+<text x="853" y="425" font-size="21" fill="#172b4d" style="fill:#172b4d">资料 10～12min；空值 3～3.6s</text>
 <text x="853" y="466" font-size="21" fill="#172b4d" style="fill:#172b4d">Caffeine 2s；HotKey 决定是否提升</text>
 <text x="853" y="507" font-size="21" fill="#172b4d" style="fill:#172b4d">默认 HOTKEY，热点功能默认关闭</text>
 <text x="853" y="548" font-size="21" fill="#172b4d" style="fill:#172b4d">ALL / OFF 用于显式策略与对照压测</text>
 <rect x="832" y="603" width="576" height="284" rx="12" fill="#eef9f7" stroke="#b5ded5"/>
 <text x="852" y="637" font-size="23" fill="#247d71" style="fill:#247d71" font-weight="600">旧值与故障不能无限扩散</text>
-<text x="853" y="679" font-size="20" fill="#172b4d" style="fill:#172b4d">事务提交 → 切换缓存代际 + 广播</text>
-<text x="853" y="722" font-size="20" fill="#172b4d" style="fill:#172b4d">旧回填校验代际 / 锁所有者 / 修订号</text>
+<text x="853" y="679" font-size="20" fill="#172b4d" style="fill:#172b4d">建单 / 关单 → 仅相关 SKU 库存失效</text>
+<text x="853" y="722" font-size="20" fill="#172b4d" style="fill:#172b4d">资料回填校验临时凭据与锁所有者</text>
 <text x="853" y="765" font-size="20" fill="#172b4d" style="fill:#172b4d">Bloom 未就绪或故障：绕过过滤</text>
 <text x="853" y="808" font-size="20" fill="#172b4d" style="fill:#172b4d">Redis 故障：冷却 + 有界回源</text>
 <text x="853" y="851" font-size="20" fill="#172b4d" style="fill:#172b4d">过载返回 503，保护数据库</text>

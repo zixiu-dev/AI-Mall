@@ -2,8 +2,8 @@ package com.bitmall.agent.product.dao.repository;
 
 import com.bitmall.agent.cart.vo.CartItemVO;
 import com.bitmall.agent.common.persistence.RowValues;
+import com.bitmall.agent.product.cache.ProductProfile;
 import com.bitmall.agent.product.dao.mapper.ProductMapper;
-import com.bitmall.agent.product.vo.ProductDetailVO;
 import com.bitmall.agent.product.vo.SkuVO;
 import java.util.List;
 import java.util.Optional;
@@ -21,49 +21,37 @@ public class ProductRepository {
   }
 
   /** 查询启用商品及其启用规格，组装完整详情；属性补充由搜索 Mapper 负责。 */
-  public Optional<ProductDetailVO> findProduct(long productId) {
-    List<ProductDetailVO> products =
-        mapper.selectProductRow(parameters("id", productId)).stream()
-            .map(
-                row ->
-                    new ProductDetailVO(
-                        RowValues.longValue(row, "id"),
-                        RowValues.string(row, "name"),
-                        RowValues.string(row, "category"),
-                        RowValues.string(row, "brand"),
-                        RowValues.string(row, "summary"),
-                        RowValues.string(row, "image_key"),
-                        RowValues.decimal(row, "rating"),
-                        RowValues.intValue(row, "sales_count"),
-                        List.of()))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
-    if (products.isEmpty()) {
-      return Optional.empty();
-    }
-    List<SkuVO> skus =
-        mapper.selectProductSkus(parameters("productId", productId)).stream()
-            .map(
-                row ->
-                    new SkuVO(
-                        RowValues.longValue(row, "id"),
-                        RowValues.string(row, "sku_code"),
-                        RowValues.string(row, "spec"),
-                        RowValues.decimal(row, "price"),
-                        RowValues.decimal(row, "original_price"),
-                        RowValues.intValue(row, "stock")))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
-    ProductDetailVO p = products.get(0);
-    return Optional.of(
-        new ProductDetailVO(
-            p.getId(),
-            p.getName(),
-            p.getCategory(),
-            p.getBrand(),
-            p.getSummary(),
-            p.getImageKey(),
-            p.getRating(),
-            p.getSalesCount(),
-            skus));
+  public Optional<ProductProfile> findProfile(long productId) {
+    return RowValues.optional(mapper.selectProductRow(parameters("id", productId)))
+        .map(
+            row -> {
+              var profile = new ProductProfile();
+              profile.id = productId;
+              profile.name = RowValues.string(row, "name");
+              profile.category = RowValues.string(row, "category");
+              profile.brand = RowValues.string(row, "brand");
+              profile.summary = RowValues.string(row, "summary");
+              profile.imageKey = RowValues.string(row, "image_key");
+              profile.rating = RowValues.decimal(row, "rating");
+              profile.salesCount = RowValues.intValue(row, "sales_count");
+              profile.skus =
+                  mapper.selectProductSkus(parameters("productId", productId)).stream()
+                      .map(
+                          data -> {
+                            var sku = new ProductProfile.Variant();
+                            sku.id = RowValues.longValue(data, "id");
+                            sku.skuCode = RowValues.string(data, "sku_code");
+                            sku.spec = RowValues.string(data, "spec");
+                            return sku;
+                          })
+                      .toList();
+              return profile;
+            });
+  }
+
+  /** 一次查询所有未命中规格的公开报价和数据库展示数量。 */
+  public List<java.util.Map<String, Object>> displayRows(List<Long> ids) {
+    return ids.isEmpty() ? List.of() : mapper.selectOfferRows(ids);
   }
 
   /** 按规格编号读取当前价格和库存。 */

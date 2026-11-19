@@ -2,7 +2,6 @@ package com.bitmall.agent.product.cache;
 
 import com.bitmall.agent.product.config.CatalogCacheProperties;
 import com.bitmall.agent.product.config.CatalogProtectionProperties;
-import com.bitmall.agent.product.vo.ProductDetailVO;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -50,7 +49,7 @@ public class CatalogCache {
   private final com.bitmall.agent.product.config.CatalogLocalProperties localPolicy;
 
   /** 本机 Caffeine 缓存，仅保存仍为热点且修订号有效的商品数据。 */
-  private final Cache<String, LocalValue> local;
+  private final Cache<String, String> local;
 
   /** 数据库回源信号量，限制所有 key 合计的并发加载数。 */
   private final Semaphore loads;
@@ -196,10 +195,9 @@ public class CatalogCache {
       String encoded = encode(value);
       Duration effective = ttls.jitter(negative ? properties.getNegativeTtl() : ttl);
       if (encoded != null && found != null && before == revision.get()) {
-        boolean stored = redis.fillOwned(key, found.getGeneration(), encoded, effective, token);
+        boolean stored = redis.fillOwned(key, found.getTicket(), encoded, effective, token);
         if (stored) metrics.increment("rebuild_filled");
-        if (stored && hot && !negative && before == revision.get())
-          local.put(key, new LocalValue(before, encoded));
+        if (stored && hot && !negative && before == revision.get()) remember(key, before, encoded);
         if (!stored) metrics.increment("fill_skipped");
       }
       return value;
@@ -214,14 +212,14 @@ public class CatalogCache {
     if (found == null || found.getValue() == null) return null;
     T value = decode(found.getValue(), type);
     if (value == null) {
-      redis.discard(key, found.getGeneration());
+      redis.discard(key, found.getValue());
       metrics.increment("corrupt_entry");
       return null;
     }
     metrics.increment("redis_hit");
     if (value instanceof DetailValue d && d.getProduct() == null) metrics.increment("negative_hit");
     else if (hot && before == revision.get() && redis.available())
-      local.put(key, new LocalValue(before, found.getValue()));
+      remember(key, before, found.getValue());
     return value;
   }
 
@@ -231,13 +229,10 @@ public class CatalogCache {
       local.invalidate(key);
       return null;
     }
-    LocalValue value = local.getIfPresent(key);
+    String value = local.getIfPresent(key);
     if (value == null) return null;
-    if (value.getRevision() != revision.get()) {
-      local.invalidate(key);
-      return null;
-    }
-    T decoded = decode(value.getJson(), type);
+
+    T decoded = decode(value, type);
     if (decoded == null) local.invalidate(key);
     else metrics.increment("local_hit");
     return decoded;
@@ -269,19 +264,60 @@ public class CatalogCache {
     return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "商品查询繁忙，请稍后重试");
   }
 
-  /** 仅在业务事务提交后处理商品变更：清空本机缓存，并通知 Redis 切换缓存代际。 */
+  /** 库存展示只在提交后失效；不触碰本机的商品资料。 */
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
-  public void committed(CatalogChanged ignored) {
-    invalidateLocal();
-    redis.invalidate();
+  public void committed(CatalogChanged change) {
+    redis.invalidate(change.stockKeys(), false);
     metrics.increment("committed_invalidation");
   }
 
-  /** 增加本地修订号并清空 Caffeine，阻止旧查询继续回填过期结果。 */
-  public void invalidateLocal() {
+  /** 失效通知和写入本机缓存串行，防止晚到的查询恢复旧值。 */
+  private synchronized void remember(String key, long before, String data) {
+    if (revision.get() == before) local.put(key, data);
+  }
+
+  public synchronized void invalidateLocal(String key) {
+    revision.incrementAndGet();
+    local.invalidate(key);
+    metrics.increment("local_invalidation");
+  }
+
+  public synchronized void invalidateLocal() {
     revision.incrementAndGet();
     local.invalidateAll();
     metrics.increment("local_invalidation");
+  }
+
+  /** SKU 批量未命中按商品合并。调用者拿锁后重读共享展示键，并共用资料查询的回源并发预算。 */
+  public <T> T loadOffers(
+      long productId, boolean shared, java.util.function.Function<String, T> load) {
+    String key = "offers:" + productId, owner = null;
+    try {
+      long end = System.nanoTime() + protection.getLockWait().toNanos();
+      while (shared) {
+        Boolean got = redis.acquireLoad(key);
+        if (got == null) break;
+        if (got) {
+          owner = redis.ownerToken();
+          break;
+        }
+        if (System.nanoTime() >= end) throw busy();
+        try {
+          Thread.sleep(15);
+        } catch (InterruptedException ex) {
+          Thread.currentThread().interrupt();
+          throw busy();
+        }
+      }
+      if (!loads.tryAcquire()) throw busy();
+      try {
+        return load.apply(owner);
+      } finally {
+        loads.release();
+      }
+    } finally {
+      redis.releaseLoad(key, owner);
+    }
   }
 
   /** 汇总缓存容量、过期配置、Redis 状态、热点状态和查询计数。 */
@@ -312,16 +348,16 @@ public class CatalogCache {
   /** 商品详情缓存的包装对象。 product 为空也能被序列化和短暂缓存，减少重复查询不存在商品造成的数据库压力。 */
   public static final class DetailValue {
     /** 查到的商品详情；为空时表示商品不存在。 */
-    private final ProductDetailVO product;
+    private final ProductProfile product;
 
     /** 使用完整字段创建对象，创建后通过 Getter 读取。 构造方法上的 JsonCreator 和参数上的 JsonProperty 明确指定 JSON 字段的对应关系。 */
     @JsonCreator
-    public DetailValue(@JsonProperty("product") ProductDetailVO product) {
+    public DetailValue(@JsonProperty("product") ProductProfile product) {
       this.product = product;
     }
 
     /** 获取查到的商品详情；为空时表示商品不存在。 */
-    public ProductDetailVO getProduct() {
+    public ProductProfile getProduct() {
       return product;
     }
 
@@ -344,52 +380,6 @@ public class CatalogCache {
     @Override
     public String toString() {
       return "DetailValue[" + "product=" + product + "]";
-    }
-  }
-
-  /** 本机缓存中的一条内部数据。 修订号用来识别旧缓存，json 保存商品查询结果的序列化内容。 */
-  private static final class LocalValue {
-    /** 本机缓存修订号，用于识别已经失效的旧值。 */
-    private final long revision;
-
-    /** 已经序列化的商品数据。 */
-    private final String json;
-
-    /** 保存这一次内部计算的数据，创建后通过 Getter 读取。 这个内部对象由 Java 代码直接创建，不需要从 HTTP 请求或缓存 JSON 恢复。 */
-    public LocalValue(long revision, String json) {
-      this.revision = revision;
-      this.json = json;
-    }
-
-    /** 获取本机缓存修订号，用于识别已经失效的旧值。 */
-    public long getRevision() {
-      return revision;
-    }
-
-    /** 获取已经序列化的商品数据。 */
-    public String getJson() {
-      return json;
-    }
-
-    /** 按全部字段比较内容，便于查询结果和缓存结果进行一致性判断。 */
-    @Override
-    public boolean equals(Object other) {
-      if (this == other) return true;
-      if (other == null || getClass() != other.getClass()) return false;
-      LocalValue that = (LocalValue) other;
-      return Objects.equals(revision, that.revision) && Objects.equals(json, that.json);
-    }
-
-    /** 与 equals 使用相同字段，保证放入集合后的比较规则一致。 */
-    @Override
-    public int hashCode() {
-      return Objects.hash(revision, json);
-    }
-
-    /** 返回字段摘要，供日志和本地调试查看。 */
-    @Override
-    public String toString() {
-      return "LocalValue[" + "revision=" + revision + ", json=" + json + "]";
     }
   }
 }

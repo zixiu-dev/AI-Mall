@@ -52,7 +52,7 @@ openspec/
 | 能力目录 | 内容 | 要求数 |
 |---|---|---:|
 | product-catalog | [商品目录与 SKU 查询](specs/product-catalog/spec.md) | 4 |
-| catalog-cache | [商品展示缓存保护](specs/catalog-cache/spec.md) | 5 |
+| catalog-cache | [商品展示缓存保护](specs/catalog-cache/spec.md) | 6 |
 | shopping-cart | [用户购物车](specs/shopping-cart/spec.md) | 3 |
 | coupons | [优惠券领取与使用](specs/coupons/spec.md) | 3 |
 | checkout | [结算试算与成交参数](specs/checkout/spec.md) | 3 |

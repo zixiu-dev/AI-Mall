@@ -8,8 +8,8 @@
     </select>
     <!-- selectProductSkus: 读取数据库投影 -->
     <select id="selectProductSkus" resultType="map">
-        SELECT id, sku_code, spec, price, original_price, stock
-        FROM product_sku WHERE product_id = #{productId} AND enabled = TRUE ORDER BY price
+        SELECT id, sku_code, spec
+        FROM product_sku WHERE product_id = #{productId} AND enabled = TRUE ORDER BY id
     </select>
     <!-- selectAvailableSku: 读取数据库投影 -->
     <select id="selectAvailableSku" resultType="map">
@@ -23,5 +23,10 @@
         FROM product_sku s JOIN product p ON p.id = s.product_id
         WHERE s.id = #{skuId} AND s.enabled = TRUE AND p.enabled = TRUE
     </select>
+  <select id="selectOfferRows" resultType="map">
+    SELECT s.id,s.price,s.original_price,s.stock,s.redis_inventory_initialized FROM product_sku s
+    JOIN product p ON p.id=s.product_id WHERE s.enabled=TRUE AND p.enabled=TRUE AND s.id IN
+    <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>
+  </select>
   <select id="selectBloomIds" resultType="java.lang.Long">SELECT id FROM product WHERE id&gt;#{cursor} ORDER BY id LIMIT #{limit}</select>
 </mapper>

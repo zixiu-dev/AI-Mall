@@ -5,7 +5,7 @@
 | 能力 | 稳定要求编号 | 主要验证入口 |
 |---|---|---|
 | [product-catalog](specs/product-catalog/spec.md) | CAT-001, CAT-002, CAT-003, CAT-004 | [CatalogSearchIntegrationTest.java](../src/test/java/com/bitmall/agent/product/controller/CatalogSearchIntegrationTest.java) |
-| [catalog-cache](specs/catalog-cache/spec.md) | CACHE-001, CACHE-002, CACHE-003, CACHE-004, CACHE-005 | [CatalogCacheIntegrationTest.java](../src/test/java/com/bitmall/agent/product/service/CatalogCacheIntegrationTest.java) |
+| [catalog-cache](specs/catalog-cache/spec.md) | CACHE-001, CACHE-002, CACHE-003, CACHE-004, CACHE-005, CACHE-006 | [CatalogCacheIntegrationTest.java](../src/test/java/com/bitmall/agent/product/service/CatalogCacheIntegrationTest.java) |
 | [shopping-cart](specs/shopping-cart/spec.md) | CART-001, CART-002, CART-003 | [CommerceModulesIntegrationTest.java](../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java) |
 | [coupons](specs/coupons/spec.md) | COUPON-001, COUPON-002, COUPON-003 | [OrderSubmissionIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderSubmissionIntegrationTest.java) |
 | [checkout](specs/checkout/spec.md) | CHECKOUT-001, CHECKOUT-002, CHECKOUT-003 | [CommerceModulesIntegrationTest.java](../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java) |
@@ -64,3 +64,5 @@ PGVECTOR补充：RAG-003/004/009 关联 [PgVectorIndexIntegrationTest](../src/te
 Spring AI 迁移补充：AGENT-001～005 / MEMORY-002～004 由 [SpringAiIntegrationTest](../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java)、[AgentStateMigrationTest](../src/test/java/com/bitmall/agent/agent/service/runtime/AgentStateMigrationTest.java)、[OpenAITransportTest](../src/test/java/com/bitmall/agent/agent/service/runtime/OpenAITransportTest.java) 验证；RAG 使用既有 PG、embedding 协议及单独真实模型用例。当前 242 个不同用例均通过（完整本地跑跳过的 3 个模型用例随后单独通过）；真实 MQ SYNC/ASYNC 各三笔与结构快照核验见 [测试总文档第 17 节](../docs/testing.md#17-spring-boot-4-与-spring-ai-2-迁移验证2026-11-17)。
 
 CACHE-002 顺序调整补充：[CatalogCacheReadOrderTest](../src/test/java/com/bitmall/agent/product/cache/CatalogCacheReadOrderTest.java) 检查 Bloom 在共享缓存之前及明确否定短路；既有 CatalogCacheIntegrationTest 的本地命中、故障/误判与锁回归继续覆盖。31 项定向通过，见 [测试第 18 节](../docs/testing.md#18-商品详情先-bloom-后共享缓存2026-11-17)。
+
+CACHE-006：商品稳定资料、批量回填与订单后局部失效见 CatalogCacheIntegrationTest；已预扣可售量和丢池保护见 InventoryReservationIntegrationTest。实测见 docs/testing.md 第 19 节。

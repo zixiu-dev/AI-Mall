@@ -111,27 +111,30 @@ def wait_bloom(env, expected):
 
 
 def reset_details(env, peers, directory):
-    """只轮换本轮命名空间的缓存代际并通知 L1；不 FLUSHDB，不删除 Bloom，不接触原商城缓存。"""
+    """清本次隔离测试的展示键；逐个广播资料失效，不触碰库存池和 Bloom。"""
     namespace = 'peak:' + env.database + ':catalog'
-    generation = uuid.uuid4().hex
-    redis(env, 'EVAL', "redis.call('SET',KEYS[1],ARGV[1]);return redis.call('PUBLISH',ARGV[2],ARGV[1])",
-          1, namespace + ':{catalog}:generation', generation, namespace + ':invalidate')
+    prefix = namespace + ':{catalog}:display:'
+    keys = redis(env, '--scan', '--pattern', prefix + '*').splitlines()
+    for start in range(0, len(keys), 256):
+        batch = keys[start:start+256]
+        redis(env, 'EVAL', "for _,k in ipairs(KEYS) do redis.call('DEL',k);redis.call('PUBLISH',ARGV[1],string.sub(k,tonumber(ARGV[2]))) end;return 1",
+              len(batch), *batch, namespace + ':display:invalidate', len(prefix)+1)
     until = time.monotonic() + 5
     while time.monotonic() < until:
         if all(api(p['management'], '/actuator/catalogcache')['localEntries'] == 0 for p in peers):
             break
         time.sleep(.05)
     assert all(api(p['management'], '/actuator/catalogcache')['localEntries'] == 0 for p in peers)
-    pattern = namespace + ':{catalog}:' + generation + ':product:*'
+    pattern = prefix + 'product:*'
     assert redis(env, '--scan', '--pattern', pattern) == ''
-    (directory / 'cache-reset.json').write_text(json.dumps({'generation': generation,
+    (directory / 'cache-reset.json').write_text(json.dumps({'removedDisplayKeys': len(keys),
          'namespace': namespace, 'coldDetailKeys': 0, 'localEntries': 0}, indent=2))
-    return generation
+    return pattern
 
 
 def finite_cold(env, peers, directory, first, count, copies=8):
     """四个进程、共八个 key 组；每个组同时访问同一 key 八次，明确制造锁内二次检查。"""
-    directory.mkdir(); generation = reset_details(env, peers, directory)
+    directory.mkdir(); pattern = reset_details(env, peers, directory)
     before = counters(peers); processes = []; configs = []
     for index in range(4):
         config = {'ids': list(range(first + index, first + count, 4)),
@@ -166,8 +169,7 @@ def finite_cold(env, peers, directory, first, count, copies=8):
     assert changes.get('bloom_bypassed', 0) == changes.get('bloom_rejected', 0) == 0, changes
     if len(peers) > 1:
         assert changes.get('rebuild_wait', 0) + changes.get('rebuild_avoided_after_redis_lock', 0) > 0, changes
-    namespace = 'peak:' + env.database + ':catalog:{catalog}:' + generation + ':product:*'
-    cache_keys = redis(env, '--scan', '--pattern', namespace).splitlines()
+    cache_keys = redis(env, '--scan', '--pattern', pattern).splitlines()
     assert len(cache_keys) >= count
     latencies = sorted(value for row in rows for value in row['latencies'])
     result = {'name': directory.name, 'type': 'finite-cold-cohorts', 'instances': len(peers),

@@ -167,7 +167,7 @@
 <rect x="1290" y="148" width="438" height="276" rx="12" fill="#ffffff" stroke="#b8d0ee" />
 <rect x="1290" y="148" width="438" height="55" rx="12" fill="#eff6ff" stroke="none" />
 <text x="1312" y="184" font-size="23" style="fill:#2466b5" font-weight="600">A  商品详情查询</text>
-<text x="1312" y="231" font-size="17" style="fill:#52647e">Caffeine 命中直接返回；否则依次检查</text>
+<text x="1312" y="231" font-size="17" style="fill:#52647e">资料命中后批读 SKU 价格与库存</text>
 <rect x="1312" y="241" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
 <text x="1324.5" y="259" font-size="15" style="fill:#2466b5" font-weight="600" text-anchor="middle">1</text>
 <text x="1350" y="261" font-size="19">参数校验 → Caffeine</text>
@@ -180,7 +180,7 @@
 <rect x="1312" y="340" width="25" height="25" rx="7" fill="#f0f4f9" stroke="none" />
 <text x="1324.5" y="358" font-size="15" style="fill:#2466b5" font-weight="600" text-anchor="middle">4</text>
 <text x="1350" y="360" font-size="19">未命中 → RLock 双检 → MySQL</text>
-<text x="1312" y="390" font-size="17" style="fill:#52647e">回填详情 / 短 TTL 空值，TTL 随机抖动。</text>
+<text x="1312" y="390" font-size="17" style="fill:#52647e">稳定资料与 SKU 价格、可售量分开读取。</text>
 <text x="1312" y="414" font-size="17" style="fill:#52647e">布隆否定：不读详情缓存、不抢锁、不回源。</text>
 <rect x="1290" y="444" width="438" height="202" rx="12" fill="#ffffff" stroke="#ebccaa" />
 <rect x="1290" y="444" width="438" height="55" rx="12" fill="#fff7ed" stroke="none" />

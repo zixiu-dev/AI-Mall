@@ -1,12 +1,11 @@
 package com.bitmall.agent.product.dao.repository;
 
 import com.bitmall.agent.common.persistence.RowValues;
+import com.bitmall.agent.product.cache.ProductProfile;
 import com.bitmall.agent.product.dao.mapper.ProductSearchMapper;
 import com.bitmall.agent.product.dto.ProductSearchRequest;
-import com.bitmall.agent.product.vo.ProductDetailVO;
 import com.bitmall.agent.product.vo.ProductSearchResultVO.Hit;
 import com.bitmall.agent.product.vo.ProductSearchResultVO.Page;
-import com.bitmall.agent.product.vo.SkuVO;
 import java.util.*;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -98,36 +97,14 @@ public class ProductSearchRepository {
   }
 
   /** 批量读取商品和规格属性，补充到详情中。 */
-  public ProductDetailVO enrich(ProductDetailVO p) {
-    Map<String, String> pa =
-        attributes("product_attribute", "product_id", List.of(p.getId()))
-            .getOrDefault(p.getId(), Map.of());
-    Map<Long, Map<String, String>> sa =
-        attributes("sku_attribute", "sku_id", p.getSkus().stream().map(SkuVO::getId).toList());
-    List<SkuVO> skus =
-        p.getSkus().stream()
-            .map(
-                s ->
-                    new SkuVO(
-                        s.getId(),
-                        s.getSkuCode(),
-                        s.getSpec(),
-                        s.getPrice(),
-                        s.getOriginalPrice(),
-                        s.getStock(),
-                        sa.getOrDefault(s.getId(), Map.of())))
-            .toList();
-    return new ProductDetailVO(
-        p.getId(),
-        p.getName(),
-        p.getCategory(),
-        p.getBrand(),
-        p.getSummary(),
-        p.getImageKey(),
-        p.getRating(),
-        p.getSalesCount(),
-        skus,
-        pa);
+  public ProductProfile enrich(ProductProfile profile) {
+    profile.attributes =
+        attributes("product_attribute", "product_id", List.of(profile.id))
+            .getOrDefault(profile.id, Map.of());
+    var details =
+        attributes("sku_attribute", "sku_id", profile.skus.stream().map(v -> v.id).toList());
+    profile.skus.forEach(v -> v.attributes = details.getOrDefault(v.id, Map.of()));
+    return profile;
   }
 
   /** 从当前启用目录读取筛选选项；只按品类限定，不让选项相互过滤。 */

@@ -53,7 +53,7 @@ public final class CatalogCacheProperties {
             @JsonProperty("redisCooldown") Duration redisCooldown,
             @JsonProperty("maximumConcurrentLoads") int maximumConcurrentLoads) {
         namespace = namespace == null || namespace.isBlank() ? "wowo:catalog:real:v2" : namespace;
-        detailTtl = positive(detailTtl, Duration.ofSeconds(20));
+        detailTtl = positive(detailTtl, Duration.ofMinutes(10));
         searchTtl = positive(searchTtl, Duration.ofSeconds(5));
         negativeTtl = positive(negativeTtl, Duration.ofSeconds(3));
         localTtl = positive(localTtl, Duration.ofSeconds(2));

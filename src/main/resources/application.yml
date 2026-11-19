@@ -94,7 +94,9 @@ app:
   catalog-cache:
     enabled: ${CATALOG_CACHE_ENABLED:true}
     namespace: ${CATALOG_CACHE_NAMESPACE:wowo:catalog:real:v2}
-    detail-ttl: 20s
+    detail-ttl: 10m
+    price-ttl: 60s
+    stock-ttl: 3s
     search-ttl: 5s
     negative-ttl: 3s
     local-ttl: 2s

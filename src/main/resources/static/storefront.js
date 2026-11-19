@@ -148,7 +148,7 @@ export function showProductDetails(product, helpers) {
         ? `品牌参考价差 ¥${money(selected.originalPrice - selected.price)}`
         : "";
     $("#detailStock").textContent =
-      selected.stock > 0 ? `演示库存 · 剩余 ${selected.stock} 件` : "暂时缺货";
+      selected.stock > 0 ? (selected.stock <= 5 ? "库存紧张" : "有货") : "暂时缺货";
     $("#detailQuantity").value = quantity;
     $("#detailQuantity").max = Math.max(1, max);
     $("#detailQuantity").disabled = selected.stock < 1;

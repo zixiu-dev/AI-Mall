@@ -22,15 +22,16 @@
 **详情未命中的完整顺序：**
 
 ```text
-参数校验 → 按策略查 Caffeine；命中直接返回
+参数校验 → 按策略查 Caffeine；资料命中则进入 SKU 批读
   本地未命中 → Redisson RBloomFilter 检查
       明确不存在：返回无商品，不读共享详情缓存、不竞争重建锁、不查数据库
-      可能存在/未知：查 Redis；命中直接返回
+      可能存在/未知：查 Redis；资料命中则进入 SKU 批读
       Redis 未命中：Redisson RLock → 锁后重查缓存
           仍未命中 → 取得回源名额 → 查商品/SKU/属性
           有结果：带随机 TTL 回填，符合本地策略再放 Caffeine
           无结果：短 TTL 空值标记
   finally：只释放当前线程仍持有的 RLock
+  资料就绪 → 批读 SKU 价格与可售量 → 返回完整详情
 ```
 
 拿不到 Redis 重建锁时，会有界等待并重查缓存；超时或回源并发超过上限返回 503。Redis 暂不可用时，使用有并发上限的数据库路径，避免无限打数据库。
@@ -41,9 +42,9 @@
 | 防击穿 | 一个 key 失效，大量请求同时重建 | Redisson RLock；拿锁后再查缓存，失锁的旧持有者不能回填 |
 | 缓解雪崩 | 大量 key 同时过期或缓存故障 | TTL 随机偏移、每实例最多 16 个回源、有限等待/拒绝和故障冷却 |
 
-默认详情 Redis TTL 为 20～24 秒，空值 3～3.6 秒，Caffeine 为 2 秒。默认策略 HOTKEY，HotKey 开关默认关闭；仅用默认配置启动不会提升到本地缓存。压测用 ALL/OFF 分别测本地和 Redis 路径，不代表所有运行环境都自动使用 L1。
+默认资料 TTL 为 10～12 分钟，SKU 公开价格 60～72 秒、数据库库存提示 3～3.6 秒，空值 3～3.6 秒，Caffeine 为 2 秒。默认策略 HOTKEY，HotKey 开关默认关闭；仅用默认配置启动不会提升到本地缓存。压测用 ALL/OFF 分别测本地和 Redis 路径，不代表所有运行环境都自动使用 L1。
 
-商品/库存变更提交后切换 Redis 缓存代际，并广播清理本地缓存；旧 loader 回填要校验代际和锁所有者，避免旧查询覆盖更新后的缓存。当前是命名空间级代际失效，影响范围较大；稳定详情与易变价格/库存尚未拆开缓存。展示值允许短暂过时，广播也不是事务内强同步，**结算和建单仍核对数据库。**
+建单和关单提交后只删除相关 SKU 的展示库存；支付不再扣可售，不清展示缓存。商品资料和价格继续复用，搜索按短 TTL 刷新。
 
 源码：[ProductService](../src/main/java/com/bitmall/agent/product/service/ProductService.java) → [CatalogCache](../src/main/java/com/bitmall/agent/product/cache/CatalogCache.java) → [ProductRepository](../src/main/java/com/bitmall/agent/product/dao/repository/ProductRepository.java)。
 

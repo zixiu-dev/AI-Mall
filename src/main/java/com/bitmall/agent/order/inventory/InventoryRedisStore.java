@@ -1,14 +1,14 @@
 package com.bitmall.agent.order.inventory;
 
+import com.bitmall.agent.common.persistence.RedissonSupport;
 import com.bitmall.agent.order.config.OrderProcessingProperties;
 import com.bitmall.agent.order.exception.OrderRejectedException;
-import com.bitmall.agent.common.persistence.RedissonSupport;
-import org.redisson.api.RedissonClient;
+import java.util.*;
 import org.redisson.api.RScript;
+import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
-import java.util.*;
 import org.springframework.stereotype.Component;
 
 /** 交易库存的 Lua 适配器。可售数、待落库预占量和单次预占记录同槽，均不自动过期。 */
@@ -21,7 +21,9 @@ public class InventoryRedisStore {
   private final String initialize = script("inventory_initialize.lua");
   private final String adopt = script("inventory_adopt.lua");
 
-  public InventoryRedisStore(@Qualifier("orderRedisson") ObjectProvider<RedissonClient> client, OrderProcessingProperties properties) {
+  public InventoryRedisStore(
+      @Qualifier("orderRedisson") ObjectProvider<RedissonClient> client,
+      OrderProcessingProperties properties) {
     this.client = client;
     prefix = properties.getNamespace() + "inventory:v1:";
   }
@@ -40,15 +42,36 @@ public class InventoryRedisStore {
     return List.of(p + "available", p + "pending", p + "reservation:" + id);
   }
 
+  /** 浏览只批读可售与待确认计数，不初始化或修复库存。两键均缺失由调用方核实 DB 初始化标记。 */
+  public Map<Long, Integer> availableForDisplay(List<Long> ids) {
+    if (ids.isEmpty()) return Map.of();
+    var names =
+        ids.stream()
+            .flatMap(id -> keys(id, "unused").subList(0, 2).stream())
+            .toArray(String[]::new);
+    Map<String, String> values = client.getObject().getBuckets(StringCodec.INSTANCE).get(names);
+    var result = new HashMap<Long, Integer>();
+    for (long id : ids) {
+      var pair = keys(id, "unused");
+      String a = values.get(pair.get(0)), p = values.get(pair.get(1));
+      if (a == null && p == null) continue;
+      if (a == null || p == null || Integer.parseInt(a) < 0 || Integer.parseInt(p) < 0)
+        throw new IllegalStateException("库存池状态不完整");
+      result.put(id, Integer.parseInt(a));
+    }
+    return result;
+  }
+
   public boolean poolExists(long sku) {
     var k = keys(sku, "unused");
-    return Boolean.TRUE.equals(client.getObject().getBucket(k.get(0), StringCodec.INSTANCE).isExists())
-        && Boolean.TRUE.equals(client.getObject().getBucket(k.get(1), StringCodec.INSTANCE).isExists());
+    return Boolean.TRUE.equals(
+            client.getObject().getBucket(k.get(0), StringCodec.INSTANCE).isExists())
+        && Boolean.TRUE.equals(
+            client.getObject().getBucket(k.get(1), StringCodec.INSTANCE).isExists());
   }
 
   public void initialize(long sku, int available) {
-    Long n =
-        execute(initialize, keys(sku, "unused").subList(0, 2), String.valueOf(available));
+    Long n = execute(initialize, keys(sku, "unused").subList(0, 2), String.valueOf(available));
     if (n == null || n < 0) throw new IllegalStateException("库存初始化状态不一致，请停流核对 SKU " + sku);
   }
 
@@ -62,7 +85,11 @@ public class InventoryRedisStore {
   }
 
   public void requireReserved(long sku, String id, int quantity) {
-    var h = client.getObject().<String, String>getMap(keys(sku, id).get(2), StringCodec.INSTANCE).readAllMap();
+    var h =
+        client
+            .getObject()
+            .<String, String>getMap(keys(sku, id).get(2), StringCodec.INSTANCE)
+            .readAllMap();
     if (!"RESERVED".equals(h.get("state")) || !String.valueOf(quantity).equals(h.get("quantity")))
       throw new IllegalStateException("未找到匹配的有效预占，不能绕过预占建单");
   }

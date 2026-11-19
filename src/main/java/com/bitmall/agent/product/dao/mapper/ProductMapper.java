@@ -7,6 +7,9 @@ import org.apache.ibatis.annotations.Mapper;
 /** MyBatis-Plus 表映射；条件扣减、行锁和状态 CAS 由 XML 显式定义。 */
 @Mapper
 public interface ProductMapper extends BaseMapper<ProductEntity> {
+  java.util.List<java.util.Map<String, Object>> selectOfferRows(
+      @org.apache.ibatis.annotations.Param("ids") java.util.List<Long> ids);
+
   /** 只扫描商品 ID，构建防穿透位图。包含下架商品以避免重新上架时漏登记。 */
   java.util.List<Long> selectBloomIds(java.util.Map<String, Object> values);
 
