@@ -1,9 +1,15 @@
 package com.bitmall.agent.coupon.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import lombok.Getter;
+import lombok.Setter;
 
 /** coupon 表的可写持久化对象，不直接作为接口返回。 */
 @TableName("coupon")
+@Getter
+@Setter
 public class CouponEntity {
   @TableId(value = "id", type = IdType.INPUT)
   private Long id;
@@ -12,10 +18,10 @@ public class CouponEntity {
   private String name;
 
   @TableField("threshold_amount")
-  private java.math.BigDecimal thresholdAmount;
+  private BigDecimal thresholdAmount;
 
   @TableField("discount_amount")
-  private java.math.BigDecimal discountAmount;
+  private BigDecimal discountAmount;
 
   @TableField("total_stock")
   private Integer totalStock;
@@ -24,83 +30,11 @@ public class CouponEntity {
   private Integer claimedCount;
 
   @TableField("start_at")
-  private java.time.LocalDateTime startAt;
+  private LocalDateTime startAt;
 
   @TableField("end_at")
-  private java.time.LocalDateTime endAt;
+  private LocalDateTime endAt;
 
   @TableField("status")
   private String status;
-
-  public Long getId() {
-    return id;
-  }
-
-  public void setId(Long id) {
-    this.id = id;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public void setName(String name) {
-    this.name = name;
-  }
-
-  public java.math.BigDecimal getThresholdAmount() {
-    return thresholdAmount;
-  }
-
-  public void setThresholdAmount(java.math.BigDecimal thresholdAmount) {
-    this.thresholdAmount = thresholdAmount;
-  }
-
-  public java.math.BigDecimal getDiscountAmount() {
-    return discountAmount;
-  }
-
-  public void setDiscountAmount(java.math.BigDecimal discountAmount) {
-    this.discountAmount = discountAmount;
-  }
-
-  public Integer getTotalStock() {
-    return totalStock;
-  }
-
-  public void setTotalStock(Integer totalStock) {
-    this.totalStock = totalStock;
-  }
-
-  public Integer getClaimedCount() {
-    return claimedCount;
-  }
-
-  public void setClaimedCount(Integer claimedCount) {
-    this.claimedCount = claimedCount;
-  }
-
-  public java.time.LocalDateTime getStartAt() {
-    return startAt;
-  }
-
-  public void setStartAt(java.time.LocalDateTime startAt) {
-    this.startAt = startAt;
-  }
-
-  public java.time.LocalDateTime getEndAt() {
-    return endAt;
-  }
-
-  public void setEndAt(java.time.LocalDateTime endAt) {
-    this.endAt = endAt;
-  }
-
-  public String getStatus() {
-    return status;
-  }
-
-  public void setStatus(String status) {
-    this.status = status;
-  }
 }

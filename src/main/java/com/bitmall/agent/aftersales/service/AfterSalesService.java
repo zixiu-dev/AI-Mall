@@ -9,23 +9,19 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 售后业务服务。 先通过订单查询检查归属和状态，再判断是否可申请、金额是否变化；实际提交和仅生成预览是两个不同步骤。 */
 @Service
+@RequiredArgsConstructor
 public class AfterSalesService {
-  /** 依赖组件：售后表的数据访问组件。 */
+  /** 读写售后申请，按当前用户和订单查询申请状态。 */
   private final AfterSalesRepository mapper;
 
-  /** 依赖组件：订单交易业务服务。 */
+  /** 读取订单详情，判断能否申请售后、可退金额是多少。 */
   private final OrderService orders;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public AfterSalesService(AfterSalesRepository mapper, OrderService orders) {
-    this.mapper = mapper;
-    this.orders = orders;
-  }
 
   /** 先查询并核对订单归属，再检查状态和是否已有申请，返回可退款金额及原因。 */
   public Map<String, Object> afterSalesPrecheck(long userId, String orderId, String type) {
@@ -60,7 +56,9 @@ public class AfterSalesService {
       throw new IllegalStateException(check.get("reason").toString());
     }
     BigDecimal expected = command.getExpectedRefundAmount();
-    if (expected == null) throw new IllegalArgumentException("缺少参数 expectedRefundAmount");
+    if (expected == null) {
+      throw new IllegalArgumentException("缺少参数 expectedRefundAmount");
+    }
     BigDecimal actual = new BigDecimal(check.get("refundableAmount").toString());
     if (expected.compareTo(actual) != 0) {
       throw new IllegalStateException("可退款金额已经变化，请重新确认");

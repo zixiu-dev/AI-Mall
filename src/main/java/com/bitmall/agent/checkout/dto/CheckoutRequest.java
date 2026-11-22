@@ -12,38 +12,47 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.Objects;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.Getter;
 
 /** 页面进行结算试算或建单时提交的参数。 立即购买需要 SKU，购物车结算使用已勾选商品；真正建单还需要用户确认过的 expectedPayAmount。 */
 public final class CheckoutRequest {
   /** 数据所属用户编号，由后端上下文传入。 */
+  @Getter
   @Positive private final Long userId;
 
   /** 购买来源：DIRECT 表示立即购买，CART 表示购物车结算。 */
   @Pattern(regexp = "DIRECT|CART", message = "购买来源必须为 DIRECT 或 CART")
+  @Getter
   private final String source;
 
   /** 具体商品规格的编号，不等于商品编号。 */
+  @Getter
   @Positive private final Long skuId;
 
-  /** 购买数量。 */
   @Min(1)
   @Max(20)
+  @Getter
   private final Integer quantity;
 
   /** 用户选择的收货地址编号，省略时使用默认地址。 */
+  @Getter
   @Positive private final Long addressId;
 
   /** 用户领取后生成的券编号，结算时使用它。 */
+  @Getter
   @Positive private final Long userCouponId;
 
   /** 用户确认时看到的应付金额，建单前需要重新核对。 */
   @DecimalMin("0.00")
+  @Getter
   private final BigDecimal expectedPayAmount;
 
   /** 用户看到并确认的购物明细，轻量发号后的购物车提交必须提供。 */
-  @jakarta.validation.Valid
+  @Valid
   @Size(max = 100)
-  private final java.util.List<PurchaseItem> expectedItems;
+  private final List<PurchaseItem> expectedItems;
 
   public CheckoutRequest(
       Long userId,
@@ -56,7 +65,6 @@ public final class CheckoutRequest {
     this(userId, source, skuId, quantity, addressId, userCouponId, expectedPayAmount, null);
   }
 
-  /** 使用完整字段创建对象，创建后通过 Getter 读取。 构造方法上的 JsonCreator 和参数上的 JsonProperty 明确指定 JSON 字段的对应关系。 */
   @JsonCreator
   public CheckoutRequest(
       @JsonProperty("userId") Long userId,
@@ -66,8 +74,8 @@ public final class CheckoutRequest {
       @JsonProperty("addressId") Long addressId,
       @JsonProperty("userCouponId") Long userCouponId,
       @JsonProperty("expectedPayAmount") BigDecimal expectedPayAmount,
-      @JsonProperty("expectedItems") java.util.List<PurchaseItem> expectedItems) {
-    this.expectedItems = expectedItems == null ? null : java.util.List.copyOf(expectedItems);
+      @JsonProperty("expectedItems") List<PurchaseItem> expectedItems) {
+    this.expectedItems = expectedItems == null ? null : List.copyOf(expectedItems);
     this.userId = userId;
     this.source = source;
     this.skuId = skuId;
@@ -77,46 +85,15 @@ public final class CheckoutRequest {
     this.expectedPayAmount = expectedPayAmount;
   }
 
-  /** 获取数据所属用户编号，由后端上下文传入。 */
-  public Long getUserId() {
-    return userId;
-  }
-
-  /** 获取购买来源：DIRECT 表示立即购买，CART 表示购物车结算。 */
-  public String getSource() {
-    return source;
-  }
-
-  /** 获取具体商品规格的编号，不等于商品编号。 */
-  public Long getSkuId() {
-    return skuId;
-  }
-
-  /** 获取购买数量。 */
-  public Integer getQuantity() {
-    return quantity;
-  }
-
-  /** 获取用户选择的收货地址编号，省略时使用默认地址。 */
-  public Long getAddressId() {
-    return addressId;
-  }
-
-  /** 获取用户领取后生成的券编号，结算时使用它。 */
-  public Long getUserCouponId() {
-    return userCouponId;
-  }
-
-  /** 获取用户确认时看到的应付金额，建单前需要重新核对。 */
-  public BigDecimal getExpectedPayAmount() {
-    return expectedPayAmount;
-  }
-
   /** 按全部字段比较内容，便于查询结果和缓存结果进行一致性判断。 */
   @Override
   public boolean equals(Object other) {
-    if (this == other) return true;
-    if (other == null || getClass() != other.getClass()) return false;
+    if (this == other) {
+      return true;
+    }
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
     CheckoutRequest that = (CheckoutRequest) other;
     return Objects.equals(userId, that.userId)
         && Objects.equals(source, that.source)
@@ -172,7 +149,9 @@ public final class CheckoutRequest {
 
   /** 立即购买必须提供具体 SKU 编号，缺少时明确拒绝。 */
   public long requiredSkuId() {
-    if (skuId == null) throw new IllegalArgumentException("直接购买缺少 skuId");
+    if (skuId == null) {
+      throw new IllegalArgumentException("直接购买缺少 skuId");
+    }
     return skuId;
   }
 

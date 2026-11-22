@@ -1,5 +1,6 @@
 package com.bitmall.agent.agent.service.tool;
 
+import lombok.Getter;
 import com.bitmall.agent.knowledge.model.KnowledgeExecutionContext;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -7,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Objects;
 
 /** 后端本轮工具调用的身份信息。 用户、会话和请求编号由编排流程设置，不让模型通过工具 JSON 参数自行指定另一个用户；演示接口本身尚未接登录态。 */
+@Getter
 public final class ToolExecutionContext {
   /** 数据所属用户编号，由后端上下文传入。 */
   private final long userId;
@@ -45,26 +47,15 @@ public final class ToolExecutionContext {
     return knowledgeContext;
   }
 
-  /** 获取数据所属用户编号，由后端上下文传入。 */
-  public long getUserId() {
-    return userId;
-  }
-
-  /** 获取所属聊天会话编号，用于隔离不同会话的数据。 */
-  public String getConversationId() {
-    return conversationId;
-  }
-
-  /** 获取本轮请求编号，用于追踪调用和生成幂等键。 */
-  public String getRequestId() {
-    return requestId;
-  }
-
   /** 按全部字段比较内容，便于查询结果和缓存结果进行一致性判断。 */
   @Override
   public boolean equals(Object other) {
-    if (this == other) return true;
-    if (other == null || getClass() != other.getClass()) return false;
+    if (this == other) {
+      return true;
+    }
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
     ToolExecutionContext that = (ToolExecutionContext) other;
     return Objects.equals(userId, that.userId)
         && Objects.equals(conversationId, that.conversationId)

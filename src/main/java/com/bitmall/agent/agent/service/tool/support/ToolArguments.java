@@ -34,7 +34,9 @@ public final class ToolArguments {
     /** 读取必填文本，缺失或空白时返回明确参数错误。 */
     public static String requiredText(Map<String, Object> args, String key) {
         String value = text(args, key, null);
-        if (value == null) throw new IllegalArgumentException("缺少参数 " + key);
+        if (value == null) {
+            throw new IllegalArgumentException("缺少参数 " + key);
+        }
         return value;
     }
 
@@ -47,7 +49,9 @@ public final class ToolArguments {
     /** 读取必填长整数编号，用于订单关联的商品、地址或券。 */
     public static long number(Map<String, Object> args, String key) {
         Object value = args.get(key);
-        if (value == null) throw new IllegalArgumentException("缺少参数 " + key);
+        if (value == null) {
+            throw new IllegalArgumentException("缺少参数 " + key);
+        }
         return value instanceof Number n ? n.longValue() : Long.parseLong(value.toString());
     }
 

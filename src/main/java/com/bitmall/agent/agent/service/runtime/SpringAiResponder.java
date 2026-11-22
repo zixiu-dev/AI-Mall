@@ -7,252 +7,393 @@ import com.bitmall.agent.agent.service.action.PendingActionService;
 import com.bitmall.agent.agent.service.conversation.AgentHistorySelector;
 import com.bitmall.agent.agent.service.skill.SkillContextPolicy;
 import com.bitmall.agent.agent.service.state.AgentStateStoreService;
-import com.bitmall.agent.agent.service.tool.*;
+import com.bitmall.agent.agent.service.tool.DynamicToolCatalog;
+import com.bitmall.agent.agent.service.tool.ToolExecutionContext;
 import com.bitmall.agent.knowledge.model.KnowledgeExecutionContext;
-import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
-import org.springframework.ai.chat.client.AdvisorParams;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.*;
-import org.springframework.ai.chat.model.*;
-import org.springframework.ai.model.tool.ToolCallingChatOptions;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
+import lombok.RequiredArgsConstructor;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.*;
-import reactor.core.scheduler.Schedulers;
 import tools.jackson.databind.ObjectMapper;
 
-/** Spring AI Agent 主循环：推理、检查工具、执行、保存结果、继续推理。模型不能自行确认交易或选择用户身份。 */
+/**
+ * 真实模型模式下的 Agent 主循环。
+ *
+ * <p>每一步：裁剪历史并计算本轮可用工具 -> 调用模型 -> 如果模型要求调用工具就逐个执行并把结果加入历史，然后进入下一步 -> 模型给出纯文本回答时结束。
+ *
+ * <p>安全边界：模型不能自行确认交易，也不能选择用户身份；身份由后端通过 ToolContext
+ * 传给工具。模型与工具回执会持久化；中断后由下一次用户请求读取历史，补齐缺失回执，再开始新一轮执行。
+ */
 @Component
+@RequiredArgsConstructor
 public class SpringAiResponder implements AgentResponder {
-  private final ChatClient client;
+
+  private static final String MODEL_STAGE = "模型推理";
+  private static final int MODEL_STAGE_TIMEOUT_SECONDS = 60;
+
+  private static final String TOOL_STAGE = "工具执行";
+  private static final int TOOL_STAGE_TIMEOUT_SECONDS = 15;
+
+  /** 模型单次回复最多允许请求的工具调用数，防止一次性发起大量操作。 */
+  private static final int MAX_TOOL_CALLS_PER_ANSWER = 16;
+
+  private static final String TOOL_START_EVENT = "tool_start";
+  private static final String TOOL_END_EVENT = "tool_end";
+  private static final String LOAD_SKILL_TOOL = "load_skill";
+
+  private static final String TOOL_UNAVAILABLE_RESULT =
+      "{\"ok\":false,\"error\":\"工具尚未开放或不存在，请先加载对应技能手册\"}";
+  private static final String TOOL_FAILED_RESULT =
+      "{\"ok\":false,\"error\":\"工具调用失败或超时，未自动重试；请查询实际业务状态\"}";
+
+  /** 修复一次后模型仍声称有确认卡时，用这段固定回复替换模型回答。 */
+  private static final String NO_CONFIRMATION_CARD_REPLY =
+      "本次还没有生成可点击的确认卡，本次操作尚未执行。请重新发起办理请求；只有页面实际显示确认卡后才能确认执行。";
+
+  /** 发现模型声称有确认卡但数据库中没有时，追加到系统提示里，让模型重新处理一次。 */
+  private static final String MISSING_CONFIRMATION_HINT =
+      "\n"
+          + "后台校验：当前会话没有待确认记录，刚才指引点击确认按钮的回答不成立。继续处理原始请求，不能把校验当用户授权。只在用户明确要求办理且信息完整时调用写工具生成提议，缺少技能先加载。不得自行确认。工具返回"
+          + " pendingActionId 才能提示点击确认；否则明确尚未生成。";
+
+  private static final String STEP_LIMIT_REPLY = "本次任务已达到执行步数上限。请缩小任务范围后继续；已经准备好的操作以页面确认卡为准。";
+
+  /** 读取模型流式输出，合并分片的工具参数，并在结束时关闭上游流。 */
+  private final SpringAiStreamReader streamReader;
+
+  /** 用于安排模型和工具的超时检查。 */
+  private final ScheduledExecutorService scheduler;
+
+  /** 组装本轮系统提示词：固定系统说明 + 较早会话摘要 + 用户已保存的偏好。 */
   private final AgentPromptService prompts;
+
+  /** 恢复模型历史，补齐中断时缺失的工具回执，并加入本轮用户输入。 */
   private final AgentInputBuilder inputs;
+
+  /** 按完整用户轮次裁剪历史，保证工具请求和工具结果成对保留。 */
   private final AgentHistorySelector history;
+
+  /** 根据当前可见的技能手册计算本轮允许调用的工具。 */
   private final SkillContextPolicy skills;
+
+  /** 按本轮可用技能提供工具回调列表，交给模型调用。 */
   private final DynamicToolCatalog catalog;
+
+  /** 保存模型消息和工具调用结果，支持中断后在下一轮继续。 */
   private final AgentStateStoreService store;
+
+  /** 查询会话是否真有待确认操作，用来识别模型声称"请点击确认卡"但实际并没有生成确认卡的回答。 */
   private final PendingActionService pending;
+
+  /** 读取单次请求超时和模型推理的最大循环轮数。 */
   private final AgentProperties properties;
+
+  /** 解析工具调用返回的 JSON 结果。 */
   private final ObjectMapper json;
 
-  public SpringAiResponder(
-      ChatClient client,
-      AgentPromptService prompts,
-      AgentInputBuilder inputs,
-      AgentHistorySelector history,
-      SkillContextPolicy skills,
-      DynamicToolCatalog catalog,
-      AgentStateStoreService store,
-      PendingActionService pending,
-      AgentProperties properties,
-      ObjectMapper json) {
-    this.client = client;
-    this.prompts = prompts;
-    this.inputs = inputs;
-    this.history = history;
-    this.skills = skills;
-    this.catalog = catalog;
-    this.store = store;
-    this.pending = pending;
-    this.properties = properties;
-    this.json = json;
-  }
-
+  /** 非流式调用：自己创建执行上下文（含整体超时），丢弃中间事件，只返回最终回答。 */
   @Override
   public String respond(
-      long user, String session, String request, String text, List<ChatMessageDO> recent) {
-    return respondStream(user, session, request, text, recent)
-        .collect(
-            StringBuilder::new,
-            (out, chunk) -> {
-              if ("reset".equals(chunk.getType())) out.setLength(0);
-              if ("delta".equals(chunk.getType())) out.append(chunk.getContent());
-            })
-        .map(StringBuilder::toString)
-        .block();
+      long userId,
+      String conversationId,
+      String requestId,
+      String message,
+      List<ChatMessageDO> recentMessages) {
+    try (AgentExecution execution =
+        new AgentExecution(scheduler, properties.getRequestTimeoutSeconds())) {
+      execution.bind();
+      return respondStream(
+          userId, conversationId, requestId, message, recentMessages, execution, chunk -> {});
+    }
   }
 
-  /** 订阅时创建独立上下文。总截止时间不随 token 或工具进度重置，取消订阅会取消模型和后续步骤。 */
-  public Flux<TextChunk> respondStream(
-      long user, String session, String request, String text, List<ChatMessageDO> recent) {
-    return Flux.defer(
-            () -> {
-              var ctx =
-                  new ToolExecutionContext(
-                      user,
-                      session,
-                      request,
-                      new KnowledgeExecutionContext(
-                          request,
-                          text,
-                          recent.stream().map(m -> m.getRole() + ":" + m.getContent()).toList(),
-                          properties.getRequestTimeoutSeconds() * 1000L));
-              Run run =
-                  new Run(
-                      ctx, prompts.build(user, session), inputs.build(user, session, text, recent));
-              Mono<Long> deadline =
-                  Mono.delay(Duration.ofSeconds(properties.getRequestTimeoutSeconds()))
-                      .flatMap(ignored -> Mono.error(new TimeoutException("Agent 总执行时间超限")));
-              return step(run).takeUntilOther(deadline);
-            })
-        .subscribeOn(Schedulers.boundedElastic());
+  /**
+   * 运行 Agent 主循环，文本增量和工具进度通过 events 实时推送。
+   *
+   * <p>最多执行 maxIterations
+   * 步。如果模型回答里引导用户"点击确认"，但数据库里并没有待确认操作，会追加系统提示让模型重试一次；重试后仍如此，则用固定话术替换，避免用户以为操作已经准备好。
+   */
+  public String respondStream(
+      long userId,
+      String conversationId,
+      String requestId,
+      String message,
+      List<ChatMessageDO> recentMessages,
+      AgentExecution execution,
+      Consumer<TextChunk> events) {
+    AgentRunState run = startRun(userId, conversationId, requestId, message, recentMessages);
+
+    for (int iteration = 0; iteration < properties.getMaxIterations(); iteration++) {
+      execution.check();
+
+      // 1. 先裁剪历史，再根据仍可见的技能手册开放工具，保存实际会发给模型的历史。
+      List<Message> modelInput = trimHistory(run);
+      Set<String> allowedTools = skills.allowed(conversationId, modelInput);
+      List<ToolCallback> callbacks = catalog.callbacks(allowedTools);
+      saveHistory(run);
+
+      // 2. 等待模型完整回复，实时转发文本；工具参数分片由 streamReader 合并。
+      AssistantMessage answer = callModel(modelInput, callbacks, execution, events);
+      run.messages.add(answer);
+      saveHistory(run);
+
+      // 3. 工具逐个执行并保存回执；下一步推理才能看到执行结果。
+      if (answer.hasToolCalls()) {
+        executeToolCalls(run, answer, callbacks, allowedTools, execution, events);
+        continue;
+      }
+
+      // 4. 纯文本回答结束本轮；声称已生成确认卡时，还要核对后端记录。
+      if (!claimsConfirmationCardWithoutPendingAction(conversationId, answer.getText())) {
+        return answer.getText();
+      }
+      if (run.confirmationRepairTried) {
+        return replaceLastAnswer(run, NO_CONFIRMATION_CARD_REPLY, events);
+      }
+      run.confirmationRepairTried = true;
+      run.systemPrompt += MISSING_CONFIRMATION_HINT;
+      events.accept(TextChunk.reset());
+    }
+
+    execution.check();
+    return appendFinalAnswer(run, STEP_LIMIT_REPLY, events);
   }
 
-  /** 每次调用 ChatClient 只做一次推理；显式关闭自动工具 Advisor，保留逐步授权和落库边界。 */
-  private Flux<TextChunk> step(Run run) {
-    return Flux.defer(
-        () -> {
-          if (run.iterations++ >= properties.getMaxIterations()) {
-            String limit = "本次任务已达到执行步数上限。请缩小任务范围后继续；已经准备好的操作以页面确认卡为准。";
-            run.messages.add(new AssistantMessage(limit));
-            save(run);
-            return Flux.just(TextChunk.reset(), TextChunk.delta(limit));
-          }
-          List<Message> visible = new ArrayList<>();
-          visible.add(new SystemMessage(run.system));
-          visible.addAll(run.messages);
-          visible = history.selectHistory(visible);
-          run.messages =
-              new ArrayList<>(
-                  visible.stream().filter(m -> m.getMessageType() != MessageType.SYSTEM).toList());
-          Set<String> allowed = skills.allowed(run.ctx.getConversationId(), visible);
-          List<ToolCallback> callbacks = catalog.callbacks(allowed);
-          save(run);
-          AtomicReference<ChatResponse> completed = new AtomicReference<>();
-          Flux<ChatResponse> source =
-              client
-                  .prompt()
-                  .messages(visible)
-                  .options(ToolCallingChatOptions.builder().toolCallbacks(callbacks))
-                  .advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
-                  .stream()
-                  .chatResponse();
-          // MessageAggregator 合并拆分的工具参数；同时把真实文本增量送给前端。
-          Flux<TextChunk> deltas =
-              new MessageAggregator()
-                  .aggregate(source, completed::set)
-                  .takeUntilOther(
-                      Mono.delay(Duration.ofSeconds(60))
-                          .flatMap(x -> Mono.error(new TimeoutException("模型推理超时"))))
-                  .filter(r -> r.getResult() != null && r.getResult().getOutput().getText() != null)
-                  .map(r -> TextChunk.delta(r.getResult().getOutput().getText()));
-          return deltas.concatWith(
-              Flux.defer(
-                      () -> {
-                        ChatResponse response = completed.get();
-                        if (response == null || response.getResult() == null)
-                          return Flux.error(new IllegalStateException("模型未返回有效结果"));
-                        AssistantMessage answer = response.getResult().getOutput();
-                        run.messages.add(answer);
-                        save(run);
-                        if (answer.hasToolCalls()) {
-                          if (answer.getToolCalls().size() > 16)
-                            return Flux.error(new IllegalStateException("单次工具数量超过预算"));
-                          // 一批工具按顺序执行，第一笔提议创建后后续写工具仍会被分发层阻止。
-                          return Flux.concat(
-                              Flux.just(TextChunk.reset()),
-                              Flux.fromIterable(answer.getToolCalls())
-                                  .concatMap(call -> execute(run, call, callbacks, allowed)),
-                              Flux.defer(() -> step(run)));
-                        }
-                        if (!missingConfirmation(run.ctx.getConversationId(), answer.getText()))
-                          return Flux.empty();
-                        if (run.repaired) {
-                          String safe = "本次还没有生成可点击的确认卡，本次操作尚未执行。请重新发起办理请求；只有页面实际显示确认卡后才能确认执行。";
-                          run.messages.set(run.messages.size() - 1, new AssistantMessage(safe));
-                          save(run);
-                          return Flux.just(TextChunk.reset(), TextChunk.delta(safe));
-                        }
-                        run.repaired = true;
-                        run.system +=
-                            "\n"
-                                + "后台校验：当前会话没有待确认记录，刚才指引点击确认按钮的回答不成立。继续处理原始请求，不能把校验当用户授权。只在用户明确要求办理且信息完整时调用写工具生成提议，缺少技能先加载。不得自行确认。工具返回"
-                                + " pendingActionId 才能提示点击确认；否则明确尚未生成。";
-                        return Flux.concat(Flux.just(TextChunk.reset()), step(run));
-                      })
-                  .subscribeOn(Schedulers.boundedElastic()));
-        });
+  /** 创建本次请求的运行状态：工具执行上下文、系统提示词和恢复后的模型历史。 */
+  private AgentRunState startRun(
+      long userId,
+      String conversationId,
+      String requestId,
+      String message,
+      List<ChatMessageDO> recentMessages) {
+    List<String> recentLines =
+        recentMessages.stream()
+            .map(messageLine -> messageLine.getRole() + ":" + messageLine.getContent())
+            .toList();
+    KnowledgeExecutionContext knowledgeContext =
+        new KnowledgeExecutionContext(
+            requestId, message, recentLines, properties.getRequestTimeoutSeconds() * 1000L);
+    ToolExecutionContext toolContext =
+        new ToolExecutionContext(userId, conversationId, requestId, knowledgeContext);
+    return new AgentRunState(
+        toolContext,
+        prompts.build(userId, conversationId),
+        inputs.build(userId, conversationId, message, recentMessages));
   }
 
-  /** 限制工具等待并在落库后发送结束事件；超时不宣称业务回滚、不自动重试。 */
-  private Flux<TextChunk> execute(
-      Run run, AssistantMessage.ToolCall call, List<ToolCallback> callbacks, Set<String> allowed) {
-    return Flux.concat(
-        Flux.just(new TextChunk("tool_start", call.name())),
-        Mono.fromCallable(
-                () -> {
-                  ToolCallback callback =
-                      callbacks.stream()
-                          .filter(c -> c.getToolDefinition().name().equals(call.name()))
-                          .findFirst()
-                          .orElse(null);
-                  if (callback == null) return "{\"ok\":false,\"error\":\"工具尚未开放或不存在，请先加载对应技能手册\"}";
-                  return callback.call(
-                      call.arguments(),
-                      new ToolContext(
-                          Map.of(
-                              ToolExecutionContext.class.getName(),
-                              run.ctx,
-                              SkillContextPolicy.ALLOWED_TOOLS,
-                              allowed)));
-                })
-            .subscribeOn(Schedulers.boundedElastic())
-            .timeout(Duration.ofSeconds(15))
-            .onErrorReturn("{\"ok\":false,\"error\":\"工具调用失败或超时，未自动重试；请查询实际业务状态\"}")
-            .publishOn(Schedulers.boundedElastic())
-            .map(
-                result -> {
-                  Map<String, Object> metadata = new HashMap<>();
-                  // 只有真实执行成功才能添加手册标记，模型文本不能伪造这份后端元数据。
-                  if ("load_skill".equals(call.name())
-                      && json.readTree(result).path("ok").asBoolean()) {
-                    String code = json.readTree(call.arguments()).path("skillCode").asText();
-                    metadata.put(SkillContextPolicy.LOADED_SKILLS, Map.of(call.id(), code));
-                  }
-                  run.messages.add(
-                      ToolResponseMessage.builder()
-                          .responses(
-                              List.of(
-                                  new ToolResponseMessage.ToolResponse(
-                                      call.id(), call.name(), result)))
-                          .metadata(metadata)
-                          .build());
-                  save(run);
-                  return new TextChunk("tool_end", call.name());
-                }));
+  /**
+   * 把系统提示和历史一起交给裁剪器，返回本步发给模型的完整消息列表（含系统消息）。
+   *
+   * <p>裁剪后的非系统消息写回 run.messages，后续保存的就是裁剪后的历史；系统提示单独保存在 run.systemPrompt 中。
+   */
+  private List<Message> trimHistory(AgentRunState run) {
+    List<Message> untrimmed = new ArrayList<>();
+    untrimmed.add(new SystemMessage(run.systemPrompt));
+    untrimmed.addAll(run.messages);
+    List<Message> trimmed = history.selectHistory(untrimmed);
+    run.messages =
+        new ArrayList<>(
+            trimmed.stream()
+                .filter(modelMessage -> modelMessage.getMessageType() != MessageType.SYSTEM)
+                .toList());
+    return trimmed;
   }
 
-  private void save(Run run) {
-    store.save(Long.toString(run.ctx.getUserId()), run.ctx.getConversationId(), run.messages);
+  /** 在模型阶段超时预算内调用模型，文本增量实时转发给页面。 */
+  private AssistantMessage callModel(
+      List<Message> modelInput,
+      List<ToolCallback> callbacks,
+      AgentExecution execution,
+      Consumer<TextChunk> events) {
+    ChatResponse response =
+        execution.stage(
+            MODEL_STAGE,
+            MODEL_STAGE_TIMEOUT_SECONDS,
+            () ->
+                streamReader.read(
+                    modelInput,
+                    callbacks,
+                    execution,
+                    delta -> events.accept(TextChunk.delta(delta))));
+    return response.getResult().getOutput();
   }
 
-  private boolean missingConfirmation(String session, String text) {
-    if (text == null || pending.latest(session) != null) return false;
+  /** 先通知页面清空已经输出的临时文本（模型转去调用工具了），再按顺序执行每个工具。 */
+  private void executeToolCalls(
+      AgentRunState run,
+      AssistantMessage answer,
+      List<ToolCallback> callbacks,
+      Set<String> allowedTools,
+      AgentExecution execution,
+      Consumer<TextChunk> events) {
+    if (answer.getToolCalls().size() > MAX_TOOL_CALLS_PER_ANSWER) {
+      throw new IllegalStateException("单次工具数量超过预算");
+    }
+    events.accept(TextChunk.reset());
+    for (AssistantMessage.ToolCall call : answer.getToolCalls()) {
+      execution.check();
+      executeToolCall(run, call, callbacks, allowedTools, execution, events);
+    }
+  }
+
+  /**
+   * 执行一个工具调用，并把结果作为工具回执加入历史。
+   *
+   * <p>取消会直接向外传播；其他失败不自动重试（写操作重试可能重复下单），只告诉模型去查询实际业务状态，已生成的确认卡仍然有效。
+   */
+  private void executeToolCall(
+      AgentRunState run,
+      AssistantMessage.ToolCall call,
+      List<ToolCallback> callbacks,
+      Set<String> allowedTools,
+      AgentExecution execution,
+      Consumer<TextChunk> events) {
+    events.accept(new TextChunk(TOOL_START_EVENT, call.name()));
+    String result;
+    try {
+      result =
+          execution.stage(
+              TOOL_STAGE,
+              TOOL_STAGE_TIMEOUT_SECONDS,
+              () -> invokeTool(run, call, callbacks, allowedTools));
+    } catch (CancellationException error) {
+      throw error;
+    } catch (RuntimeException error) {
+      execution.check();
+      result = TOOL_FAILED_RESULT;
+    }
+    execution.check();
+
+    run.messages.add(
+        ToolResponseMessage.builder()
+            .responses(
+                List.of(new ToolResponseMessage.ToolResponse(call.id(), call.name(), result)))
+            .metadata(toolResponseMetadata(call, result))
+            .build());
+    saveHistory(run);
+    events.accept(new TextChunk(TOOL_END_EVENT, call.name()));
+  }
+
+  /** 找到本轮开放的同名工具并调用；用户身份和允许名单通过 ToolContext 传入，不经过模型。 */
+  private String invokeTool(
+      AgentRunState run,
+      AssistantMessage.ToolCall call,
+      List<ToolCallback> callbacks,
+      Set<String> allowedTools) {
+    ToolCallback callback = findCallback(callbacks, call.name());
+    if (callback == null) {
+      return TOOL_UNAVAILABLE_RESULT;
+    }
+    ToolContext toolContext =
+        new ToolContext(
+            Map.of(
+                ToolExecutionContext.class.getName(),
+                run.toolContext,
+                SkillContextPolicy.ALLOWED_TOOLS,
+                allowedTools));
+    return callback.call(call.arguments(), toolContext);
+  }
+
+  private static ToolCallback findCallback(List<ToolCallback> callbacks, String toolName) {
+    return callbacks.stream()
+        .filter(callback -> callback.getToolDefinition().name().equals(toolName))
+        .findFirst()
+        .orElse(null);
+  }
+
+  /** load_skill 成功时在回执元数据里记录"哪次调用加载了哪个技能"，技能策略据此判断后续可开放的工具。 */
+  private Map<String, Object> toolResponseMetadata(AssistantMessage.ToolCall call, String result) {
+    Map<String, Object> metadata = new HashMap<>();
+    boolean skillLoaded =
+        LOAD_SKILL_TOOL.equals(call.name()) && json.readTree(result).path("ok").asBoolean();
+    if (skillLoaded) {
+      String skillCode = json.readTree(call.arguments()).path("skillCode").asText();
+      metadata.put(SkillContextPolicy.LOADED_SKILLS, Map.of(call.id(), skillCode));
+    }
+    return metadata;
+  }
+
+  /** 用固定话术替换最后一条模型回答，并通知页面清空已显示文本、改为显示新话术。 */
+  private String replaceLastAnswer(AgentRunState run, String reply, Consumer<TextChunk> events) {
+    run.messages.set(run.messages.size() - 1, new AssistantMessage(reply));
+    saveHistory(run);
+    events.accept(TextChunk.reset());
+    events.accept(TextChunk.delta(reply));
+    return reply;
+  }
+
+  /** 追加一条固定话术作为最终回答，并通知页面清空已显示文本、改为显示新话术。 */
+  private String appendFinalAnswer(AgentRunState run, String reply, Consumer<TextChunk> events) {
+    run.messages.add(new AssistantMessage(reply));
+    saveHistory(run);
+    events.accept(TextChunk.reset());
+    events.accept(TextChunk.delta(reply));
+    return reply;
+  }
+
+  /** 保存本轮用户所属会话的模型历史，后续请求据此恢复上下文。 */
+  private void saveHistory(AgentRunState run) {
+    store.save(
+        Long.toString(run.toolContext.getUserId()),
+        run.toolContext.getConversationId(),
+        run.messages);
+  }
+
+  /**
+   * 判断模型回答是否在引导用户点击确认卡，而数据库中其实没有待确认操作。
+   *
+   * <p>识别方式：去掉 Markdown 标记后，同时出现"点击/请核对"和"确认执行/确认卡"等字样，且没有"尚未生成"这类否定说明。
+   */
+  private boolean claimsConfirmationCardWithoutPendingAction(String conversationId, String text) {
+    if (text == null) {
+      return false;
+    }
+    if (pending.latest(conversationId) != null) {
+      return false;
+    }
     String plain = text.replace("**", "").replace("`", "");
-    return (plain.contains("点击") || plain.contains("请核对"))
-        && (plain.contains("确认执行")
+    boolean asksUserToAct = plain.contains("点击") || plain.contains("请核对");
+    boolean mentionsConfirmation =
+        plain.contains("确认执行")
             || plain.contains("确认取消订单")
             || plain.contains("下方确认卡")
-            || plain.contains("下方的确认卡"))
-        && !plain.contains("尚未生成")
-        && !plain.contains("没有生成")
-        && !plain.contains("无法生成");
+            || plain.contains("下方的确认卡");
+    boolean admitsNotCreated =
+        plain.contains("尚未生成") || plain.contains("没有生成") || plain.contains("无法生成");
+    return asksUserToAct && mentionsConfirmation && !admitsNotCreated;
   }
 
-  /** 每个订阅独有的运行状态，不保存在 singleton 字段，不跨用户共享工具身份或消息。 */
-  private static final class Run {
-    final ToolExecutionContext ctx;
-    String system;
-    List<Message> messages;
-    int iterations;
-    boolean repaired;
+  /** 单次请求的运行状态。每次请求新建，不放在单例字段里，避免不同用户之间共享身份或消息。 */
+  private static final class AgentRunState {
+    /** 后端确认的用户身份和请求信息，工具调用时传给工具。 */
+    final ToolExecutionContext toolContext;
 
-    Run(ToolExecutionContext ctx, String system, List<Message> messages) {
-      this.ctx = ctx;
-      this.system = system;
+    /** 系统提示词；确认卡校验失败时会追加提示。 */
+    String systemPrompt;
+
+    /** 不含系统消息的模型历史，每次变化后都会持久化。 */
+    List<Message> messages;
+
+    /** 是否已经因"声称有确认卡但实际没有"让模型重试过一次。 */
+    boolean confirmationRepairTried;
+
+    AgentRunState(ToolExecutionContext toolContext, String systemPrompt, List<Message> messages) {
+      this.toolContext = toolContext;
+      this.systemPrompt = systemPrompt;
       this.messages = messages;
     }
   }

@@ -6,203 +6,234 @@ import com.bitmall.agent.product.dao.mapper.ProductSearchMapper;
 import com.bitmall.agent.product.dto.ProductSearchRequest;
 import com.bitmall.agent.product.vo.ProductSearchResultVO.Hit;
 import com.bitmall.agent.product.vo.ProductSearchResultVO.Page;
-import java.util.*;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-/** 结构化商品搜索的数据访问组件。 构造固定 SQL 片段并绑定用户条件，保证同一 SKU 满足预算、规格和库存，再排序、分页、补属性。 */
+/**
+ * 结构化商品搜索的数据访问。
+ *
+ * <p>SQL 片段在 Mapper XML 里固定，用户输入只作为绑定参数传入。价格、颜色、尺码、库存等规格条件都作用在同一个 SKU 上， 避免出现"红色有货、但 42
+ * 码才是红色"这种拼出来的不存在组合。先排序再分页，最后批量补属性。
+ */
 @Repository
+@RequiredArgsConstructor
 public class ProductSearchRepository {
-  /** 执行带绑定参数的 MyBatis-Plus Mapper；SQL 位于对应 XML。 */
+  /** 单次搜索最多允许的关键词数。 */
+  private static final int MAX_KEYWORDS = 8;
+
+  /** 用户输入里分隔关键词的字符：空白和中英文逗号、顿号、分号。 */
+  private static final String KEYWORD_SEPARATORS = "[\\s,，、;；]+";
+
+  /** 有限的同义词归一：左边是用户可能输入的词，右边是目录里实际使用的词。 */
+  private static final Map<String, String> SYNONYMS =
+      Map.of(
+          "运动鞋", "跑鞋",
+          "慢跑鞋", "跑鞋",
+          "笔电", "笔记本",
+          "laptop", "笔记本",
+          "headphones", "耳机",
+          "双肩包", "背包");
+
+  /** 用于拆分组合词的内置词典，例如"轻量跑鞋"拆成"轻量""跑鞋"。 */
+  private static final List<String> COMPOUND_WORDS =
+      List.of(
+          "笔记本电脑", "无线耳机", "降噪耳机", "机械键盘", "越野跑鞋", "跑鞋", "背包", "耳机", "电脑", "笔记本", "轻量", "缓震", "透气",
+          "防滑", "耐磨", "网布", "纯棉", "轻薄", "通勤", "跑步", "办公", "降噪");
+
+  /** 筛选面板上展示的属性项，顺序即展示顺序。 */
+  private static final List<String> OPTION_ATTRIBUTE_KEYS =
+      List.of("color", "size", "material", "useCase");
+
+  private static final String PRODUCT_ATTRIBUTE_TABLE = "product_attribute";
+  private static final String SKU_ATTRIBUTE_TABLE = "sku_attribute";
+
+  /** 商品搜索 SQL：统计和分页查询匹配商品，读取品牌、属性选项和商品/SKU 属性。 */
   private final ProductSearchMapper mapper;
 
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public ProductSearchRepository(ProductSearchMapper mapper) {
-    this.mapper = mapper;
-  }
-
-  /** 构造受参数绑定保护的结构化搜索 SQL；所有规格条件作用于同一个 SKU，先排序再分页。 */
-  public Page search(ProductSearchRequest r) {
-    List<String> terms = keywords(r.getQuery());
+  /** 按结构化条件搜索商品，返回一页结果和给 Agent 的下一步建议。 */
+  public Page search(ProductSearchRequest request) {
+    List<String> terms = keywords(request.getQuery());
     Map<String, Object> params = new LinkedHashMap<>();
-    params.put("request", r);
-    params.put("patterns", terms.stream().map(t -> "%" + escape(t) + "%").toList());
-    params.put("take", r.getLimit());
-    params.put("skip", (r.getPage() - 1) * r.getLimit());
+    params.put("request", request);
+    params.put("patterns", terms.stream().map(term -> "%" + escapeLike(term) + "%").toList());
+    params.put("take", request.getLimit());
+    params.put("skip", (request.getPage() - 1) * request.getLimit());
+
     long total = RowValues.required(mapper.countMatches(params));
-    List<Hit> rows =
-        mapper.selectMatchingProducts(params).stream()
-            .map(
-                row ->
-                    new Hit(
-                        RowValues.longValue(row, "id"),
-                        RowValues.string(row, "name"),
-                        RowValues.string(row, "category"),
-                        RowValues.string(row, "brand"),
-                        RowValues.string(row, "summary"),
-                        RowValues.string(row, "image_key"),
-                        RowValues.decimal(row, "price"),
-                        RowValues.decimal(row, "original_price"),
-                        RowValues.decimal(row, "rating"),
-                        RowValues.intValue(row, "sales_count"),
-                        RowValues.intValue(row, "stock"),
-                        RowValues.longValue(row, "sku_id"),
-                        RowValues.string(row, "spec"),
-                        RowValues.intValue(row, "sku_count"),
-                        RowValues.intValue(row, "score"),
-                        Map.of()))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
-    // 5. 得到当前页商品后再批量补属性，避免为每个商品分别发一次属性查询。
-    Map<Long, Map<String, String>> attrs =
-        attributes("product_attribute", "product_id", rows.stream().map(Hit::getId).toList());
-    List<Hit> hits =
-        rows.stream()
-            .map(
-                h ->
-                    new Hit(
-                        h.getId(),
-                        h.getName(),
-                        h.getCategory(),
-                        h.getBrand(),
-                        h.getSummary(),
-                        h.getImageKey(),
-                        h.getPrice(),
-                        h.getOriginalPrice(),
-                        h.getRating(),
-                        h.getSalesCount(),
-                        h.getStock(),
-                        h.getMatchedSkuId(),
-                        h.getMatchedSpec(),
-                        h.getMatchedSkuCount(),
-                        h.getScore(),
-                        attrs.getOrDefault(h.getId(), Map.of())))
-            .toList();
-    List<String> suggestions =
-        total == 0
-            ? List.of("当前条件没有匹配商品；可减少关键词或调整品牌、颜色、尺码", "调整预算或缺货筛选前，请先征求用户同意")
-            : hits.isEmpty() ? List.of("该页已超出结果范围，请返回第一页") : List.of();
+    List<Map<String, Object>> rows = mapper.selectMatchingProducts(params);
+
+    // 拿到当前页商品后一次性批量查属性，避免每个商品单独查一次。
+    List<Long> productIds = rows.stream().map(row -> RowValues.longValue(row, "id")).toList();
+    Map<Long, Map<String, String>> attributesByProduct =
+        attributes(PRODUCT_ATTRIBUTE_TABLE, "product_id", productIds);
+    List<Hit> hits = rows.stream().map(row -> toHit(row, attributesByProduct)).toList();
+
+    boolean hasMore = (long) request.getPage() * request.getLimit() < total;
     return new Page(
         hits,
         total,
-        r.getPage(),
-        r.getLimit(),
-        (long) r.getPage() * r.getLimit() < total,
+        request.getPage(),
+        request.getLimit(),
+        hasMore,
         terms,
-        r,
-        suggestions);
+        request,
+        suggestions(total, hits));
   }
 
-  /** 批量读取商品和规格属性，补充到详情中。 */
+  private static Hit toHit(Map<String, Object> row, Map<Long, Map<String, String>> attributes) {
+    long productId = RowValues.longValue(row, "id");
+    return new Hit(
+        productId,
+        RowValues.string(row, "name"),
+        RowValues.string(row, "category"),
+        RowValues.string(row, "brand"),
+        RowValues.string(row, "summary"),
+        RowValues.string(row, "image_key"),
+        RowValues.decimal(row, "price"),
+        RowValues.decimal(row, "original_price"),
+        RowValues.decimal(row, "rating"),
+        RowValues.intValue(row, "sales_count"),
+        RowValues.intValue(row, "stock"),
+        RowValues.longValue(row, "sku_id"),
+        RowValues.string(row, "spec"),
+        RowValues.intValue(row, "sku_count"),
+        RowValues.intValue(row, "score"),
+        attributes.getOrDefault(productId, Map.of()));
+  }
+
+  /** 没有结果时提示 Agent 如何放宽条件；放宽预算或库存条件前必须先问用户。 */
+  private static List<String> suggestions(long total, List<Hit> hits) {
+    if (total == 0) {
+      return List.of("当前条件没有匹配商品；可减少关键词或调整品牌、颜色、尺码", "调整预算或缺货筛选前，请先征求用户同意");
+    }
+    if (hits.isEmpty()) {
+      return List.of("该页已超出结果范围，请返回第一页");
+    }
+    return List.of();
+  }
+
+  /** 给商品详情补上商品级属性和每个 SKU 的规格属性（直接修改并返回传入的 profile）。 */
   public ProductProfile enrich(ProductProfile profile) {
     profile.attributes =
-        attributes("product_attribute", "product_id", List.of(profile.id))
+        attributes(PRODUCT_ATTRIBUTE_TABLE, "product_id", List.of(profile.id))
             .getOrDefault(profile.id, Map.of());
-    var details =
-        attributes("sku_attribute", "sku_id", profile.skus.stream().map(v -> v.id).toList());
-    profile.skus.forEach(v -> v.attributes = details.getOrDefault(v.id, Map.of()));
+    List<Long> skuIds = profile.skus.stream().map(sku -> sku.id).toList();
+    Map<Long, Map<String, String>> attributesBySku =
+        attributes(SKU_ATTRIBUTE_TABLE, "sku_id", skuIds);
+    profile.skus.forEach(sku -> sku.attributes = attributesBySku.getOrDefault(sku.id, Map.of()));
     return profile;
   }
 
-  /** 从当前启用目录读取筛选选项；只按品类限定，不让选项相互过滤。 */
+  /**
+   * 读取筛选面板的可选项（品牌和各属性值）。
+   *
+   * <p>只按品类限定，选项之间不互相过滤，否则用户选了一个颜色后，其他颜色就从面板上消失了。
+   */
   public Map<String, List<String>> options(String category) {
     Map<String, Object> args = new LinkedHashMap<>();
     args.put("category", category == null || category.isBlank() ? null : category);
-    Map<String, List<String>> out = new LinkedHashMap<>();
-    out.put("brand", mapper.selectBrands(args));
-    List<Map<String, Object>> values = mapper.selectAttributeOptions(args);
-    for (String key : List.of("color", "size", "material", "useCase"))
-      out.put(
-          key,
-          values.stream()
-              .filter(v -> key.equals(v.get("attr_key")))
-              .map(v -> v.get("attr_value").toString())
+    Map<String, List<String>> options = new LinkedHashMap<>();
+    options.put("brand", mapper.selectBrands(args));
+    List<Map<String, Object>> attributeRows = mapper.selectAttributeOptions(args);
+    for (String key : OPTION_ATTRIBUTE_KEYS) {
+      List<String> values =
+          attributeRows.stream()
+              .filter(row -> key.equals(row.get("attr_key")))
+              .map(row -> row.get("attr_value").toString())
               .sorted()
               .distinct()
-              .toList());
-    return out;
+              .toList();
+      options.put(key, values);
+    }
+    return options;
   }
 
-  /** 根据内部指定的表和编号列批量查询属性，避免每个商品单独查一次。 */
-  private Map<Long, Map<String, String>> attributes(String table, String id, List<Long> ids) {
-    Map<Long, Map<String, String>> out = new LinkedHashMap<>();
-    if (ids.isEmpty()) return out;
-    if (!(table.equals("product_attribute") && id.equals("product_id"))
-        && !(table.equals("sku_attribute") && id.equals("sku_id")))
+  /**
+   * 按编号批量查询商品属性或 SKU 属性，返回"编号 → 属性键值"。
+   *
+   * <p>table/idColumn 只接受两组固定组合，防止调用方误传其他表名。
+   */
+  private Map<Long, Map<String, String>> attributes(String table, String idColumn, List<Long> ids) {
+    Map<Long, Map<String, String>> attributesById = new LinkedHashMap<>();
+    if (ids.isEmpty()) {
+      return attributesById;
+    }
+    boolean productAttributes =
+        PRODUCT_ATTRIBUTE_TABLE.equals(table) && "product_id".equals(idColumn);
+    boolean skuAttributes = SKU_ATTRIBUTE_TABLE.equals(table) && "sku_id".equals(idColumn);
+    if (!productAttributes && !skuAttributes) {
       throw new IllegalArgumentException("不允许的属性表");
-    mapper.selectAttributes(parameters("ids", ids, "sku", table.equals("sku_attribute"))).stream()
-        .map(
-            row -> {
-              out.computeIfAbsent(RowValues.longValue(row, id), k -> new LinkedHashMap<>())
-                  .put(RowValues.string(row, "attr_key"), RowValues.string(row, "attr_value"));
-              return 0;
-            })
-        .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
-    return out;
+    }
+    List<Map<String, Object>> rows =
+        mapper.selectAttributes(parameters("ids", ids, "sku", skuAttributes));
+    for (Map<String, Object> row : rows) {
+      attributesById
+          .computeIfAbsent(RowValues.longValue(row, idColumn), id -> new LinkedHashMap<>())
+          .put(RowValues.string(row, "attr_key"), RowValues.string(row, "attr_value"));
+    }
+    return attributesById;
   }
 
-  /** 转义 LIKE 的特殊字符，让用户输入的百分号和下划线按字面搜索。 */
-  private static String escape(String s) {
-    return s.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+  /** 转义 LIKE 通配符（SQL 里用 ESCAPE '!'），让用户输入的 % 和 _ 按字面匹配。 */
+  private static String escapeLike(String term) {
+    return term.replace("!", "!!").replace("%", "!%").replace("_", "!_");
   }
 
-  /** 拆分和归一化关键词，处理有限同义词，并限制关键词数量。 */
+  /**
+   * 把搜索词拆成关键词：转小写 → 按分隔符切分 → 同义词归一 → 拆组合词 → 去重。
+   *
+   * @throws IllegalArgumentException 关键词超过 8 个
+   */
   static List<String> keywords(String query) {
-    if (query == null) return List.of();
-    Map<String, String> synonyms =
-        Map.of(
-            "运动鞋",
-            "跑鞋",
-            "慢跑鞋",
-            "跑鞋",
-            "笔电",
-            "笔记本",
-            "laptop",
-            "笔记本",
-            "headphones",
-            "耳机",
-            "双肩包",
-            "背包");
+    if (query == null) {
+      return List.of();
+    }
     List<String> terms =
-        Arrays.stream(query.toLowerCase(Locale.ROOT).split("[\\s,，、;；]+"))
-            .filter(s -> !s.isBlank())
-            .map(s -> synonyms.getOrDefault(s, s))
-            .flatMap(s -> splitCompound(s).stream())
+        Arrays.stream(query.toLowerCase(Locale.ROOT).split(KEYWORD_SEPARATORS))
+            .filter(term -> !term.isBlank())
+            .map(term -> SYNONYMS.getOrDefault(term, term))
+            .flatMap(term -> splitCompound(term).stream())
             .distinct()
             .toList();
-    if (terms.size() > 8) throw new IllegalArgumentException("关键词最多 8 个，请精简搜索条件");
+    if (terms.size() > MAX_KEYWORDS) {
+      throw new IllegalArgumentException("关键词最多 8 个，请精简搜索条件");
+    }
     return terms;
   }
 
-  /** 按项目内置词典拆分完全可识别的组合词；无法完整识别时保留原词。 */
+  /** 用内置词典把组合词拆开，每一步取能匹配上的最长词。整个词必须能被完整拆开，否则原样保留， 例如"轻量跑鞋"→["轻量","跑鞋"]，"轻量款"→["轻量款"]。 */
   private static List<String> splitCompound(String term) {
-    List<String> words =
-        List.of(
-            "笔记本电脑", "无线耳机", "降噪耳机", "机械键盘", "越野跑鞋", "跑鞋", "背包", "耳机", "电脑", "笔记本", "轻量", "缓震",
-            "透气", "防滑", "耐磨", "网布", "纯棉", "轻薄", "通勤", "跑步", "办公", "降噪");
     String remaining = term;
     List<String> parts = new ArrayList<>();
     while (!remaining.isEmpty()) {
-      String rest = remaining;
-      String word =
-          words.stream()
-              .filter(rest::startsWith)
+      String prefixToMatch = remaining;
+      String longestWord =
+          COMPOUND_WORDS.stream()
+              .filter(prefixToMatch::startsWith)
               .max(Comparator.comparingInt(String::length))
               .orElse(null);
-      if (word == null) return List.of(term);
-      parts.add(word);
-      remaining = remaining.substring(word.length());
+      if (longestWord == null) {
+        return List.of(term);
+      }
+      parts.add(longestWord);
+      remaining = remaining.substring(longestWord.length());
     }
     return parts;
   }
 
-  /** 参数按原类型绑定，允许可选字段为 null。 */
-  private static java.util.Map<String, Object> parameters(Object... pairs) {
-    java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-    for (int i = 0; i < pairs.length; i += 2) values.put((String) pairs[i], pairs[i + 1]);
+  /** 按键值对组装 Mapper 参数；值保持原类型，允许为 null。 */
+  private static Map<String, Object> parameters(Object... pairs) {
+    Map<String, Object> values = new LinkedHashMap<>();
+    for (int i = 0; i < pairs.length; i += 2) {
+      values.put((String) pairs[i], pairs[i + 1]);
+    }
     return values;
   }
 }

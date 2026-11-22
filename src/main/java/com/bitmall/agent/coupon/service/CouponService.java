@@ -5,19 +5,16 @@ import com.bitmall.agent.coupon.vo.CouponVO;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 优惠券查询、预览和领取的业务服务。 预览只说明影响，领取才在事务中更新活动和用户券；Agent 和页面共用这套规则。 */
 @Service
+@RequiredArgsConstructor
 public class CouponService {
-  /** 依赖组件：优惠券活动和用户券的数据访问组件。 */
+  /** 查询用户优惠券；领券时条件扣减活动库存并插入用户券。 */
   private final CouponRepository mapper;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public CouponService(CouponRepository mapper) {
-    this.mapper = mapper;
-  }
 
   /** 查询当前可展示活动和用户领取状态。 */
   public List<CouponVO> coupons(long userId) {
@@ -45,11 +42,19 @@ public class CouponService {
   /** 核对未领取、活动时间及库存，只生成确认说明。 */
   public String previewClaimCoupon(long userId, long couponId) {
     CouponVO coupon = coupon(userId, couponId);
-    if (coupon.claimed()) throw new IllegalStateException("这张优惠券已经领取过了");
+    if (coupon.claimed()) {
+      throw new IllegalStateException("这张优惠券已经领取过了");
+    }
     LocalDateTime now = LocalDateTime.now();
-    if (now.isBefore(coupon.getStartAt())) throw new IllegalStateException("优惠券活动尚未开始");
-    if (!now.isBefore(coupon.getEndAt())) throw new IllegalStateException("优惠券活动已经结束");
-    if (coupon.getRemainingStock() < 1) throw new IllegalStateException("优惠券已经领完");
+    if (now.isBefore(coupon.getStartAt())) {
+      throw new IllegalStateException("优惠券活动尚未开始");
+    }
+    if (!now.isBefore(coupon.getEndAt())) {
+      throw new IllegalStateException("优惠券活动已经结束");
+    }
+    if (coupon.getRemainingStock() < 1) {
+      throw new IllegalStateException("优惠券已经领完");
+    }
     return "领取优惠券："
         + coupon.getName()
         + "，优惠 ¥"

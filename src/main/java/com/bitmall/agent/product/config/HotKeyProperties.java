@@ -1,5 +1,6 @@
 package com.bitmall.agent.product.config;
 
+import lombok.Getter;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -9,6 +10,7 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import java.util.Objects;
 
 /** 读取 app.hotkey 配置。 说明京东 HotKey 是否启用、属于哪个应用、通过哪个 etcd 发现服务，以及访问统计的上报频率。 */
+@Getter
 @ConfigurationProperties("app.hotkey")
 public final class HotKeyProperties {
     /** 是否启用此功能。 */
@@ -46,36 +48,15 @@ public final class HotKeyProperties {
         this.maximumKeys = maximumKeys;
     }
 
-    /** 获取是否启用此功能。 */
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    /** 获取京东 HotKey 使用的应用名称，需要与热点规则一致。 */
-    public String getAppName() {
-        return appName;
-    }
-
-    /** 获取etcd 服务地址，用于发现 HotKey Worker 和规则。 */
-    public String getEtcdServer() {
-        return etcdServer;
-    }
-
-    /** 获取访问统计上报周期，单位毫秒。 */
-    public long getPushPeriodMillis() {
-        return pushPeriodMillis;
-    }
-
-    /** 获取HotKey 客户端最多跟踪的键数量。 */
-    public int getMaximumKeys() {
-        return maximumKeys;
-    }
-
     /** 按全部字段比较内容，便于查询结果和缓存结果进行一致性判断。 */
     @Override
     public boolean equals(Object other) {
-        if (this == other) return true;
-        if (other == null || getClass() != other.getClass()) return false;
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
         HotKeyProperties that = (HotKeyProperties) other;
         return Objects.equals(enabled, that.enabled)
                 && Objects.equals(appName, that.appName)

@@ -7,18 +7,19 @@ import com.bitmall.agent.product.dao.mapper.ProductMapper;
 import com.bitmall.agent.product.vo.SkuVO;
 import java.util.List;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /** 商品和规格的基础数据访问组件。 读取 product、product_sku，为详情和结算提供数据库当前值，不计算优惠或处理模型请求。 */
 @Repository
+@RequiredArgsConstructor
 public class ProductRepository {
-  /** 执行带绑定参数的 MyBatis-Plus Mapper；SQL 位于对应 XML。 */
+  /** 商品与 SKU 的 SQL，定义在 mapper/product/ProductMapper.xml。 */
   private final ProductMapper mapper;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public ProductRepository(ProductMapper mapper) {
-    this.mapper = mapper;
-  }
 
   /** 查询启用商品及其启用规格，组装完整详情；属性补充由搜索 Mapper 负责。 */
   public Optional<ProductProfile> findProfile(long productId) {
@@ -50,7 +51,7 @@ public class ProductRepository {
   }
 
   /** 一次查询所有未命中规格的公开报价和数据库展示数量。 */
-  public List<java.util.Map<String, Object>> displayRows(List<Long> ids) {
+  public List<Map<String, Object>> displayRows(List<Long> ids) {
     return ids.isEmpty() ? List.of() : mapper.selectOfferRows(ids);
   }
 
@@ -67,7 +68,7 @@ public class ProductRepository {
                         RowValues.decimal(row, "price"),
                         RowValues.decimal(row, "original_price"),
                         RowValues.intValue(row, "stock")))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new)));
+            .collect(Collectors.toCollection(ArrayList::new)));
   }
 
   /** 读取可以购买的具体规格，并按请求数量组装结算项，价格和库存都来自数据库。 */
@@ -87,13 +88,15 @@ public class ProductRepository {
                         RowValues.intValue(row, "stock"),
                         RowValues.intValue(row, "quantity"),
                         true))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new)));
+            .collect(Collectors.toCollection(ArrayList::new)));
   }
 
   /** 参数按原类型绑定，允许可选字段为 null。 */
-  private static java.util.Map<String, Object> parameters(Object... pairs) {
-    java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-    for (int i = 0; i < pairs.length; i += 2) values.put((String) pairs[i], pairs[i + 1]);
+  private static Map<String, Object> parameters(Object... pairs) {
+    Map<String, Object> values = new LinkedHashMap<>();
+    for (int i = 0; i < pairs.length; i += 2) {
+      values.put((String) pairs[i], pairs[i + 1]);
+    }
     return values;
   }
 }

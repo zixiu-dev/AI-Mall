@@ -7,49 +7,36 @@ import com.bitmall.agent.agent.service.conversation.ConversationSummaryService;
 import com.bitmall.agent.agent.service.runtime.AgentRunGate;
 import com.bitmall.agent.agent.vo.AgentReplyVO;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.bitmall.agent.order.exception.OrderRejectedException;
+import com.bitmall.agent.order.service.OrderService;
+import com.bitmall.agent.order.vo.OrderSubmitVO;
 
 /** 处理用户点击确认或取消之后的流程。 检查操作归属、获取会话执行权、改变确认状态，再交给 ConfirmedActionExecutor 执行业务并保存回执。 */
 @Service
+@RequiredArgsConstructor
 public class AgentActionService {
-  /** 外层确认事务回滚后记录对应下单 trace 的失败。 */
-  private final com.bitmall.agent.order.service.OrderService orders;
-
-  /** 依赖组件：会话身份和消息访问的业务入口。 */
+  /** 把确认/取消的执行结果作为助手消息写入会话。 */
   private final ConversationService conversations;
 
-  /** 依赖组件：管理待确认操作。 */
+  /** 读取待确认操作，记录用户的确认/取消决定和执行失败结果。 */
   private final PendingActionService pendingActions;
 
-  /** 依赖组件：单进程的会话并发门禁。 */
+  /** 单进程的会话并发门禁。 */
   private final AgentRunGate runGate;
 
-  /** 依赖组件：确认后真正执行写操作的事务边界。 */
+  /** 执行已获用户批准的业务操作，隔离执行事务并记录成功或失败。 */
   private final ConfirmedActionExecutor confirmedExecutor;
 
-  /** 依赖组件：整理较早的聊天内容。 */
+  /** 写入回执消息后，历史过长时压缩较早轮次为摘要。 */
   private final ConversationSummaryService summaryService;
 
-  /** 依赖组件：组装发给前端的回复和确认文案。 */
+  /** 把回复、调试信息和真实确认卡组装成前端返回对象。 */
   private final AgentReplyService replies;
 
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public AgentActionService(
-      ConversationService conversations,
-      PendingActionService pendingActions,
-      AgentRunGate runGate,
-      ConfirmedActionExecutor confirmedExecutor,
-      ConversationSummaryService summaryService,
-      AgentReplyService replies,
-      com.bitmall.agent.order.service.OrderService orders) {
-    this.orders = orders;
-    this.conversations = conversations;
-    this.pendingActions = pendingActions;
-    this.runGate = runGate;
-    this.confirmedExecutor = confirmedExecutor;
-    this.summaryService = summaryService;
-    this.replies = replies;
-  }
+  /** 下单确认执行出错时：结果不确定就查询购买进度、提示用户用原编号核对；明确失败则把这次购买记为失败。 */
+  private final OrderService orders;
 
   /** 先核对操作归属，再获取会话执行权，避免确认与聊天并发修改同一会话。 */
   public AgentReplyVO confirm(long userId, String actionId, boolean approved) {
@@ -100,8 +87,8 @@ public class AgentActionService {
     } catch (Exception e) {
       // 连接异常或提交后回复写入失败不等于购买失败：保留原 trace，让页面核对结果。
       if ("order_create".equals(action.getToolName())
-          && !(e instanceof com.bitmall.agent.order.exception.OrderRejectedException)) {
-        var progress = orders.actionProgress(userId, action.getId());
+          && !(e instanceof OrderRejectedException)) {
+        OrderSubmitVO progress = orders.actionProgress(userId, action.getId());
         String content = "本次购买结果需要核对，请使用原购买编号查询，勿重新发起购买。查询编号：" + progress.getTraceId();
         long messageId =
             conversations.addMessage(
@@ -113,8 +100,9 @@ public class AgentActionService {
             .create(action.getConversationId(), messageId, content, null)
             .withOrderTrace(progress.getTraceId());
       }
-      if ("order_create".equals(action.getToolName()))
+      if ("order_create".equals(action.getToolName())) {
         orders.failAction(userId, action.getId(), "下单确认失败，请重新结算");
+      }
       Map<String, Object> failure = Map.of("success", false, "error", rootMessage(e));
       pendingActions.failed(action, failure);
       String content = "确认已经收到，但执行失败：" + rootMessage(e) + "。请重新查询当前状态后再试。";
@@ -131,7 +119,9 @@ public class AgentActionService {
   /** 找到异常链中最内层原因，生成给日志和用户提示使用的文字。 */
   private static String rootMessage(Throwable exception) {
     Throwable root = exception;
-    while (root.getCause() != null) root = root.getCause();
+    while (root.getCause() != null) {
+      root = root.getCause();
+    }
     return root.getMessage() == null ? "未知错误" : root.getMessage();
   }
 }

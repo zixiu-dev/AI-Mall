@@ -1,13 +1,21 @@
 package com.bitmall.agent.knowledge.vo;
 
 import java.util.List;
+import lombok.Getter;
 
 /** 一个子问题的真实证据及独立状态；不把不同品牌/类别的结果拼成统一政策。 */
+@Getter
 public final class KnowledgeGroupVO {
-  private final String queryId, query, status, message, retrievalMode;
+  private final String queryId;
+  private final String query;
+  private final String status;
+  private final String message;
+  private final String retrievalMode;
   private final KnowledgeIntentVO intent;
   private final List<KnowledgeHitVO> hits;
-  private final List<String> warnings, variants, resolvedContextReferences;
+  private final List<String> warnings;
+  private final List<String> variants;
+  private final List<String> resolvedContextReferences;
 
   public KnowledgeGroupVO(
       String queryId,
@@ -30,45 +38,5 @@ public final class KnowledgeGroupVO {
     this.warnings = List.copyOf(warnings);
     this.variants = List.copyOf(variants);
     this.resolvedContextReferences = List.copyOf(resolvedContextReferences);
-  }
-
-  public String getQueryId() {
-    return queryId;
-  }
-
-  public String getQuery() {
-    return query;
-  }
-
-  public String getStatus() {
-    return status;
-  }
-
-  public String getMessage() {
-    return message;
-  }
-
-  public String getRetrievalMode() {
-    return retrievalMode;
-  }
-
-  public KnowledgeIntentVO getIntent() {
-    return intent;
-  }
-
-  public List<KnowledgeHitVO> getHits() {
-    return hits;
-  }
-
-  public List<String> getWarnings() {
-    return warnings;
-  }
-
-  public List<String> getVariants() {
-    return variants;
-  }
-
-  public List<String> getResolvedContextReferences() {
-    return resolvedContextReferences;
   }
 }

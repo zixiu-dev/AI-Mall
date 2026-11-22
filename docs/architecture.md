@@ -95,3 +95,12 @@ com.bitmall.agent
 AUTO 是采样驱动的压力切换，积压保护是软阈值；不是精确的全局限流器。压测暴露了 Outbox 转发与库存整理在过载时的积压，单秒成功建单峰值不代表完整链路能长期维持该吞吐。
 
 源码先读：[ProductController](../src/main/java/com/bitmall/agent/product/controller/ProductController.java)、[OrderController](../src/main/java/com/bitmall/agent/order/controller/OrderController.java)、[AgentChatController](../src/main/java/com/bitmall/agent/agent/controller/AgentChatController.java)，再沿下一篇的流程进入 Service。
+
+
+## 7. 源码里的依赖怎么读
+
+普通 Spring 组件使用 `@RequiredArgsConstructor`，Lombok 根据未赋值的 `final` 字段生成构造器，Spring 在启动时把这些依赖传入。字段上方的中文注释说明该依赖在流程里负责哪一步。`ObjectProvider<T>` 表示代码需要时再取得对应组件，字段上的 `@Qualifier` 指定同类型依赖的具体名字。
+
+仓库的 `lombok.config` 将 `@Qualifier` 和 `@Value` 复制到生成的构造参数，所以商品与交易 Redis、独立聊天线程池及配置值继续按原名称装配。配置属性类和传输对象的构造方法仍负责它们自己的数据初始化。
+
+需要构造时建立缓存、线程池、事务模板、监控指标或检查工具重名的类保留定制构造器，初始化步骤旁写清用途。以 [AgentChatController](../src/main/java/com/bitmall/agent/agent/controller/AgentChatController.java) 和 [CheckoutService](../src/main/java/com/bitmall/agent/checkout/service/CheckoutService.java) 为普通注入示例，以 [ToolRegistry](../src/main/java/com/bitmall/agent/agent/service/tool/ToolRegistry.java) 为构造期校验示例。

@@ -1,9 +1,13 @@
 package com.bitmall.agent.agent.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import lombok.Getter;
+import lombok.Setter;
 
 /** agent_skill 表的可写持久化对象，不直接作为接口返回。 */
 @TableName("agent_skill")
+@Getter
+@Setter
 public class SkillEntity {
   @TableId(value = "code", type = IdType.INPUT)
   private String code;
@@ -22,52 +26,4 @@ public class SkillEntity {
 
   @TableField("enabled")
   private Boolean enabled;
-
-  public String getCode() {
-    return code;
-  }
-
-  public void setCode(String code) {
-    this.code = code;
-  }
-
-  public String getName() {
-    return name;
-  }
-
-  public void setName(String name) {
-    this.name = name;
-  }
-
-  public String getDescription() {
-    return description;
-  }
-
-  public void setDescription(String description) {
-    this.description = description;
-  }
-
-  public String getManual() {
-    return manual;
-  }
-
-  public void setManual(String manual) {
-    this.manual = manual;
-  }
-
-  public String getToolNames() {
-    return toolNames;
-  }
-
-  public void setToolNames(String toolNames) {
-    this.toolNames = toolNames;
-  }
-
-  public Boolean getEnabled() {
-    return enabled;
-  }
-
-  public void setEnabled(Boolean enabled) {
-    this.enabled = enabled;
-  }
 }

@@ -4,37 +4,29 @@ import com.bitmall.agent.agent.dao.entity.PendingActionDO;
 import com.bitmall.agent.agent.service.action.PendingActionService;
 import com.bitmall.agent.agent.service.skill.SkillService;
 
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import com.bitmall.agent.order.service.OrderService;
 
 /** 工具调用的统一分发入口。 先检查所需技能，查询工具直接执行，写工具只保存待确认记录；确认执行时再次检查权限和读写类型。 */
 @Component
+@RequiredArgsConstructor
 public class ToolDispatcher {
-    /** 确认下单复用提议阶段冻结的 trace，而不是再次按模型参数创建新购买。 */
-    private final com.bitmall.agent.order.service.OrderService orders;
-
-    /** 依赖组件：聚合所有 ToolProvider 的工具目录。 */
+    /** 按名称查找工具定义，未注册的工具直接拒绝。 */
     private final ToolRegistry registry;
 
-    /** 依赖组件：业务技能目录和会话加载状态的入口。 */
+    /** 加载技能手册，并检查调用工具所需的技能是否已加载。 */
     private final SkillService skills;
 
-    /** 依赖组件：管理待确认操作。 */
+    /** 写操作不直接执行，而是创建待确认操作；并检查会话里是否已有未处理的确认卡。 */
     private final PendingActionService pendingActions;
 
-    /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-    public ToolDispatcher(
-            ToolRegistry registry,
-            SkillService skills,
-            PendingActionService pendingActions,
-            com.bitmall.agent.order.service.OrderService orders) {
-        this.registry = registry;
-        this.skills = skills;
-        this.pendingActions = pendingActions;
-        this.orders = orders;
-    }
+    /** 用户确认后执行下单。 */
+    private final OrderService orders;
 
     /** 先检查技能；查询工具立即执行，写工具仅创建或返回待确认操作。 */
     public Object dispatch(
@@ -44,7 +36,7 @@ public class ToolDispatcher {
         // 写工具第一次被模型调用时，只生成确认卡，不直接调用 handler。
         if (tool.getRisk() == RegisteredTool.Risk.WRITE) {
             PendingActionDO existing = pendingActions.latest(context.getConversationId());
-            if (existing != null)
+            if (existing != null) {
                 return Map.of(
                         "status",
                         "AWAITING_CONFIRMATION",
@@ -54,6 +46,7 @@ public class ToolDispatcher {
                         existing.getSummary(),
                         "message",
                         "已有操作待确认，不能创建另一笔操作");
+            }
             PendingActionDO pending = pendingActions.create(context, tool, arguments);
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "AWAITING_CONFIRMATION");
@@ -74,8 +67,9 @@ public class ToolDispatcher {
         if (tool.getRisk() != RegisteredTool.Risk.WRITE) {
             throw new IllegalStateException("待确认记录不是写操作");
         }
-        if ("order_create".equals(action.getToolName()))
+        if ("order_create".equals(action.getToolName())) {
             return orders.submitAction(action.getUserId(), action.getId());
+        }
         Object result =
                 tool.getHandler()
                         .execute(

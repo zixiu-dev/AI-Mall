@@ -51,6 +51,19 @@ class CommerceModulesIntegrationTest {
   @Autowired ToolRegistry tools;
 
   /** 验证金额变化时不扣库存，正确金额只结算已勾选项，取消后库存恢复。 */
+  /** 收集同步 SSE 服务事件，验证确认卡拦截及恢复流程。 */
+  private java.util.List<com.bitmall.agent.agent.vo.StreamEventVO> streamEvents(
+      String conversationId, String message) {
+    var timer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+    try (var execution = new com.bitmall.agent.agent.service.runtime.AgentExecution(timer, 180)) {
+      var events = new java.util.ArrayList<com.bitmall.agent.agent.vo.StreamEventVO>();
+      agent.chatStream(10001, conversationId, message, execution, events::add);
+      return events;
+    } finally {
+      timer.shutdownNow();
+    }
+  }
+
   @Test
   void cartCheckoutRejectsChangedAmountAndOnlyPurchasesSelectedItems() throws Exception {
     jdbc.sql("DELETE FROM cart_item WHERE user_id=10001").update();
@@ -118,7 +131,7 @@ class CommerceModulesIntegrationTest {
     var blocked = agent.chat(10001, conversationId, "再买一个");
     assertThat(blocked.getPendingAction().getId()).isEqualTo(actionId);
 
-    var events = agent.chatStream(10001, conversationId, "换一款").collectList().block();
+    var events = streamEvents(conversationId, "换一款");
     assertThat(events)
         .extracting(event -> event.getType())
         .containsExactly("start", "delta", "done");
@@ -141,7 +154,7 @@ class CommerceModulesIntegrationTest {
         .isEqualTo(1);
 
     actions.confirm(10001, actionId, false);
-    var nextEvents = agent.chatStream(10001, conversationId, "推荐电脑").collectList().block();
+    var nextEvents = streamEvents(conversationId, "推荐电脑");
     var completed = nextEvents.get(nextEvents.size() - 1).getReply();
     assertThat(completed.getPendingAction()).isNull();
     assertThat(completed.getContent()).contains("NovaBook");

@@ -17,8 +17,9 @@ public class ToolRegistry {
         Map<String, RegisteredTool> registered = new LinkedHashMap<>();
         for (ToolProvider provider : providers) {
             for (RegisteredTool tool : provider.tools()) {
-                if (registered.putIfAbsent(tool.getName(), tool) != null)
+                if (registered.putIfAbsent(tool.getName(), tool) != null) {
                     throw new IllegalArgumentException("重复工具注册：" + tool.getName());
+                }
             }
         }
         tools = Map.copyOf(registered);
@@ -32,7 +33,9 @@ public class ToolRegistry {
     /** 按名称取得工具定义；未知工具明确报错，不默认执行任何业务。 */
     public RegisteredTool require(String name) {
         RegisteredTool tool = tools.get(name);
-        if (tool == null) throw new IllegalArgumentException("未知工具：" + name);
+        if (tool == null) {
+            throw new IllegalArgumentException("未知工具：" + name);
+        }
         return tool;
     }
 }

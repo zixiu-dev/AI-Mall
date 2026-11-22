@@ -1,10 +1,14 @@
 package com.bitmall.agent.common.idempotent;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.*;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.core.DefaultParameterNameDiscoverer;
@@ -16,55 +20,46 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.ObjectMapper;
 
-/** 注解入口：接口获取分布式锁，MQ 获取带所有者的消费标记。订单状态、CAS 与成功事务仍由业务服务处理。 */
+/**
+ * {@link Idempotent} 注解的切面，有两种用法：
+ *
+ * <ul>
+ *   <li>接口方法（mq = false）：执行前获取分布式锁，同一业务 key 的并发请求只放行一个；
+ *   <li>MQ 消费方法（mq = true）：执行前写入带令牌的"消费中"标记，已经消费成功的消息直接跳过。
+ * </ul>
+ *
+ * <p>这里只是减少重复执行的第一道防线。订单状态、CAS 检查和事务提交仍由业务服务自己负责。
+ */
 @Aspect
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
+@RequiredArgsConstructor
 public class IdempotencyAspect {
-  /** 统计切面入口和被锁挡住的重复请求，使用有限场景标签。 */
-  private final io.micrometer.core.instrument.MeterRegistry metrics;
+  /** 消费标记的特殊值：这条消息已经消费成功过。 */
+  private static final String TOKEN_DONE = "DONE";
 
-  /** 与业务无关的锁和消费标记后端。 */
+  /** 分布式锁和消费标记的实际实现（交易 Redis）。 */
   private final IdempotencyBackend backend;
 
-  /** 空 SpEL 时序列化方法参数生成防并发摘要，不作为永久订单编号。 */
+  /** 注解没写 key 时，把方法参数序列化后取 SHA-256 作为业务 key。 */
   private final ObjectMapper json;
 
-  /** 注入后端与 JSON 工具。 */
-  public IdempotencyAspect(
-      IdempotencyBackend backend,
-      ObjectMapper json,
-      io.micrometer.core.instrument.MeterRegistry metrics) {
-    this.backend = backend;
-    this.json = json;
-    this.metrics = metrics;
-  }
+  /** 按场景统计幂等请求数，以及因并发冲突被拒绝的次数。 */
+  private final MeterRegistry metrics;
 
-  /** 包住外部代理调用；事务已经存在时，将解锁与消费成功标记推迟到最外层事务完成。 */
+  /**
+   * 包住被注解的方法调用。
+   *
+   * <p>如果调用时已经处在一个外层事务里，解锁和"消费成功"标记都推迟到最外层事务结束后再做， 否则锁会在事务提交前就释放，另一个请求可能读到尚未提交的状态。
+   */
   @Around("@annotation(rule)")
   public Object around(ProceedingJoinPoint point, Idempotent rule) throws Throwable {
     metrics.counter("mall.idempotent.requests", "scene", rule.scene()).increment();
-    var method = ((MethodSignature) point.getSignature()).getMethod();
-    String businessKey;
-    if (rule.key().isBlank()) {
-      businessKey =
-          HexFormat.of()
-              .formatHex(
-                  MessageDigest.getInstance("SHA-256")
-                      .digest(
-                          json.writeValueAsString(point.getArgs())
-                              .getBytes(StandardCharsets.UTF_8)));
-    } else {
-      var context =
-          new MethodBasedEvaluationContext(
-              point.getTarget(), method, point.getArgs(), new DefaultParameterNameDiscoverer());
-      Object parsed = new SpelExpressionParser().parseExpression(rule.key()).getValue(context);
-      if (parsed == null || parsed.toString().isBlank())
-        throw new IllegalArgumentException("缺少幂等业务编号");
-      businessKey = parsed.toString();
+    String key = rule.scene() + ":" + businessKey(point, rule);
+    if (rule.mq()) {
+      return consume(point, key, rule.scene());
     }
-    String key = rule.scene() + ":" + businessKey;
-    if (rule.mq()) return consume(point, key, rule.scene());
+
     AutoCloseable lease;
     try {
       lease = backend.lock(key);
@@ -79,10 +74,36 @@ public class IdempotencyAspect {
     }
   }
 
-  /** MQ 已处理时直接确认；消费中抛出重试，业务异常不能被误标为成功。 */
+  /**
+   * 计算业务 key：注解写了 SpEL 表达式（如 {@code "#user + ':' + #id"}）就按表达式取值；没写就对全部参数的 JSON 取 SHA-256。
+   *
+   * @throws IllegalArgumentException 表达式算出来是 null 或空白
+   */
+  private String businessKey(ProceedingJoinPoint point, Idempotent rule) throws Exception {
+    Method method = ((MethodSignature) point.getSignature()).getMethod();
+    if (rule.key().isBlank()) {
+      byte[] argumentsJson =
+          json.writeValueAsString(point.getArgs()).getBytes(StandardCharsets.UTF_8);
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(argumentsJson));
+    }
+    MethodBasedEvaluationContext context =
+        new MethodBasedEvaluationContext(
+            point.getTarget(), method, point.getArgs(), new DefaultParameterNameDiscoverer());
+    Object value = new SpelExpressionParser().parseExpression(rule.key()).getValue(context);
+    if (value == null || value.toString().isBlank()) {
+      throw new IllegalArgumentException("缺少幂等业务编号");
+    }
+    return value.toString();
+  }
+
+  /**
+   * MQ 消费：已经消费成功过就直接返回（消息会被确认，不再重投）；另一个消费者正在处理时，backend 抛出异常让消息稍后重试。
+   *
+   * <p>业务抛异常时删除自己的"消费中"标记，绝不能标记为成功。
+   */
   private Object consume(ProceedingJoinPoint point, String key, String scene) throws Throwable {
     String token = backend.begin(key);
-    if ("DONE".equals(token)) {
+    if (TOKEN_DONE.equals(token)) {
       metrics.counter("mall.idempotent.duplicates", "scene", scene).increment();
       return null;
     }
@@ -96,27 +117,31 @@ public class IdempotencyAspect {
     }
   }
 
-  /** 有外层事务时等提交或回滚后再执行；否则目标方法自己的事务已在返回前结束。 */
+  /** 当前线程有活动事务时，等它提交/回滚后再执行对应动作；没有事务时（目标方法自己的事务已在返回前结束）立即按"已提交"处理。 */
   private void afterTransaction(Runnable committed, Runnable rolledBack) {
-    if (TransactionSynchronizationManager.isSynchronizationActive()) {
-      TransactionSynchronizationManager.registerSynchronization(
-          new TransactionSynchronization() {
-            /** 事务完成后才释放句柄或确认消费标记。 */
-            @Override
-            public void afterCompletion(int status) {
-              if (status == STATUS_COMMITTED) committed.run();
-              else rolledBack.run();
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      committed.run();
+      return;
+    }
+    TransactionSynchronizationManager.registerSynchronization(
+        new TransactionSynchronization() {
+          @Override
+          public void afterCompletion(int status) {
+            if (status == STATUS_COMMITTED) {
+              committed.run();
+            } else {
+              rolledBack.run();
             }
-          });
-    } else committed.run();
+          }
+        });
   }
 
-  /** 解锁异常不能把已成功提交的业务伪装为失败。 */
+  /** 释放锁失败不影响已经成功的业务：锁有租约，到期会自动释放，后端会记录这次异常。 */
   private void close(AutoCloseable lease) {
     try {
       lease.close();
     } catch (Exception ignored) {
-      /* 锁有租约，后端负责记录异常。 */
+      // 见方法说明。
     }
   }
 }

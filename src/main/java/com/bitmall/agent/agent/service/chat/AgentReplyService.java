@@ -9,35 +9,25 @@ import com.bitmall.agent.agent.vo.PendingActionVO;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
 /** 组装发给前端的回复和确认文案。 执行成功只能使用后端业务回执生成文案，不能把模型的一句承诺当成订单已经完成。 */
 @Service
+@RequiredArgsConstructor
 public class AgentReplyService {
-  /** 依赖组件：业务技能目录和会话加载状态的入口。 */
+  /** 读取本会话已加载的技能，随回复返回给前端展示。 */
   private final SkillService skills;
 
-  /** 依赖组件：把项目工具定义转换成 Spring AI Toolkit。 */
+  /** 把本轮获准的项目工具转换为 Spring AI ToolCallback。 */
   private final DynamicToolCatalog toolCatalog;
 
-  /** 依赖组件：读取 application.yml 中 app.agent 配置。 */
+  /** 读取是否启用真实模型，在调试信息里标注本轮运行模式（spring-ai / demo）。 */
   private final AgentProperties properties;
 
-  /** JSON 转换工具，用于对象与 JSON 字符串互转，不负责调用模型。 */
+  /** 把执行结果序列化成 JSON，拼进"操作已经完成：…"的回复（失败时退回 toString）。 */
   private final ObjectMapper objectMapper;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public AgentReplyService(
-      SkillService skills,
-      DynamicToolCatalog toolCatalog,
-      AgentProperties properties,
-      ObjectMapper objectMapper) {
-    this.skills = skills;
-    this.toolCatalog = toolCatalog;
-    this.properties = properties;
-    this.objectMapper = objectMapper;
-  }
 
   /** 组装前端回复，包括确认卡、有效技能以及当前可见工具名称。 */
   public AgentReplyVO create(
@@ -55,10 +45,12 @@ public class AgentReplyService {
 
   /** 按操作类型生成与前端按钮一致的确认提示，明确业务尚未执行。 */
   public String confirmationMessage(PendingActionDO pending) {
-    if ("order_cancel".equals(pending.getToolName()))
+    if ("order_cancel".equals(pending.getToolName())) {
       return "取消申请已准备好，订单尚未取消。请核对下方确认卡，点击“确认取消订单”继续，或点击“暂不取消”放弃。";
-    if ("coupon_claim".equals(pending.getToolName()))
+    }
+    if ("coupon_claim".equals(pending.getToolName())) {
       return "领券申请已准备好，优惠券尚未领取。请核对下方确认卡，点击“确认领取”继续，或点击“暂不领取”放弃。";
+    }
     return "操作已经准备好，但尚未执行。请核对下方确认卡，点击“确认执行”继续，或点击“取消”放弃。";
   }
 

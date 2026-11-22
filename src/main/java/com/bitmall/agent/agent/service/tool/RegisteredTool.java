@@ -1,5 +1,6 @@
 package com.bitmall.agent.agent.service.tool;
 
+import lombok.Getter;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -7,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /** 一个工具的完整定义。 把名称、参数格式、技能要求、读写类型、执行函数和预览函数放在一起；它描述工具，不负责判断本轮是否允许调用。 */
+@Getter
 public final class RegisteredTool {
     /** 模型调用时使用的唯一工具名称，例如 product_search。 */
     private final String name;
@@ -48,46 +50,15 @@ public final class RegisteredTool {
         this.preview = preview;
     }
 
-    /** 获取模型调用时使用的唯一工具名称，例如 product_search。 */
-    public String getName() {
-        return name;
-    }
-
-    /** 获取功能简述，帮助调用者判断用途。 */
-    public String getDescription() {
-        return description;
-    }
-
-    /** 获取工具参数的 JSON Schema，告诉模型允许传哪些字段。 */
-    public String getInputSchema() {
-        return inputSchema;
-    }
-
-    /** 获取调用此工具前必须加载的技能，为空表示默认开放。 */
-    public String getRequiredSkill() {
-        return requiredSkill;
-    }
-
-    /** 获取业务风险类型：READ 为查询，WRITE 需要用户确认。 */
-    public Risk getRisk() {
-        return risk;
-    }
-
-    /** 获取真正执行工具业务的函数。 */
-    public ToolHandler getHandler() {
-        return handler;
-    }
-
-    /** 获取写操作生成确认卡前使用的预览函数。 */
-    public ActionPreview getPreview() {
-        return preview;
-    }
-
     /** 按全部字段比较内容，便于查询结果和缓存结果进行一致性判断。 */
     @Override
     public boolean equals(Object other) {
-        if (this == other) return true;
-        if (other == null || getClass() != other.getClass()) return false;
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
         RegisteredTool that = (RegisteredTool) other;
         return Objects.equals(name, that.name)
                 && Objects.equals(description, that.description)

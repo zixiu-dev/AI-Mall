@@ -5,15 +5,12 @@ import static org.assertj.core.api.Assertions.*;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.*;
 import org.springframework.ai.chat.messages.*;
 import org.springframework.ai.chat.model.*;
-import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.openai.*;
 import org.springframework.ai.tool.function.FunctionToolCallback;
 import tools.jackson.databind.*;
@@ -105,22 +102,19 @@ class OpenAITransportTest {
       List<Message> history = new ArrayList<>();
       history.add(new UserMessage("查询规则"));
       for (int i = 0; i < 3; i++) {
-        AtomicReference<ChatResponse> completed = new AtomicReference<>();
-        var deltas =
-            new MessageAggregator()
-                .aggregate(
-                    client
-                        .prompt()
-                        .messages(history)
-                        .options(ToolCallingChatOptions.builder().toolCallbacks(callback))
-                        .advisors(AdvisorParams.toolCallingAdvisorAutoRegister(false))
-                        .stream()
-                        .chatResponse(),
-                    completed::set)
-                .collectList()
-                .block(Duration.ofSeconds(15));
-        assertThat(requests).hasSize(i + 1); // 不允许 ChatClient 在内部自动循环。
-        var answer = completed.get().getResult().getOutput();
+        List<String> deltas = new ArrayList<>();
+        var timer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+        ChatResponse completed;
+        try (AgentExecution execution = new AgentExecution(timer, 15)) {
+          execution.bind();
+          completed =
+              new SpringAiStreamReader(client)
+                  .read(history, List.of(callback), execution, deltas::add);
+        } finally {
+          timer.shutdownNow();
+        }
+        assertThat(requests).hasSize(i + 1); // 由普通循环驱动下一轮，SDK 不自动执行工具。
+        var answer = completed.getResult().getOutput();
         if (i == 0) {
           assertThat(answer.getToolCalls()).hasSize(1);
           assertThat(json.readTree(answer.getToolCalls().get(0).arguments()).path("query").asText())

@@ -1,6 +1,9 @@
 package com.bitmall.agent.order.dao.entity;
 
+import lombok.Getter;
+
 /** 从本地待发送消息表读取的数据。这里只保留发送和重试需要的字段，SQL 与状态更新由 Mapper 负责。 */
+@Getter
 public final class OrderMessageDO {
     /** 业务事件编号，重试不能重新生成。 */
     private final String eventId;
@@ -36,35 +39,5 @@ public final class OrderMessageDO {
         this.eventType = eventType;
         this.payload = payload;
         this.attempts = attempts;
-    }
-
-    /** 获取定时投递的 epoch 毫秒；null 表示普通事件。 */
-    public Long getDeliverAtEpochMillis() {
-        return deliverAtEpochMillis;
-    }
-
-    /** 获取事件编号。 */
-    public String getEventId() {
-        return eventId;
-    }
-
-    /** 获取目标主题。 */
-    public String getTopic() {
-        return topic;
-    }
-
-    /** 获取事件标签。 */
-    public String getEventType() {
-        return eventType;
-    }
-
-    /** 获取发送原文。 */
-    public String getPayload() {
-        return payload;
-    }
-
-    /** 获取已尝试次数。 */
-    public int getAttempts() {
-        return attempts;
     }
 }

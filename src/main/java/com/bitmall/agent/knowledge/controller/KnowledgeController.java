@@ -4,22 +4,23 @@ import com.bitmall.agent.knowledge.dto.KnowledgeRetrievalRequest;
 import com.bitmall.agent.knowledge.service.KnowledgeService;
 import com.bitmall.agent.knowledge.vo.KnowledgeSearchResultVO;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 /** 只读政策查询接口，与 Agent 共用意图识别和检索服务，不提供任意文档写入。 */
 @RestController
 @RequestMapping("/api/store/knowledge")
+@RequiredArgsConstructor
 public class KnowledgeController {
+  /** 执行知识检索。 */
   private final KnowledgeService knowledge;
-
-  public KnowledgeController(KnowledgeService knowledge) {
-    this.knowledge = knowledge;
-  }
 
   /** 多子问题的只读入口，与 Agent 共用参数校验、分组和检索。 */
   @PostMapping("/search")
@@ -41,8 +42,8 @@ public class KnowledgeController {
     try {
       return knowledge.retrieve(request, null);
     } catch (IllegalStateException e) {
-      throw new org.springframework.web.server.ResponseStatusException(
-          org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "知识检索暂不可用，请稍后再试", e);
+      throw new ResponseStatusException(
+          HttpStatus.SERVICE_UNAVAILABLE, "知识检索暂不可用，请稍后再试", e);
     }
   }
 }

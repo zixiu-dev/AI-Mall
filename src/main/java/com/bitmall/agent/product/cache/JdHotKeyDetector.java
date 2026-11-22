@@ -7,6 +7,8 @@ import com.jd.platform.hotkey.client.core.worker.WorkerInfoHolder;
 import com.jd.platform.hotkey.client.log.HotKeyLogger;
 import com.jd.platform.hotkey.client.log.JdLogger;
 
+import lombok.RequiredArgsConstructor;
+
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -14,25 +16,24 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import io.netty.channel.Channel;
 
 /** 京东 HotKey 的项目适配器。 应用就绪后在后台启动客户端，查询时上报访问并读取热点标记；启动异常时记录日志，让商城继续使用 Redis 和数据库。 */
 @Component
+@RequiredArgsConstructor
 public class JdHotKeyDetector implements HotKeyDetector {
-    /** 依赖组件：读取 app.hotkey 配置。 */
+    /** 读取京东 HotKey 的开关、应用名、etcd 地址和上报参数。 */
     private final HotKeyProperties properties;
 
     /** 只允许触发一次启动流程；它不是 Worker 已连接成功的证明。 */
     private final AtomicBoolean started = new AtomicBoolean();
 
-    /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-    public JdHotKeyDetector(HotKeyProperties properties) {
-        this.properties = properties;
-    }
-
     /** 应用就绪后启动一次京东 HotKey 客户端；通过后台守护线程避免初始化阻塞启动事件。 */
     @EventListener(ApplicationReadyEvent.class)
     public void start() {
-        if (!properties.isEnabled() || !started.compareAndSet(false, true)) return;
+        if (!properties.isEnabled() || !started.compareAndSet(false, true)) {
+            return;
+        }
         // 京东客户端会启动全进程上报和监听线程，普通测试保持关闭。
         JdLogger.setLogger(
                 new HotKeyLogger() {
@@ -87,7 +88,7 @@ public class JdHotKeyDetector implements HotKeyDetector {
     /** 查看配置开关、启动标记、发现的 Worker 数量和连接状态；启动标记本身不代表已经连上 Worker。 */
     @Override
     public Map<String, Object> status() {
-        var channel = properties.isEnabled() ? WorkerInfoHolder.chooseChannel("status") : null;
+        Channel channel = properties.isEnabled() ? WorkerInfoHolder.chooseChannel("status") : null;
         return Map.of(
                 "enabled",
                 properties.isEnabled(),

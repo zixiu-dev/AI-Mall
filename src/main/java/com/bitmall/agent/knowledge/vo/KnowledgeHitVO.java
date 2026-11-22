@@ -3,16 +3,17 @@ package com.bitmall.agent.knowledge.vo;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Objects;
+import java.util.List;
+import lombok.Getter;
 
 /** 可引用的知识命中。保存品牌、类别、出处和适用边界，避免只拿一段正文回答所有品牌。 */
+@Getter
 public final class KnowledgeHitVO {
-  /** 知识文档编号。 */
   private final long id;
 
   /** 显示用的中文文档类别。 */
   private final String category;
 
-  /** 知识文档标题。 */
   private final String title;
 
   /** 供模型引用的摘要正文，属于数据而非指令。 */
@@ -33,16 +34,13 @@ public final class KnowledgeHitVO {
   /** HTTPS 官方出处，平台内部规则为空。 */
   private final String sourceUrl;
 
-  /** 原始来源名称。 */
   private final String sourceName;
 
   /** 人工核对日期，不代表政策生效日期。 */
   private final String sourceCheckedAt;
 
-  /** 适用购买渠道。 */
   private final String applicableChannel;
 
-  /** 适用地区。 */
   private final String region;
 
   /** 本地摘要版本。 */
@@ -51,10 +49,14 @@ public final class KnowledgeHitVO {
   /** 品牌政策与本平台规则的使用边界。 */
   private final String scopeNote;
 
-  private String chunkId, indexVersion, embeddingModelId, embeddingVersion, textHash;
+  private String chunkId;
+  private String indexVersion;
+  private String embeddingModelId;
+  private String embeddingVersion;
+  private String textHash;
   private Integer dimension;
   private Double fusionScore;
-  private java.util.List<String> retrievalChannels = java.util.List.of("DB_KEYWORD");
+  private List<String> retrievalChannels = List.of("DB_KEYWORD");
 
   /** 构造一次检索独有的证据副本；原整数 score 仍只代表关键词分数。 */
   public KnowledgeHitVO evidence(
@@ -65,7 +67,7 @@ public final class KnowledgeHitVO {
       Integer dimension,
       String hash,
       Double fusionScore,
-      java.util.List<String> channels) {
+      List<String> channels) {
     KnowledgeHitVO copy =
         new KnowledgeHitVO(
             id,
@@ -90,44 +92,12 @@ public final class KnowledgeHitVO {
     copy.dimension = dimension;
     copy.textHash = hash;
     copy.fusionScore = fusionScore;
-    copy.retrievalChannels = java.util.List.copyOf(channels);
+    copy.retrievalChannels = List.copyOf(channels);
     return copy;
   }
 
   public String evidenceKey() {
     return documentKey + "|" + contentVersion + "|" + (chunkId == null ? "full" : chunkId);
-  }
-
-  public String getChunkId() {
-    return chunkId;
-  }
-
-  public String getIndexVersion() {
-    return indexVersion;
-  }
-
-  public String getEmbeddingModelId() {
-    return embeddingModelId;
-  }
-
-  public String getEmbeddingVersion() {
-    return embeddingVersion;
-  }
-
-  public Integer getDimension() {
-    return dimension;
-  }
-
-  public String getTextHash() {
-    return textHash;
-  }
-
-  public Double getFusionScore() {
-    return fusionScore;
-  }
-
-  public java.util.List<String> getRetrievalChannels() {
-    return retrievalChannels;
   }
 
   /** 保留旧内部构造入口，新数据库命中使用完整元数据构造。 */
@@ -184,85 +154,14 @@ public final class KnowledgeHitVO {
     this.scopeNote = scopeNote;
   }
 
-  /** 获取知识文档编号。 */
-  public long getId() {
-    return id;
-  }
-
-  /** 获取显示用的中文文档类别。 */
-  public String getCategory() {
-    return category;
-  }
-
-  /** 获取知识文档标题。 */
-  public String getTitle() {
-    return title;
-  }
-
-  /** 获取供模型引用的摘要正文，属于数据而非指令。 */
-  public String getContent() {
-    return content;
-  }
-
-  /** 获取组内关键词排序分数。 */
-  public int getScore() {
-    return score;
-  }
-
-  /** 获取规范品牌代码或 PLATFORM。 */
-  public String getBrand() {
-    return brand;
-  }
-
-  /** 获取规范文档类别。 */
-  public String getDocumentType() {
-    return documentType;
-  }
-
-  /** 获取稳定文档标识。 */
-  public String getDocumentKey() {
-    return documentKey;
-  }
-
-  /** 获取HTTPS 官方出处，平台内部规则为空。 */
-  public String getSourceUrl() {
-    return sourceUrl;
-  }
-
-  /** 获取原始来源名称。 */
-  public String getSourceName() {
-    return sourceName;
-  }
-
-  /** 获取人工核对日期，不代表政策生效日期。 */
-  public String getSourceCheckedAt() {
-    return sourceCheckedAt;
-  }
-
-  /** 获取适用购买渠道。 */
-  public String getApplicableChannel() {
-    return applicableChannel;
-  }
-
-  /** 获取适用地区。 */
-  public String getRegion() {
-    return region;
-  }
-
-  /** 获取本地摘要版本。 */
-  public String getContentVersion() {
-    return contentVersion;
-  }
-
-  /** 获取品牌政策与本平台规则的使用边界。 */
-  public String getScopeNote() {
-    return scopeNote;
-  }
-
   @Override
   public boolean equals(Object other) {
-    if (this == other) return true;
-    if (!(other instanceof KnowledgeHitVO that)) return false;
+    if (this == other) {
+      return true;
+    }
+    if (!(other instanceof KnowledgeHitVO that)) {
+      return false;
+    }
     return id == that.id
         && Objects.equals(category, that.category)
         && Objects.equals(title, that.title)

@@ -140,8 +140,62 @@ class SpringAiIntegrationTest {
           assertThat(output).contains("matchedSkuId", "黑色 / 42 码", "maxPrice");
           return answer("找到符合预算和尺码的商品");
         });
-    var events = orchestrator.chatStream(10001, null, "看看商品，预算500元黑色42码跑鞋").collectList().block();
+    var events = streamEvents(10001, null, "看看商品，预算500元黑色42码跑鞋");
     assertThat(events.get(events.size() - 1).getReply().getContent()).contains("符合预算");
+  }
+
+  /** 同步收集服务回调，沿用工具权限、确认和交易断言。 */
+  private List<com.bitmall.agent.agent.vo.StreamEventVO> streamEvents(
+      long user, String conversation, String message) {
+    var timer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+    try (AgentExecution execution = new AgentExecution(timer, 180)) {
+      List<com.bitmall.agent.agent.vo.StreamEventVO> events = new ArrayList<>();
+      orchestrator.chatStream(user, conversation, message, execution, events::add);
+      return events;
+    } finally {
+      timer.shutdownNow();
+    }
+  }
+
+  /** 工具开始前断开，停止执行且不发送 done；下一轮恢复未配对调用，不重放工具。 */
+  @Test
+  void cancelledStreamStopsBeforeToolAndRepairsHistoryOnNextRound() {
+    model.steps.add((messages, tools) -> call("order_query", Map.of("limit", 1)));
+    var timer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+    List<com.bitmall.agent.agent.vo.StreamEventVO> events = new ArrayList<>();
+    try (AgentExecution execution = new AgentExecution(timer, 180)) {
+      assertThatThrownBy(
+              () ->
+                  orchestrator.chatStream(
+                      10001,
+                      null,
+                      "查订单",
+                      execution,
+                      event -> {
+                        events.add(event);
+                        if ("tool_start".equals(event.getType())) execution.cancel();
+                      }))
+          .isInstanceOf(java.util.concurrent.CancellationException.class);
+    } finally {
+      timer.shutdownNow();
+    }
+    assertThat(events)
+        .extracting(e -> e.getType())
+        .contains("tool_start")
+        .doesNotContain("tool_end", "done");
+    String conversation = events.get(0).getConversationId();
+    model.steps.add(
+        (messages, tools) -> {
+          assertThat(results(messages))
+              .anySatisfy(
+                  result -> {
+                    assertThat(result.getName()).isEqualTo("order_query");
+                    assertThat(result.text()).contains("未自动重放");
+                  });
+          return answer("上次已中断，可以继续查询");
+        });
+    assertThat(orchestrator.chat(10001, conversation, "继续").getContent()).contains("已中断");
+    assertThat(model.steps).isEmpty();
   }
 
   /** 在每个测试之前清理控制状态，避免前一个测试影响本次断言。 */
@@ -258,7 +312,7 @@ class SpringAiIntegrationTest {
         });
     model.steps.add((messages, tools) -> call("order_cancel", Map.of("orderId", id)));
     model.steps.add((messages, tools) -> answer("请核对下方确认卡"));
-    var events = orchestrator.chatStream(10001, null, "取消订单 " + id).collectList().block();
+    var events = streamEvents(10001, null, "取消订单 " + id);
     return events.get(events.size() - 1).getReply();
   }
 
@@ -352,7 +406,7 @@ VALUES (:id, '测试领券流程', 100, 10, 2, 0,
       model.steps.add((messages, tools) -> call("coupon_claim", Map.of("couponId", couponId)));
       model.steps.add((messages, tools) -> answer("请核对下方确认卡"));
 
-      var events = orchestrator.chatStream(10001, null, "领取测试领券流程优惠券").collectList().block();
+      var events = streamEvents(10001, null, "领取测试领券流程优惠券");
       var reply = events.get(events.size() - 1).getReply();
       assertThat(reply.getPendingAction()).isNotNull();
       assertThat(reply.getPendingAction().getToolName()).isEqualTo("coupon_claim");
@@ -455,7 +509,7 @@ INSERT INTO coupon(id, name, threshold_amount, discount_amount, total_stock, cla
           return answer("回复确认下单即可购买。"); // Even incorrect model instructions cannot replace the
           // UI contract.
         });
-    var events = orchestrator.chatStream(10001, null, "买一个 SKU 1003").collectList().block();
+    var events = streamEvents(10001, null, "买一个 SKU 1003");
     assertThat(events).isNotNull().anySatisfy(e -> assertThat(e.getType()).isEqualTo("tool_start"));
     var reply = events.get(events.size() - 1).getReply();
     assertThat(reply.getContent()).contains("尚未执行", "点击“确认执行”").doesNotContain("回复确认下单");
@@ -589,7 +643,7 @@ INSERT INTO coupon(id, name, threshold_amount, discount_amount, total_stock, cla
               Map.of("skuId", 1003, "quantity", 1, "addressId", 20001, "expectedPayAmount", 399));
         });
     model.steps.add((messages, tools) -> answer("请点击确认执行。"));
-    var events = orchestrator.chatStream(10001, null, "买 SKU 1003，一件，不用券").collectList().block();
+    var events = streamEvents(10001, null, "买 SKU 1003，一件，不用券");
     var reply = events.get(events.size() - 1).getReply();
     assertThat(reply.getPendingAction()).isNotNull();
     assertThat(reply.getContent()).contains("尚未执行");

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import com.bitmall.agent.common.config.AiModelEndpoints;
 
 /** Spring AI 模型入口。兼容现有 OPENAI_* 地址参数，身份、工具权限和交易确认均由业务服务管理。 */
 @Configuration
@@ -25,7 +26,7 @@ public class SpringAiConfiguration {
             OpenAiChatOptions.builder()
                 .apiKey(key.isBlank() ? "not-configured" : key)
                 .baseUrl(
-                    com.bitmall.agent.common.config.AiModelEndpoints.apiBase(
+                    AiModelEndpoints.apiBase(
                         base, path, "/chat/completions"))
                 .model(name)
                 .timeout(Duration.ofSeconds(60))

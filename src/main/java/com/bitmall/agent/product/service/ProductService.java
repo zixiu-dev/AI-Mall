@@ -11,6 +11,7 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -19,39 +20,25 @@ import tools.jackson.databind.ObjectMapper;
  * 查询数据库。
  */
 @Service
+@RequiredArgsConstructor
 public class ProductService {
-  /** 依赖组件：商品和规格的基础数据访问组件。 */
+  /** 缓存未命中时从数据库读取商品资料。 */
   private final ProductRepository mapper;
 
-  private final SkuDisplayService offers;
-
-  /** 依赖组件：商品搜索的数据库读取服务。 */
+  /** 把用户搜索条件交给查询仓储，返回分页商品和匹配 SKU。 */
   private final ProductSearchService catalog;
 
-  /** 依赖组件：商品公共查询的多级缓存入口。 */
+  /** 商品详情和搜索结果走多级缓存，未命中时才回源数据库。 */
   private final CatalogCache cache;
 
-  /** 依赖组件：读取 app.catalog-cache 配置。 */
+  /** 读取商品详情和搜索结果的缓存时长。 */
   private final CatalogCacheProperties cacheProperties;
 
-  /** JSON 转换工具，用于对象与 JSON 字符串互转，不负责调用模型。 */
+  /** 把搜索请求序列化后计算哈希，作为搜索结果的缓存 key。 */
   private final ObjectMapper json;
 
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public ProductService(
-      ProductRepository mapper,
-      ProductSearchService catalog,
-      CatalogCache cache,
-      CatalogCacheProperties cacheProperties,
-      ObjectMapper json,
-      SkuDisplayService offers) {
-    this.offers = offers;
-    this.mapper = mapper;
-    this.catalog = catalog;
-    this.cache = cache;
-    this.cacheProperties = cacheProperties;
-    this.json = json;
-  }
+  /** 批量读取 SKU 公开价格和可售量，与稳定商品资料组成详情。 */
+  private final SkuDisplayService offers;
 
   /** 按完整搜索条件生成缓存键，通过缓存入口查询分页结果。 */
   public ProductSearchResultVO.Page searchCatalog(ProductSearchRequest request) {
@@ -102,7 +89,9 @@ public class ProductService {
 
   /** 检查商品编号，通过缓存查询详情；不存在时用包装对象短暂缓存空结果。 */
   public ProductDetailVO product(long productId) {
-    if (productId <= 0) throw new IllegalArgumentException("商品 ID 必须为正整数");
+    if (productId <= 0) {
+      throw new IllegalArgumentException("商品 ID 必须为正整数");
+    }
     CatalogCache.DetailValue value =
         cache.get(
             "product:" + productId,
@@ -111,7 +100,9 @@ public class ProductService {
             () ->
                 new CatalogCache.DetailValue(
                     mapper.findProfile(productId).map(catalog::enrich).orElse(null)));
-    if (value.getProduct() == null) throw new IllegalArgumentException("商品不存在或已经下架");
+    if (value.getProduct() == null) {
+      throw new IllegalArgumentException("商品不存在或已经下架");
+    }
     return offers.detail(value.getProduct());
   }
 }

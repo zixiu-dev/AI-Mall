@@ -5,10 +5,17 @@ import com.bitmall.agent.order.dao.entity.OrderMessageDO;
 import com.bitmall.agent.order.dao.mapper.OrderMessageMapper;
 import java.time.LocalDateTime;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /** 本地订单消息的 SQL。条件抢占和租约令牌防止多个实例同时确认同一条发送结果；这里不连接 MQ。 */
 @Repository
+@RequiredArgsConstructor
 public class OrderMessageRepository {
   /** 与 trace PROCESSING 一起提交，消息只传后端编号。 */
   public void insertBuild(String eventId, String traceId, String topic, String payload) {
@@ -17,7 +24,7 @@ public class OrderMessageRepository {
   }
 
   /** 提交后快速发送指定事件；实际发送前仍必须条件抢占租约。 */
-  public java.util.Optional<OrderMessageDO> findById(String id) {
+  public Optional<OrderMessageDO> findById(String id) {
     return mapper.findByIdSql(parameters("id", id)).stream()
         .findFirst()
         .map(
@@ -29,7 +36,8 @@ public class OrderMessageRepository {
                     RowValues.string(row, "payload"),
                     RowValues.intValue(row, "attempts"),
                     row.get("deliver_at_epoch_ms") == null
-                        ? null : RowValues.longValue(row, "deliver_at_epoch_ms")));
+                        ? null
+                        : RowValues.longValue(row, "deliver_at_epoch_ms")));
   }
 
   /** 恢复重投保留业务编号，消费者仍根据数据库终态去重。 */
@@ -47,13 +55,8 @@ public class OrderMessageRepository {
     mapper.cancelBuildSql(parameters("trace", trace));
   }
 
-  /** 本地消息表使用与订单相同的数据源和事务。 */
+  /** Outbox 消息的 SQL，定义在 mapper/order/OrderMessageMapper.xml。 */
   private final OrderMessageMapper mapper;
-
-  /** 由 Spring 注入数据库访问工具。 */
-  public OrderMessageRepository(OrderMessageMapper mapper) {
-    this.mapper = mapper;
-  }
 
   /** 在订单事务中保存待发送事件；订单回滚时这条消息也会回滚。 */
   public void insert(
@@ -63,12 +66,26 @@ public class OrderMessageRepository {
 
   /** 与订单同事务保存定时命令；到期时刻不是下次发送重试时间。 */
   public void insert(
-      String eventId, String orderId, String topic, String eventType, String payload,
+      String eventId,
+      String orderId,
+      String topic,
+      String eventType,
+      String payload,
       Long deliverAtEpochMillis) {
     mapper.insertSql(
         parameters(
-            "id", eventId, "orderId", orderId, "topic", topic, "type", eventType, "payload",
-            payload, "deliverAt", deliverAtEpochMillis));
+            "id",
+            eventId,
+            "orderId",
+            orderId,
+            "topic",
+            topic,
+            "type",
+            eventType,
+            "payload",
+            payload,
+            "deliverAt",
+            deliverAtEpochMillis));
   }
 
   /** 查找已到重试时间的消息，或发送进程退出后租约已经到期的消息；查到不等于抢占成功。 */
@@ -83,8 +100,9 @@ public class OrderMessageRepository {
                     RowValues.string(row, "payload"),
                     RowValues.intValue(row, "attempts"),
                     row.get("deliver_at_epoch_ms") == null
-                        ? null : RowValues.longValue(row, "deliver_at_epoch_ms")))
-        .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+                        ? null
+                        : RowValues.longValue(row, "deliver_at_epoch_ms")))
+        .collect(Collectors.toCollection(ArrayList::new));
   }
 
   /** 原子抢占一条消息；令牌随本次尝试生成，只有持有它的发送者才能更新结果。 */
@@ -114,9 +132,11 @@ public class OrderMessageRepository {
   }
 
   /** 参数按原类型绑定，允许可选字段为 null。 */
-  private static java.util.Map<String, Object> parameters(Object... pairs) {
-    java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-    for (int i = 0; i < pairs.length; i += 2) values.put((String) pairs[i], pairs[i + 1]);
+  private static Map<String, Object> parameters(Object... pairs) {
+    Map<String, Object> values = new LinkedHashMap<>();
+    for (int i = 0; i < pairs.length; i += 2) {
+      values.put((String) pairs[i], pairs[i + 1]);
+    }
     return values;
   }
 }

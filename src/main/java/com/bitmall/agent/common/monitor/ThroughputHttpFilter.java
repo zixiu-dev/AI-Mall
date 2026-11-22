@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -12,12 +13,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /** HTTP 处理完成时记入当前自然秒；只统计商品详情和正式提交，不混入发号、监控和前端轮询。 */
 @Component
 @ConditionalOnProperty(name = "app.throughput.enabled", havingValue = "true")
+@RequiredArgsConstructor
 public class ThroughputHttpFilter extends OncePerRequestFilter {
+  /** 每个商品详情/下单请求结束时，按响应状态计入当前秒的桶。 */
   private final OneSecondThroughput metrics;
-
-  public ThroughputHttpFilter(OneSecondThroughput metrics) {
-    this.metrics = metrics;
-  }
 
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {

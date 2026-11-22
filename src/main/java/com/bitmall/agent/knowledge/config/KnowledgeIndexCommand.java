@@ -10,12 +10,14 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.annotation.Import;
+import org.apache.ibatis.annotations.Mapper;
+import org.slf4j.LoggerFactory;
 
 /** 独立离线入口：只迁移/读取知识库和发布索引，不启动 Web、交易恢复任务或 MQ。 */
 @EnableAutoConfiguration
 @MapperScan(
     basePackages = "com.bitmall.agent.knowledge.dao.mapper",
-    annotationClass = org.apache.ibatis.annotations.Mapper.class)
+    annotationClass = Mapper.class)
 @Import({
   KnowledgeProperties.class,
   PgVectorProperties.class,
@@ -32,7 +34,7 @@ public class KnowledgeIndexCommand {
             .web(WebApplicationType.NONE)
             .run(args)) {
       String version = context.getBean(KnowledgeIndexService.class).rebuild();
-      org.slf4j.LoggerFactory.getLogger(KnowledgeIndexCommand.class).info("知识索引发布成功：{}", version);
+      LoggerFactory.getLogger(KnowledgeIndexCommand.class).info("知识索引发布成功：{}", version);
     }
   }
 }

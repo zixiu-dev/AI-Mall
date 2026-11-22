@@ -1,5 +1,6 @@
 package com.bitmall.agent.agent.config;
 
+import lombok.Getter;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -12,6 +13,7 @@ import java.util.Objects;
  * 读取 application.yml 中 app.agent 配置。 Spring 通过标有 @ConstructorBinding
  * 的构造方法绑定参数；类中同时明确写出执行次数、超时和上下文大小的默认值。
  */
+@Getter
 @ConfigurationProperties(prefix = "app.agent")
 public final class AgentProperties {
     /** 是否启用真实模型；关闭时使用本地演示回复。 */
@@ -64,51 +66,15 @@ public final class AgentProperties {
         this.keepRecentTurns = keepRecentTurns;
     }
 
-    /** 获取是否启用真实模型；关闭时使用本地演示回复。 */
-    public boolean isAiEnabled() {
-        return aiEnabled;
-    }
-
-    /** 获取每轮从数据库读取的最近消息条数。 */
-    public int getRecentMessageLimit() {
-        return recentMessageLimit;
-    }
-
-    /** 获取消息达到多少条后检查是否需要整理摘要。 */
-    public int getSummaryTriggerCount() {
-        return summaryTriggerCount;
-    }
-
-    /** 获取普通工具结果允许占用的字符预算。 */
-    public int getMaxToolResultChars() {
-        return maxToolResultChars;
-    }
-
-    /** 获取一次 Agent 请求最多进行多少轮推理和工具调用。 */
-    public int getMaxIterations() {
-        return maxIterations;
-    }
-
-    /** 获取一次 Agent 请求的总时间上限，单位秒。 */
-    public int getRequestTimeoutSeconds() {
-        return requestTimeoutSeconds;
-    }
-
-    /** 获取单次推理上下文允许占用的字符预算。 */
-    public int getMaxContextChars() {
-        return maxContextChars;
-    }
-
-    /** 获取上下文至少优先保留的最近完整用户轮次数。 */
-    public int getKeepRecentTurns() {
-        return keepRecentTurns;
-    }
-
     /** 按全部字段比较内容，便于查询结果和缓存结果进行一致性判断。 */
     @Override
     public boolean equals(Object other) {
-        if (this == other) return true;
-        if (other == null || getClass() != other.getClass()) return false;
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
         AgentProperties that = (AgentProperties) other;
         return Objects.equals(aiEnabled, that.aiEnabled)
                 && Objects.equals(recentMessageLimit, that.recentMessageLimit)

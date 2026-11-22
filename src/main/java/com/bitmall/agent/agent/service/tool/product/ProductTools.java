@@ -9,27 +9,30 @@ import com.bitmall.agent.agent.service.tool.ToolProvider;
 import com.bitmall.agent.product.dto.ProductSearchRequest;
 import com.bitmall.agent.product.service.ProductService;
 
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 /** 向 Agent 提供商品搜索和详情工具。 工具描述和参数 Schema 在这里声明，真正的数据查询仍调用 ProductService。 */
 @Component
+@RequiredArgsConstructor
 public class ProductTools implements ToolProvider {
-    /** 本功能声明的工具列表；保存的是函数定义，声明时不会直接执行交易。 */
-    private final List<RegisteredTool> tools;
+    /** 商品搜索和商品详情查询。 */
+    private final ProductService catalog;
 
-    /** 启动时声明本模块的工具名称、参数格式、执行函数和预览函数。这里只保存函数定义；模型实际调用或用户确认后才会执行函数。 */
-    public ProductTools(ProductService catalog) {
-        tools =
-                List.of(
-                        tool(
-                                "product_search",
-                                "结构化检索商品：将需求拆为关键词、品类、预算、品牌和规格。用户明确预算必须传"
-                                    + " maxPrice，不允许省略；每次重查和翻页保留原硬条件。价格、颜色、尺码、库存会匹配同一个 SKU；返回"
-                                    + " items、total、hasMore、filters、matchedSkuId/matchedSpec。先少量召回再查详情；无结果先解释条件，不可擅自提高预算或替换尺码。query"
-                                    + " 不支持 SKU ID 定位。",
-                                """
+    /** 声明本功能的工具定义，启动时由 ToolRegistry 收集并检查名称。 */
+    @Override
+    public List<RegisteredTool> tools() {
+        return List.of(
+                tool(
+                        "product_search",
+                        "结构化检索商品：将需求拆为关键词、品类、预算、品牌和规格。用户明确预算必须传"
+                            + " maxPrice，不允许省略；每次重查和翻页保留原硬条件。价格、颜色、尺码、库存会匹配同一个 SKU；返回"
+                            + " items、total、hasMore、filters、matchedSkuId/matchedSpec。先少量召回再查详情；无结果先解释条件，不可擅自提高预算或替换尺码。query"
+                            + " 不支持 SKU ID 定位。",
+                        """
 {
   "type": "object",
   "properties": {
@@ -103,21 +106,15 @@ public class ProductTools implements ToolProvider {
   "additionalProperties": false
 }
 """,
-                                null,
-                                READ,
-                                (ctx, a) -> catalog.searchCatalog(ProductSearchRequest.from(a))),
-                        tool(
-                                "product_detail",
-                                "按商品 ID 查询详情、全部 SKU、价格和库存。productId 必须来自商品查询结果，不能填 SKU ID。",
-                                requiredSchema("productId", "integer"),
-                                null,
-                                READ,
-                                (ctx, a) -> catalog.product(number(a, "productId"))));
-    }
-
-    /** 返回本功能已经声明的工具列表，由 ToolRegistry 统一注册。 */
-    @Override
-    public List<RegisteredTool> tools() {
-        return tools;
+                        null,
+                        READ,
+                        (ctx, a) -> catalog.searchCatalog(ProductSearchRequest.from(a))),
+                tool(
+                        "product_detail",
+                        "按商品 ID 查询详情、全部 SKU、价格和库存。productId 必须来自商品查询结果，不能填 SKU ID。",
+                        requiredSchema("productId", "integer"),
+                        null,
+                        READ,
+                        (ctx, a) -> catalog.product(number(a, "productId"))));
     }
 }

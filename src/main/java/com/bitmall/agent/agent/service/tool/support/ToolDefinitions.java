@@ -5,6 +5,8 @@ import static com.bitmall.agent.agent.service.tool.RegisteredTool.Risk.WRITE;
 import com.bitmall.agent.agent.service.tool.RegisteredTool;
 
 import java.util.Map;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /** 构造工具定义和 JSON Schema 的辅助类。 把通用的参数格式与回调包装集中在这里，各功能模块只描述自己的工具。 */
 public final class ToolDefinitions {
@@ -54,7 +56,9 @@ public final class ToolDefinitions {
     private static String buildSchema(String[] required, String... pairs) {
         StringBuilder properties = new StringBuilder();
         for (int i = 0; i < pairs.length; i += 2) {
-            if (i > 0) properties.append(',');
+            if (i > 0) {
+                properties.append(',');
+            }
             properties
                     .append('"')
                     .append(pairs[i])
@@ -63,9 +67,9 @@ public final class ToolDefinitions {
                     .append("\"}");
         }
         String requiredJson =
-                java.util.Arrays.stream(required)
+                Arrays.stream(required)
                         .map(value -> "\"" + value + "\"")
-                        .collect(java.util.stream.Collectors.joining(","));
+                        .collect(Collectors.joining(","));
         return "{\"type\":\"object\",\"properties\":{"
                 + properties
                 + "},\"required\":["

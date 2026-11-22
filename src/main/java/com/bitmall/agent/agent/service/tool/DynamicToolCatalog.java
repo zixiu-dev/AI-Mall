@@ -4,42 +4,30 @@ import com.bitmall.agent.agent.config.AgentProperties;
 import com.bitmall.agent.agent.service.skill.SkillService;
 import java.util.List;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
 /** 把项目工具定义转换成 Spring AI ToolCallback。 每轮创建工具适配器，每次推理的实际开放名单由 SkillContextPolicy 决定。 */
 @Component
+@RequiredArgsConstructor
 public class DynamicToolCatalog {
 
-  /** 依赖组件：聚合所有 ToolProvider 的工具目录。 */
+  /** 读取全部已注册工具，为每个工具创建回调。 */
   private final ToolRegistry registry;
 
-  /** 依赖组件：工具调用的统一分发入口。 */
+  /** 传给每个工具回调，用来执行工具。 */
   private final ToolDispatcher dispatcher;
 
-  /** 依赖组件：业务技能目录和会话加载状态的入口。 */
+  /** 读取本会话已加载的技能，决定哪些工具对模型可见。 */
   private final SkillService skills;
 
-  /** JSON 转换工具，用于对象与 JSON 字符串互转，不负责调用模型。 */
+  /** 传给每个工具回调，用来解析 Schema、参数和序列化结果。 */
   private final ObjectMapper objectMapper;
 
-  /** 依赖组件：读取 application.yml 中 app.agent 配置。 */
+  /** 传给每个工具回调，读取工具结果的字符上限。 */
   private final AgentProperties properties;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public DynamicToolCatalog(
-      ToolRegistry registry,
-      ToolDispatcher dispatcher,
-      SkillService skills,
-      ObjectMapper objectMapper,
-      AgentProperties properties) {
-    this.registry = registry;
-    this.dispatcher = dispatcher;
-    this.skills = skills;
-    this.objectMapper = objectMapper;
-    this.properties = properties;
-  }
 
   /** 为本轮创建 SDK 工具箱并注册适配器；注册不等于本轮全部开放，推理前还会过滤。 */
   public List<ToolCallback> callbacks(Set<String> allowed) {

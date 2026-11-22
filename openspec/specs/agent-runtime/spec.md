@@ -12,7 +12,7 @@
 | `POST /api/agent/chat/stream` | 共用聊天流程，通过 SSE 返回文本片段、工具进度与最终结果。 |
 | `GET /api/agent/status` | 返回当前配置使用模型或演示模式。 |
 
-启用真实模型后，Spring AI `ChatClient` 组织模型与工具循环。工具目录保存参数 Schema、读写分类和所需 Skill；模型看到当前允许的工具，真正执行时再校验。Skills 是数据库中的操作手册，由 `load_skill` 读取。工具从服务端上下文取用户与会话，查询直连业务 Service，写操作交给[确认流程](../agent-confirmation/spec.md)。演示模式由确定性规则调用业务。流式连接中断后，交易结果按原 trace 查询。
+启用真实模型后，`SpringAiResponder` 用普通 `for` 循环组织 Spring AI 模型推理、工具执行、结果保存和下一次推理。`AgentChatController` 在有界工作线程中执行聊天，由 `SseEmitter` 发送事件。`SpringAiStreamReader` 将 SDK 流转换为可关闭的 Java Stream，实时读取文本并合并分片工具参数。工具目录保存参数 Schema、读写分类和所需 Skill；模型看到当前允许的工具，真正执行时再校验。Skills 是数据库中的操作手册，由 `load_skill` 读取。工具从服务端上下文取用户与会话，查询直连业务 Service，写操作交给[确认流程](../agent-confirmation/spec.md)。演示模式由确定性规则调用业务。模型单次 60 秒、工具单次 15 秒，均受本轮总预算限制；取消通过 `AgentExecution` 中断工作线程并关闭模型流，当前业务调用实际退出后释放会话门禁。流式连接中断后，交易结果按原 trace 查询。
 
 [Agent 流程图](../../../docs/images/agent-execution.png) · [聊天服务](../../../src/main/java/com/bitmall/agent/agent/service/chat/AgentChatService.java) · [模型执行](../../../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [工具分发](../../../src/main/java/com/bitmall/agent/agent/service/tool/ToolDispatcher.java)
 
@@ -77,13 +77,23 @@
 
 ### Requirement: AGENT-005 流式事件与中断边界
 
-系统 SHALL 通过 POST /api/agent/chat/stream 提供文本增量、工具进度和完成事件，断开时停止本轮订阅，但不能将连接中断等同于交易自动回滚。
+系统 SHALL 通过 POST /api/agent/chat/stream 提供真实文本增量、工具进度和完成事件。聊天在有界工作线程中执行同步循环，由 SseEmitter 推送命名事件；断开时停止本轮执行，但不能将连接中断等同于交易自动回滚。
 
 #### Scenario: SSE 中断时业务可能已发生
 
 - **GIVEN** 写操作已被批准且业务可能已经提交
 - **WHEN** 客户端断开流连接
-- **THEN** 按持久化操作和 trace 核对结果，不能宣称业务一定没有发生。
+- **THEN** 取消模型流并阻止后续工具，按持久化操作和 trace 核对结果，不能宣称业务一定没有发生；当前业务忽略中断时，待实际退出后再释放会话门禁。
+
+#### Scenario: 增量与工具顺序
+
+- **WHEN** 模型逐段生成文本或请求业务工具
+- **THEN** 通过 start、delta、reset、tool_start、tool_end 和 done 事件实时推送；分片工具参数完成聚合后才执行业务，最终回复按现有确认和持久化结果生成。
+
+#### Scenario: 超时与执行容量
+
+- **WHEN** 模型、工具或本轮请求超时，或者 SSE 工作线程及等待队列已满
+- **THEN** 超时中断等待并按故障规则结束或返回工具错误，停止超出总预算的后续执行；容量满返回 error 提示稍后重试，不静默丢弃请求。
 
 ## Current limitations
 

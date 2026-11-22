@@ -4,11 +4,12 @@ import java.util.List;
 import java.util.Map;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Options;
 
 /** 索引元数据、证据块与发布指针的 SQL 映射；不在 Mapper 内调用模型。 */
 @Mapper
 public interface KnowledgeIndexMapper {
-  @org.apache.ibatis.annotations.Options(timeout = 2)
+  @Options(timeout = 2)
   List<Map<String, Object>> searchChunks(Map<String, Object> values);
 
   int begin(Map<String, Object> values);

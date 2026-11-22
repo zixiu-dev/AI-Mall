@@ -4,6 +4,7 @@ import com.bitmall.agent.common.dto.UserRequest;
 import com.bitmall.agent.order.service.OrderLifecycleService;
 import jakarta.validation.Valid;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,12 +12,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/store/orders")
 @ConditionalOnProperty(name = "app.order-processing.demo-payment-enabled", havingValue = "true")
+@RequiredArgsConstructor
 public class DemoOrderPaymentController {
+  /** 执行演示支付（不发起真实扣款）。 */
   private final OrderLifecycleService lifecycle;
-
-  public DemoOrderPaymentController(OrderLifecycleService lifecycle) {
-    this.lifecycle = lifecycle;
-  }
 
   @PostMapping("/{orderId}/demo-pay")
   public Map<String, Object> pay(

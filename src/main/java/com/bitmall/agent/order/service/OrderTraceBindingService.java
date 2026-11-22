@@ -4,35 +4,35 @@ import com.bitmall.agent.order.config.OrderProcessingProperties;
 import com.bitmall.agent.order.dao.repository.OrderTraceRepository;
 import com.bitmall.agent.order.model.CreateOrderCommand;
 import java.time.LocalDateTime;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
+import com.bitmall.agent.checkout.vo.CheckoutQuoteVO;
 
 /** 首次正式提交才持久化购买内容；独立事务保留后续预扣失败和受理中断的恢复凭据。 */
 @Service
+@RequiredArgsConstructor
 public class OrderTraceBindingService {
+  /** 写入新的 trace。 */
   private final OrderTraceRepository traces;
-  private final OrderSnapshotService snapshots;
-  private final OrderSubmissionPolicy policy;
-  private final OrderProcessingProperties properties;
 
-  public OrderTraceBindingService(
-      OrderTraceRepository traces,
-      OrderSnapshotService snapshots,
-      OrderSubmissionPolicy policy,
-      OrderProcessingProperties properties) {
-    this.traces = traces;
-    this.snapshots = snapshots;
-    this.policy = policy;
-    this.properties = properties;
-  }
+  /** 生成购买快照并计算摘要（含提交参数摘要）。 */
+  private final OrderSnapshotService snapshots;
+
+  /** 为新购买确定初始执行模式。 */
+  private final OrderSubmissionPolicy policy;
+
+  /** 读取购买编号（trace）的有效期。 */
+  private final OrderProcessingProperties properties;
 
   /** 独立提交绑定，后续受理回滚不会丢失购买快照；唯一 trace 索引防止并发重复绑定。 */
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void bind(long user, String id, CreateOrderCommand command) {
     if (command.fromCart()
-        && (command.getExpectedItems() == null || command.getExpectedItems().isEmpty()))
+        && (command.getExpectedItems() == null || command.getExpectedItems().isEmpty())) {
       throw new IllegalArgumentException("首次购物车提交必须携带已确认的购买明细");
-    var quote = snapshots.prepare(user, command);
+    }
+    CheckoutQuoteVO quote = snapshots.prepare(user, command);
     String payload = snapshots.write(quote);
     traces.insert(
         id,

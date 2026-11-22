@@ -1,50 +1,44 @@
 package com.bitmall.agent.order.monitor;
 
+import com.bitmall.agent.common.monitor.OneSecondThroughput;
 import com.bitmall.agent.order.config.OrderProcessingProperties;
-import io.micrometer.core.instrument.*;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.*;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
-/** 下单监控与单实例并发保护。指标不参与库存正确性；只使用模式、阶段等有限标签，不为每个 trace 创建指标。 */
+/**
+ * 下单监控与单实例并发保护。
+ *
+ * <p>指标只用于观测，不参与库存正确性判断。标签只使用模式、事件等有限取值，不为每个 trace 创建独立指标，避免指标基数爆炸。
+ */
 @Component
 public class OrderMetrics {
-  /** 受理到真正创建订单的时间，包含排队，不包含用户停留在确认页面的时间。 */
-  public void completed(String mode, java.time.LocalDateTime acceptedAt) {
-    if (acceptedAt == null) return;
-    long nanos =
-        Math.max(
-            0, java.time.Duration.between(acceptedAt, java.time.LocalDateTime.now()).toNanos());
-    Runnable record =
-        () ->
-            Timer.builder("mall.order.completion.duration")
-                .tag("mode", mode)
-                .publishPercentileHistogram()
-                .register(registry)
-                .record(nanos, java.util.concurrent.TimeUnit.NANOSECONDS);
-    if (TransactionSynchronizationManager.isSynchronizationActive())
-      TransactionSynchronizationManager.registerSynchronization(
-          new TransactionSynchronization() {
-            /** 回滚事务不计入完成耗时。 */
-            @Override
-            public void afterCommit() {
-              record.run();
-            }
-          });
-    else record.run();
-  }
+  private static final String MODE_SYNC = "SYNC";
+  private static final String SUBMISSION_MODE_AUTO = "AUTO";
+  private static final String EVENT_CREATED = "created";
 
-  /** Micrometer 注册器，Prometheus 可汇总多个实例。 */
+  /** 注册下单请求数、拒绝数、受理/建单数和耗时指标。 */
   private final MeterRegistry registry;
 
+  /** 记录请求数、同步建单耗时和建单数，供自动路由计算压力。 */
   private final OrderPressureWindow pressure;
 
-  /** 可选的一秒明细统计；默认关闭，压测时在事务提交回调中按实际完成秒记账。 */
-  private final com.bitmall.agent.common.monitor.OneSecondThroughput seconds;
+  /** 按实际发生的一秒记录响应、受理和建单，统计峰值 QPS 与 TPS；可为 null（未启用时）。 */
+  private final OneSecondThroughput seconds;
 
   /** 当前正在执行的提交请求数。 */
   private final AtomicInteger inFlight = new AtomicInteger();
@@ -52,21 +46,21 @@ public class OrderMetrics {
   /** 单实例入口限额，防止数据库或 Redis 故障时请求无限堆积。 */
   private final Semaphore permits;
 
-  /** 压测后设置的耗时目标，用于监控，自动路由使用独立的滚动窗口。 */
+  /** 读取单实例并发上限（创建并发许可），以及监控快照里展示的延迟目标和提交模式。 */
   private final OrderProcessingProperties properties;
 
-  /** 注册当前执行数量，构造时不创建外部监控连接。 */
+  /** 不带秒级吞吐统计的构造器，供测试等场景使用。构造时只注册 Gauge，不创建外部监控连接。 */
   public OrderMetrics(
       MeterRegistry registry, OrderProcessingProperties properties, OrderPressureWindow pressure) {
     this(registry, properties, pressure, null);
   }
 
-  @org.springframework.beans.factory.annotation.Autowired
+  @Autowired
   public OrderMetrics(
       MeterRegistry registry,
       OrderProcessingProperties properties,
       OrderPressureWindow pressure,
-      com.bitmall.agent.common.monitor.OneSecondThroughput seconds) {
+      OneSecondThroughput seconds) {
     this.seconds = seconds;
     this.pressure = pressure;
     this.registry = registry;
@@ -77,7 +71,26 @@ public class OrderMetrics {
         .register(registry);
   }
 
-  /** 进入受理流程，超出本机上限时快速拒绝。 */
+  /**
+   * 记录从受理到真正创建订单的耗时：包含异步排队时间，不包含用户停留在确认页面的时间。
+   *
+   * <p>在事务中调用时，等事务提交后才记录，回滚的建单不计入完成耗时。
+   */
+  public void completed(String mode, LocalDateTime acceptedAt) {
+    if (acceptedAt == null) {
+      return;
+    }
+    long nanos = Math.max(0, Duration.between(acceptedAt, LocalDateTime.now()).toNanos());
+    runAfterCommitOrNow(
+        () ->
+            Timer.builder("mall.order.completion.duration")
+                .tag("mode", mode)
+                .publishPercentileHistogram()
+                .register(registry)
+                .record(nanos, TimeUnit.NANOSECONDS));
+  }
+
+  /** 进入受理流程，超出本机并发上限时直接返回 429；返回值是开始时间，需原样传给 {@link #exit}。 */
   public long enter() {
     pressure.request();
     registry.counter("mall.order.requests").increment();
@@ -89,66 +102,90 @@ public class OrderMetrics {
     return System.nanoTime();
   }
 
-  /** finally 释放并发配额，并记录所有成功或异常请求的耗时。 */
+  /** 当前正在执行的提交请求数，供路由压力采样使用。 */
   public int inFlight() {
     return inFlight.get();
   }
 
+  /**
+   * 与 {@link #enter} 配对，由调用方在 finally 中调用：记录本次请求耗时并归还并发配额。
+   *
+   * <p>只有同步请求的耗时进入压力窗口，作为 AUTO 路由判断同步链路 P95 的依据。
+   */
   public void exit(long started, String mode) {
-    if ("SYNC".equals(mode)) pressure.syncCompleted(System.nanoTime() - started);
+    long elapsedNanos = System.nanoTime() - started;
+    if (MODE_SYNC.equals(mode)) {
+      pressure.syncCompleted(elapsedNanos);
+    }
     Timer.builder("mall.order.submit.duration")
         .tag("mode", mode)
         .publishPercentileHistogram()
         .register(registry)
-        .record(System.nanoTime() - started, java.util.concurrent.TimeUnit.NANOSECONDS);
+        .record(elapsedNanos, TimeUnit.NANOSECONDS);
     inFlight.decrementAndGet();
     permits.release();
   }
 
-  /** 事务真正提交后才统计首次受理和最终成功，Agent 外层事务回滚不会被误记为成功。 */
+  /**
+   * 记录受理（accepted）、建单（created）、失败（failed）等状态转换。
+   *
+   * <p>在事务中调用时，等事务真正提交后才记账：例如 Agent 确认执行的外层事务回滚，不会被误记为建单成功。
+   */
   public void committed(String event, String mode) {
-    Runnable add =
+    runAfterCommitOrNow(
         () -> {
           registry.counter("mall.order.transitions", "event", event, "mode", mode).increment();
-          if ("created".equals(event)) pressure.orderCreated();
-          if (seconds != null) seconds.orderTransition(event, mode);
-        };
-    if (TransactionSynchronizationManager.isSynchronizationActive())
-      TransactionSynchronizationManager.registerSynchronization(
-          new TransactionSynchronization() {
-            /** 指标只统计已经提交的业务结果。 */
-            @Override
-            public void afterCommit() {
-              add.run();
-            }
-          });
-    else add.run();
+          if (EVENT_CREATED.equals(event)) {
+            pressure.orderCreated();
+          }
+          if (seconds != null) {
+            seconds.orderTransition(event, mode);
+          }
+        });
   }
 
-  /** 记录重复消费等有限事件标签。 */
+  /** 有事务同步时延迟到提交成功后执行（回滚则不执行）；不在事务中时立即执行。 */
+  private static void runAfterCommitOrNow(Runnable action) {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              action.run();
+            }
+          });
+    } else {
+      action.run();
+    }
+  }
+
+  /** 记录重复提交、重复消费等有限取值的事件。 */
   public void event(String event) {
     registry.counter("mall.order.events", "event", event).increment();
   }
 
-  /** 本机快照用于本地调试，多实例告警应汇总 Prometheus 指标。 */
+  /** 本机指标快照，用于本地调试；多实例告警应汇总 Prometheus 指标。 */
   public Map<String, Object> snapshot() {
-    var result = new java.util.LinkedHashMap<String, Object>(pressure.snapshot());
+    Map<String, Object> result = new LinkedHashMap<>(pressure.snapshot());
     result.put("inFlight", inFlight.get());
     result.put("maxConcurrent", properties.getMaxConcurrent());
     result.put("latencyTargetMs", properties.getLatencyTargetMs());
-    result.put("autoModeSwitch", "AUTO".equals(properties.getSubmissionMode()));
-    result.put(
-        "submitRequestsTotal",
-        registry.find("mall.order.requests").counters().stream().mapToDouble(Counter::count).sum());
-    result.put("ordersCreatedTotal", total("created"));
-    result.put("asyncAcceptedTotal", total("accepted"));
-    result.put("failedTotal", total("failed"));
-    // 压测用两次累计值之差除以实际观测时长计算 TPS，不拿 HTTP 受理数冒充订单数。
+    result.put("autoModeSwitch", SUBMISSION_MODE_AUTO.equals(properties.getSubmissionMode()));
+    result.put("submitRequestsTotal", sumCounters("mall.order.requests"));
+    result.put("ordersCreatedTotal", transitionTotal(EVENT_CREATED));
+    result.put("asyncAcceptedTotal", transitionTotal("accepted"));
+    result.put("failedTotal", transitionTotal("failed"));
+    // 压测用两次快照的累计值之差除以实际间隔计算 TPS；这里给出订单数而不是 HTTP 受理数，避免拿受理数冒充订单数。
     result.put("sampledAtEpochMs", System.currentTimeMillis());
     return result;
   }
 
-  private double total(String event) {
+  private double sumCounters(String name) {
+    return registry.find(name).counters().stream().mapToDouble(Counter::count).sum();
+  }
+
+  /** 某个事件在所有模式下的累计次数。 */
+  private double transitionTotal(String event) {
     return registry.find("mall.order.transitions").tag("event", event).counters().stream()
         .mapToDouble(Counter::count)
         .sum();

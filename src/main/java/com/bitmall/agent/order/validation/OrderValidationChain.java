@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 /** 按 @Order 顺序执行下单规则，任一步拒绝都会使外层建单事务回滚。 */
 @Service
 public class OrderValidationChain {
+  /** 按 Spring 排序的下单校验器，依次检查购买参数、快照与实时试算。 */
   private final List<OrderValidator> validators;
 
   public OrderValidationChain(List<OrderValidator> validators) {
@@ -16,7 +17,9 @@ public class OrderValidationChain {
 
   public CheckoutQuoteVO validate(long user, OrderTraceDO trace) {
     var context = new OrderValidationContext(user, trace);
-    for (var validator : validators) validator.validate(context);
+    for (OrderValidator validator : validators) {
+      validator.validate(context);
+    }
     return context.getQuote();
   }
 }

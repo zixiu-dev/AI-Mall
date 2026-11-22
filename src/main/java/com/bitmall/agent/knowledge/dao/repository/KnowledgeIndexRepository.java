@@ -8,6 +8,7 @@ import com.bitmall.agent.knowledge.vo.KnowledgeHitVO;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -15,12 +16,15 @@ import tools.jackson.databind.ObjectMapper;
 
 /** 索引存储与原子发布；网络调用在事务外完成，读者只沿发布指针读取。 */
 @Repository
-@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
-    name = "app.knowledge.vector-store",
-    havingValue = "LEGACY")
+@ConditionalOnProperty(name = "app.knowledge.vector-store", havingValue = "LEGACY")
 public class KnowledgeIndexRepository implements KnowledgeIndexStore {
+  /** 知识块和索引版本的 SQL，定义在 mapper/knowledge/KnowledgeIndexMapper.xml。 */
   private final KnowledgeIndexMapper mapper;
+
+  /** 知识块元数据与 JSON 文本互相转换（存入和读出索引表）。 */
   private final ObjectMapper json;
+
+  /** 将知识块写入、版本完成和发布指针切换放进同一主库事务，失败时保留旧发布版本。 */
   private final TransactionTemplate tx;
 
   public KnowledgeIndexRepository(
@@ -54,49 +58,66 @@ public class KnowledgeIndexRepository implements KnowledgeIndexStore {
   public void publish(String version, List<KnowledgeChunk> chunks, Runnable verifySource) {
     tx.executeWithoutResult(
         status -> {
-          if (mapper.lockHead() == null) throw new IllegalStateException("索引发布指针不存在");
+          if (mapper.lockHead() == null) {
+            throw new IllegalStateException("索引发布指针不存在");
+          }
           mapper.lockDocuments();
           verifySource.run();
-          for (var c : chunks)
-            try {
-              var d = c.getDocument();
-              var row = new LinkedHashMap<String, Object>();
-              row.put("version", version);
-              row.put("chunkId", c.getChunkId());
-              row.put("documentKey", d.getDocumentKey());
-              row.put("contentVersion", d.getContentVersion());
-              row.put("documentHash", c.getDocumentHash());
-              row.put("textHash", c.getTextHash());
-              row.put("sectionTitle", c.getSectionTitle());
-              row.put("content", d.getContent());
-              row.put("vector", json.writeValueAsString(c.getVector()));
-              row.put("metadata", json.writeValueAsString(d));
-              row.put("brand", d.getBrand());
-              row.put("type", d.getDocumentType());
-              row.put("region", d.getRegion());
-              mapper.insertChunk(row);
-            } catch (Exception e) {
-              throw new IllegalStateException("索引块写入失败", e);
-            }
-          if (mapper.complete(version, chunks.size()) != 1)
+          for (KnowledgeChunk chunk : chunks) {
+            insertChunk(version, chunk);
+          }
+          if (mapper.complete(version, chunks.size()) != 1) {
             throw new IllegalStateException("候选索引已不处于构建状态");
-          if (mapper.switchHead(version) != 1) throw new IllegalStateException("发布指针切换失败");
+          }
+          if (mapper.switchHead(version) != 1) {
+            throw new IllegalStateException("发布指针切换失败");
+          }
         });
+  }
+
+  /** 将一个知识块的向量和来源序列化后写入候选版本；失败向外抛出，触发发布事务回滚。 */
+  private void insertChunk(String version, KnowledgeChunk chunk) {
+    try {
+      KnowledgeHitVO document = chunk.getDocument();
+      Map<String, Object> row = new LinkedHashMap<>();
+      row.put("version", version);
+      row.put("chunkId", chunk.getChunkId());
+      row.put("documentKey", document.getDocumentKey());
+      row.put("contentVersion", document.getContentVersion());
+      row.put("documentHash", chunk.getDocumentHash());
+      row.put("textHash", chunk.getTextHash());
+      row.put("sectionTitle", chunk.getSectionTitle());
+      row.put("content", document.getContent());
+      row.put("vector", json.writeValueAsString(chunk.getVector()));
+      row.put("metadata", json.writeValueAsString(document));
+      row.put("brand", document.getBrand());
+      row.put("type", document.getDocumentType());
+      row.put("region", document.getRegion());
+      mapper.insertChunk(row);
+    } catch (Exception error) {
+      throw new IllegalStateException("索引块写入失败", error);
+    }
   }
 
   /** 读取有界的小型索引快照；规模超限必须改用专门向量存储，不能无限加载 JVM。 */
   public KnowledgeIndexSnapshot published(int maximum) {
-    var v = mapper.published();
-    if (v == null) throw new IllegalStateException("没有已发布的向量索引，请离线构建");
-    String version = RowValues.string(v, "index_version");
-    var chunks = mapper.chunks(version, maximum + 1).stream().map(this::chunk).toList();
-    if (chunks.size() > maximum || chunks.size() != RowValues.intValue(v, "chunk_count"))
+    Map<String, Object> versionRow = mapper.published();
+    if (versionRow == null) {
+      throw new IllegalStateException("没有已发布的向量索引，请离线构建");
+    }
+    String version = RowValues.string(versionRow, "index_version");
+    List<KnowledgeChunk> chunks =
+        mapper.chunks(version, maximum + 1).stream().map(this::chunk).toList();
+    boolean invalidChunkCount =
+        chunks.size() > maximum || chunks.size() != RowValues.intValue(versionRow, "chunk_count");
+    if (invalidChunkCount) {
       throw new IllegalStateException("索引规模超限或块数不一致");
+    }
     return new KnowledgeIndexSnapshot(
         version,
-        RowValues.string(v, "embedding_model_id"),
-        RowValues.string(v, "embedding_version"),
-        RowValues.intValue(v, "dimension"),
+        RowValues.string(versionRow, "embedding_model_id"),
+        RowValues.string(versionRow, "embedding_version"),
+        RowValues.intValue(versionRow, "dimension"),
         chunks);
   }
 
@@ -116,6 +137,7 @@ public class KnowledgeIndexRepository implements KnowledgeIndexStore {
             KnowledgeRepository.patterns(query)));
   }
 
+  /** 还原完整来源及向量，损坏记录直接报错，避免把缺失证据当成正常索引。 */
   private KnowledgeChunk chunk(Map<String, Object> row) {
     try {
       return new KnowledgeChunk(
@@ -125,8 +147,8 @@ public class KnowledgeIndexRepository implements KnowledgeIndexStore {
           RowValues.string(row, "section_title"),
           json.readValue(RowValues.string(row, "metadata_json"), KnowledgeHitVO.class),
           json.readValue(RowValues.string(row, "vector_json"), double[].class));
-    } catch (Exception e) {
-      throw new IllegalStateException("索引块损坏", e);
+    } catch (Exception error) {
+      throw new IllegalStateException("索引块损坏", error);
     }
   }
 }

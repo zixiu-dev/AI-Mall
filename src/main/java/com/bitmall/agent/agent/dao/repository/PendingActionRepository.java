@@ -5,26 +5,25 @@ import com.bitmall.agent.agent.dao.mapper.PendingActionMapper;
 import com.bitmall.agent.common.persistence.RowValues;
 import java.util.Map;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
 
 /** 待确认操作表的数据访问组件。 保存原始参数和结果，通过状态与版本条件更新防止重复确认；是否允许执行由 Service 判断。 */
 @Repository
+@RequiredArgsConstructor
 public class PendingActionRepository {
 
-  /** 执行带绑定参数的 MyBatis-Plus Mapper；SQL 位于对应 XML。 */
+  /** 待确认操作的 SQL，定义在 mapper/agent/PendingActionMapper.xml。 */
   private final PendingActionMapper mapper;
 
-  /** JSON 转换工具，用于对象与 JSON 字符串互转，不负责调用模型。 */
+  /** 把待确认操作的参数和执行结果（Map）序列化成 JSON 存库，读取时再还原。 */
   private final ObjectMapper objectMapper;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public PendingActionRepository(PendingActionMapper mapper, ObjectMapper objectMapper) {
-    this.mapper = mapper;
-    this.objectMapper = objectMapper;
-  }
 
   /** 插入待确认操作；相同幂等键重复写入时沿用已存在的记录。 */
   public void insert(PendingActionDO action) {
@@ -71,7 +70,7 @@ public class PendingActionRepository {
                         read(RowValues.string(row, "result_json")),
                         RowValues.intValue(row, "version"),
                         RowValues.timestamp(row, "created_at").toLocalDateTime()))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new)));
+            .collect(Collectors.toCollection(ArrayList::new)));
   }
 
   /** 读取会话中最新尚待确认的操作，聊天入口据此决定是否提醒用户先处理。 */
@@ -93,7 +92,7 @@ public class PendingActionRepository {
                         read(RowValues.string(row, "result_json")),
                         RowValues.intValue(row, "version"),
                         RowValues.timestamp(row, "created_at").toLocalDateTime()))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new)));
+            .collect(Collectors.toCollection(ArrayList::new)));
   }
 
   /** 只把仍为 PENDING 的记录改成批准或拒绝，并核对更新条数，阻止重复确认。 */
@@ -141,9 +140,11 @@ public class PendingActionRepository {
   }
 
   /** 参数按原类型绑定，允许可选字段为 null。 */
-  private static java.util.Map<String, Object> parameters(Object... pairs) {
-    java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-    for (int i = 0; i < pairs.length; i += 2) values.put((String) pairs[i], pairs[i + 1]);
+  private static Map<String, Object> parameters(Object... pairs) {
+    Map<String, Object> values = new LinkedHashMap<>();
+    for (int i = 0; i < pairs.length; i += 2) {
+      values.put((String) pairs[i], pairs[i + 1]);
+    }
     return values;
   }
 }

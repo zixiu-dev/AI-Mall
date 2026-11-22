@@ -1,20 +1,20 @@
 package com.bitmall.agent.knowledge.config;
 
+import lombok.Getter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import jakarta.annotation.PostConstruct;
+import java.util.List;
 
 /** 向量库独立连接与查询方式；不覆盖商城的 spring.datasource。 */
 @Component
 @ConfigurationProperties("app.knowledge.pgvector")
 public class PgVectorProperties {
+  @Getter
   private String url = "jdbc:postgresql://127.0.0.1:5433/bitmall_knowledge",
       username = "bitmall",
       password = "",
       searchMode = "EXACT";
-
-  public String getUrl() {
-    return url;
-  }
 
   public void setUrl(String v) {
     url = v;
@@ -44,10 +44,11 @@ public class PgVectorProperties {
     searchMode = v;
   }
 
-  @jakarta.annotation.PostConstruct
+  @PostConstruct
   public void validate() {
-    if (!java.util.List.of("EXACT", "HNSW").contains(searchMode)
-        || !url.startsWith("jdbc:postgresql:"))
+    if (!List.of("EXACT", "HNSW").contains(searchMode)
+        || !url.startsWith("jdbc:postgresql:")) {
       throw new IllegalArgumentException("PG 向量库地址或检索模式无效");
+    }
   }
 }

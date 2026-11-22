@@ -1,8 +1,13 @@
 package com.bitmall.agent.knowledge.vo;
 
 import java.util.List;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
+import lombok.Getter;
 
 /** 检索回执：明确区分找到文档、没有依据与需要补问，防止空结果被模型当作政策允许。 */
+@Getter
 public final class KnowledgeSearchResultVO {
   private final String status;
   private final KnowledgeIntentVO intent;
@@ -31,9 +36,12 @@ public final class KnowledgeSearchResultVO {
   public KnowledgeSearchResultVO(List<KnowledgeGroupVO> groups, List<String> warnings) {
     this.groups = List.copyOf(groups);
     this.warnings = List.copyOf(warnings);
-    var unique = new java.util.LinkedHashMap<String, KnowledgeHitVO>();
-    for (var group : groups)
-      for (var hit : group.getHits()) unique.putIfAbsent(hit.evidenceKey(), hit);
+    var unique = new LinkedHashMap<String, KnowledgeHitVO>();
+    for (KnowledgeGroupVO group : groups) {
+      for (KnowledgeHitVO hit : group.getHits()) {
+        unique.putIfAbsent(hit.evidenceKey(), hit);
+      }
+    }
     this.hits = List.copyOf(unique.values());
     var missing =
         groups.stream()
@@ -93,44 +101,12 @@ public final class KnowledgeSearchResultVO {
                 : groups.stream()
                     .map(KnowledgeGroupVO::getMessage)
                     .distinct()
-                    .collect(java.util.stream.Collectors.joining("；"));
+                    .collect(Collectors.joining("；"));
     this.retrievalMode =
         groups.stream()
-            .flatMap(g -> java.util.Arrays.stream(g.getRetrievalMode().split("\\+")))
+            .flatMap(g -> Arrays.stream(g.getRetrievalMode().split("\\+")))
             .filter(mode -> !"NONE".equals(mode))
             .distinct()
-            .collect(java.util.stream.Collectors.joining("+"));
-  }
-
-  public List<KnowledgeGroupVO> getGroups() {
-    return groups;
-  }
-
-  public KnowledgeCoverageVO getCoverage() {
-    return coverage;
-  }
-
-  public List<String> getWarnings() {
-    return warnings;
-  }
-
-  public String getRetrievalMode() {
-    return retrievalMode;
-  }
-
-  public String getStatus() {
-    return status;
-  }
-
-  public KnowledgeIntentVO getIntent() {
-    return intent;
-  }
-
-  public String getMessage() {
-    return message;
-  }
-
-  public List<KnowledgeHitVO> getHits() {
-    return hits;
+            .collect(Collectors.joining("+"));
   }
 }

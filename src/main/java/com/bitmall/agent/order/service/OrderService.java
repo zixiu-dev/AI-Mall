@@ -9,54 +9,38 @@ import com.bitmall.agent.order.vo.OrderDetailVO;
 import com.bitmall.agent.order.vo.OrderSubmitVO;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.util.Optional;
+import com.bitmall.agent.order.dao.entity.OrderTraceDO;
 
 /** 页面与 Agent 共用的订单业务入口，负责查询、稳定 trace 提交和确认摘要；建单及支付关单事务委托给专门服务。 */
 @Service
+@RequiredArgsConstructor
 public class OrderService {
-  /** 后端确认凭证和稳定来源绑定。 */
-  private final OrderTraceService traceService;
-
-  /** 同步下单幂等提交入口。 */
-  private final OrderSubmissionService submissions;
-
-  /** 查询已提交的业务结果。 */
-  private final OrderTraceRepository traces;
-
-  /** JSON 业务回执恢复。 */
-  private final OrderSnapshotService snapshots;
-
-  /** 外层确认事务回滚后单独记录失败。 */
-  private final OrderTraceFailureService failures;
-
-  /** 依赖组件：订单交易的数据访问组件。 */
+  /** 查询订单列表。 */
   private final OrderRepository mapper;
 
-  /** 依赖组件：统一计算立即购买和购物车的结算报价。 */
+  /** 按下单参数试算结算报价（直接购买或购物车结算）。 */
   private final CheckoutService checkout;
 
-  /** 支付和取消的独立事务边界。 */
+  /** 取消订单。 */
   private final OrderLifecycleService lifecycle;
 
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public OrderService(
-      OrderRepository mapper,
-      CheckoutService checkout,
-      OrderLifecycleService lifecycle,
-      OrderTraceService traceService,
-      OrderSubmissionService submissions,
-      OrderTraceRepository traces,
-      OrderSnapshotService snapshots,
-      OrderTraceFailureService failures) {
-    this.mapper = mapper;
-    this.checkout = checkout;
-    this.lifecycle = lifecycle;
-    this.traceService = traceService;
-    this.submissions = submissions;
-    this.traces = traces;
-    this.snapshots = snapshots;
-    this.failures = failures;
-  }
+  /** 准备购买编号（trace），按来源键查找已有购买，查询购买进度。 */
+  private final OrderTraceService traceService;
+
+  /** 提交购买。 */
+  private final OrderSubmissionService submissions;
+
+  /** 按 traceId 或来源键直接查询 trace。 */
+  private final OrderTraceRepository traces;
+
+  /** 购买成功时，从 trace 保存的结果快照还原购买结果。 */
+  private final OrderSnapshotService snapshots;
+
+  /** 执行确认失败时，把对应购买记为失败。 */
+  private final OrderTraceFailureService failures;
 
   /** 查询当前用户最近订单，并限制列表规模。 */
   public List<OrderDetailVO> orders(long userId, int limit) {
@@ -93,9 +77,10 @@ public class OrderService {
 
   /** Agent 事务回滚之后记录失败；终态成功不会被覆盖。 */
   public void failAction(long userId, String actionId, String reason) {
-    var trace = traces.findOrigin("agent:" + actionId);
-    if (trace.isPresent() && trace.get().getUserId() == userId)
+    Optional<OrderTraceDO> trace = traces.findOrigin("agent:" + actionId);
+    if (trace.isPresent() && trace.get().getUserId() == userId) {
       failures.fail(trace.get().getTraceId(), "ACTION_FAILED", reason);
+    }
   }
 
   /** 用户可通过订单查询工具查看自己的异步进度。 */
@@ -105,10 +90,12 @@ public class OrderService {
 
   /** 恢复旧接口和工具约定的业务回执，未知结果保留原 trace 查询，不伪造订单号。 */
   private Map<String, Object> submissionResult(long userId, OrderSubmitVO progress) {
-    if ("SUCCESS".equals(progress.getStatus()))
+    if ("SUCCESS".equals(progress.getStatus())) {
       return snapshots.result(traces.find(progress.getTraceId()).orElseThrow().getResultJson());
-    if (!"PROCESSING".equals(progress.getStatus()))
+    }
+    if (!"PROCESSING".equals(progress.getStatus())) {
       throw new IllegalStateException(progress.getMessage());
+    }
     return Map.of(
         "success",
         true,

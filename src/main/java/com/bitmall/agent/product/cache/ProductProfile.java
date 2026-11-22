@@ -1,13 +1,19 @@
 package com.bitmall.agent.product.cache;
 
-import com.bitmall.agent.product.vo.*;
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import com.bitmall.agent.product.vo.ProductDetailVO;
+import com.bitmall.agent.product.vo.SkuVO;
 
 /** 缓存中一款商品的稳定资料；特意没有 SKU 价格和库存字段，不能意外写入旧交易值。 */
 public final class ProductProfile {
   public long id;
-  public String name, category, brand, summary, imageKey;
+  public String name;
+  public String category;
+  public String brand;
+  public String summary;
+  public String imageKey;
   public BigDecimal rating;
   public int salesCount;
   public Map<String, String> attributes;
@@ -16,7 +22,8 @@ public final class ProductProfile {
   /** 规格身份和属性，与本次展示报价独立。 */
   public static final class Variant {
     public long id;
-    public String skuCode, spec;
+    public String skuCode;
+    public String spec;
     public Map<String, String> attributes;
   }
 

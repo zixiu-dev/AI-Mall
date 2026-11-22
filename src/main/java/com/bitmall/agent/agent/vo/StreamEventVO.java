@@ -3,9 +3,14 @@ package com.bitmall.agent.agent.vo;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.Objects;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
 
 /** 发送给页面的 SSE 事件。 start 表示开始，delta 表示追加文字，工具事件显示进度，done 携带最终回复，error 表示本轮失败。 */
+@Getter
+@EqualsAndHashCode
+@ToString
 public final class StreamEventVO {
     /** 发送给页面的事件类型，例如 start、delta、tool_start、done、error。 */
     private final String type;
@@ -19,7 +24,6 @@ public final class StreamEventVO {
     /** 完成事件携带的完整助手回复。 */
     private final AgentReplyVO reply;
 
-    /** 使用完整字段创建对象，创建后通过 Getter 读取。 构造方法上的 JsonCreator 和参数上的 JsonProperty 明确指定 JSON 字段的对应关系。 */
     @JsonCreator
     public StreamEventVO(
             @JsonProperty("type") String type,
@@ -30,59 +34,6 @@ public final class StreamEventVO {
         this.conversationId = conversationId;
         this.content = content;
         this.reply = reply;
-    }
-
-    /** 获取发送给页面的事件类型，例如 start、delta、tool_start、done、error。 */
-    public String getType() {
-        return type;
-    }
-
-    /** 获取所属聊天会话编号，用于隔离不同会话的数据。 */
-    public String getConversationId() {
-        return conversationId;
-    }
-
-    /** 获取面向用户展示或写入会话的文本内容。 */
-    public String getContent() {
-        return content;
-    }
-
-    /** 获取完成事件携带的完整助手回复。 */
-    public AgentReplyVO getReply() {
-        return reply;
-    }
-
-    /** 按全部字段比较内容，便于查询结果和缓存结果进行一致性判断。 */
-    @Override
-    public boolean equals(Object other) {
-        if (this == other) return true;
-        if (other == null || getClass() != other.getClass()) return false;
-        StreamEventVO that = (StreamEventVO) other;
-        return Objects.equals(type, that.type)
-                && Objects.equals(conversationId, that.conversationId)
-                && Objects.equals(content, that.content)
-                && Objects.equals(reply, that.reply);
-    }
-
-    /** 与 equals 使用相同字段，保证放入集合后的比较规则一致。 */
-    @Override
-    public int hashCode() {
-        return Objects.hash(type, conversationId, content, reply);
-    }
-
-    /** 返回字段摘要，供日志和本地调试查看。 */
-    @Override
-    public String toString() {
-        return "StreamEventVO["
-                + "type="
-                + type
-                + ", conversationId="
-                + conversationId
-                + ", content="
-                + content
-                + ", reply="
-                + reply
-                + "]";
     }
 
     /** 创建会话开始事件，让页面知道这一轮归属哪个会话。 */

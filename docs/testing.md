@@ -1,6 +1,6 @@
 # 测试与压测：统一口径和结果
 
-当前商品缓存顺序变更见 [第 18 节](#18-商品详情先-bloom-后共享缓存2026-11-17)。框架版本验收先看 [Spring Boot 4 / Spring AI 2 验证](#17-spring-boot-4-与-spring-ai-2-迁移验证2026-11-17)。下方早期压测与改版记录按历史保留，不能替代当前版本的实测。
+最新可读性重构回归见 [2026-11-22 验证](#2026-11-22-可读性重构回归)。当前商品缓存顺序变更见 [第 18 节](#18-商品详情先-bloom-后共享缓存2026-11-17)。框架版本验收先看 [Spring Boot 4 / Spring AI 2 验证](#17-spring-boot-4-与-spring-ai-2-迁移验证2026-11-17)。下方早期压测与改版记录按历史保留，不能替代当前版本的实测。
 返回 [文档导航](README.md)。这是唯一的测试说明与压测报告；早期结果日期为 **2026-11-16，Asia/Shanghai**，第 13～15 节分别为 **2026-11-17** 的真实目录、品牌政策与 Agentic RAG 验证；第 16 节为迁移 Spring AI 前 PostgreSQL/pgvector 的 239 项验收，第 17 节为当前 Spring AI / Boot 4 的 242 项验收。第 1～9 节是较早版本的容量数据，第 10 节是延时关单验证，第 11 节是 Redisson 替换的正确性验证，第 12 节是本次商城前台浏览器验收；不能跨版本混用容量结论。
 
 [![压测事件计数与查询、受理、建单的测量边界](images/measurement-pipeline.png)](images/measurement-pipeline.svg)
@@ -23,7 +23,7 @@
 ## 2. 怎么运行回归
 
 ```bash
-mvn test
+mvn clean test
 ```
 
 需要 Java 17 / Maven 和已安装的 HotKey 依赖；部分集成测试启动独立临时 Redis，需要 PATH 中有 `redis-server`。部分测试支持 `REDIS_SERVER` 覆盖，AUTO 路由测试直接使用 PATH。
@@ -426,3 +426,28 @@ MQ 验证仅将本轮支付窗口设为 12 秒，默认仍 900 秒。恢复扫�
 隔离环境运行 `mvn -o -B package`，235 项通过、21 项按配置跳过。固定 ASYNC 的回归覆盖未预扣拒绝、原 trace 重试、已受理结果保持和期限不延长。
 
 真实 RocketMQ 5.3.2、MySQL 和交易 Redis 联调中，Broker 断线后新单返回 503，库存保持 8，无建单 Outbox。重启 Broker 后，原 trace 重试成功且只创建一笔订单，库存降为 6。测试进程停止，临时库已清理。 [OpenSpec 验证记录](../openspec/changes/archive/2026-11-19-fix-async-routing-and-dlq-timing/verification.md)
+
+
+## 2026-11-22 同步 Agent 循环与 SseEmitter
+
+在 Java 17、H2 demo 隔离库、脚本模型及本机模型 HTTP/SSE 替身下完成 55 项回归，另新增 1 项断连恢复测试通过，共 56 项。覆盖工具权限、确认卡、持久化与会话隔离、逐段输出、分片工具参数、超时、取消和有界线程池拒绝。首次沙箱的回环端口/JVM 附加权限限制在具备权限的本机测试进程中重验通过。
+
+[实际验证](../openspec/changes/archive/2026-11-22-refactor-agent-sse-loop/verification.md)记录命令、测试入口和边界。真实云模型与生产负载未在本轮测试；Spring AI SDK 流式协议适配与业务同步循环的职责见 [Agent 设计](agent-design.md#同步执行与-sse)。
+
+
+## 2026-11-22 Lombok 注入与依赖字段注释
+
+普通组件改用 `@RequiredArgsConstructor`，具名依赖和配置值通过注解复制保持装配。保留构造时初始化或校验的类，相关依赖字段也补中文职责说明。
+
+编译及测试编译通过，运行 33 个测试类的 241 项回归，失败和错误均为 0。覆盖 H2 与临时 Redis、缓存、交易、消息处理逻辑、Agent SSE 和 RAG。外部 MySQL/pgvector、真实模型用例明确排除，真实 Broker 本轮未连接。[本次验证记录](../openspec/changes/archive/2026-11-22-simplify-dependency-injection/verification.md)保存完整范围和命令。
+
+
+## 2026-11-22 可读性重构回归
+
+在上轮配置绑定与 Lombok 整理基础上，继续调整压力窗口、监控聚合、LEGACY 知识索引发布、段落切块、提示词和 Agent 主循环的命名、方法分工与中文说明。未改变功能契约，按重构约定不新增功能差异 Spec。
+
+修改前后分别执行 `mvn -o clean test`，结果一致。Surefire 共统计 **262 项，241 项通过，21 项跳过，0 失败、0 错误**。跳过项为未配置外部环境的 MySQL 9 项、pgvector 9 项及真实 RAG 模型 3 项。已运行测试使用 H2、本机临时真实 Redis、模型 HTTP/SSE 替身及 MQ 测试替身；本轮未验证真实 MySQL、pgvector、Broker、云模型或峰值容量。
+
+额外使用旧编译产物与当前实现对照，3888 组下单参数的持久化摘要、5000 步压力窗口操作/快照、508 组知识切块与标识符提取结果一致。下单摘要覆盖空值、金额小数位和明细顺序，没有读取线上数据。9 个相关类（含检索计划内部类）的公开 API 一致；提示词组装方法的字节码一致。这些临时对照不计入上面的 JUnit 项数。
+
+本机证据保存在 Git 忽略的 `.runtime/readability-refactor/`，包括 `baseline.log`、`final.log`、`summary.json`、`surefire-reports/`、`compatibility.log` 和 `public-api.log`。本轮未修改库存 Lua、交易事务边界、确认授权或下单状态契约。

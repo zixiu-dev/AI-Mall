@@ -13,18 +13,21 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/**
- * 定期探测实际订单 Topic 的发送能力，供异步受理读取本机快照。
- * 消费积压由订单监控单独采样。
- */
+/** 定期探测实际订单 Topic 的发送能力，供异步受理读取本机快照。 消费积压由订单监控单独采样。 */
 @Component
 @ConditionalOnProperty(name = "app.order-messaging.enabled", havingValue = "true")
 public class BrokerHealthChecker {
   private static final Logger log = LoggerFactory.getLogger(BrokerHealthChecker.class);
 
+  /** 同步发送探针消息，检查 Broker 能否正常接收。 */
   private final RocketMQTemplate rocketMQTemplate;
+
+  /** 读取订单消息 Topic，向它发送健康探针。 */
   private final OrderMessagingProperties messagingProperties;
+
+  /** 暴露 Broker 健康状态指标，统计探针失败和恢复次数。 */
   private final MeterRegistry registry;
+
   private final AtomicBoolean healthy = new AtomicBoolean(false);
   private final AtomicLong lastSuccessTime = new AtomicLong();
   private final AtomicLong consecutiveFailures = new AtomicLong(0);

@@ -42,6 +42,12 @@
     </dependencyManagement>
 
     <dependencies>
+        <!-- 编译期生成构造器，字段职责仍使用中文注释明确说明。 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
         <!-- 使用 Spring AI 核心客户端，显式配置模型和工具生命周期，避免自动配置覆盖现有网关。 -->
         <dependency><groupId>org.springframework.ai</groupId><artifactId>spring-ai-openai</artifactId></dependency>
         <dependency><groupId>org.springframework.ai</groupId><artifactId>spring-ai-client-chat</artifactId></dependency>

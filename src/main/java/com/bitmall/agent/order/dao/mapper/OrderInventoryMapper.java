@@ -1,7 +1,8 @@
 package com.bitmall.agent.order.dao.mapper;
 
-import java.util.*;
 import org.apache.ibatis.annotations.Mapper;
+import java.util.List;
+import java.util.Map;
 
 /** 交易库存池初始化、预占意图及关单返还任务的数据库映射。 */
 @Mapper

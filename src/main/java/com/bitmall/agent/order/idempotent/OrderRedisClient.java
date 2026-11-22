@@ -15,7 +15,7 @@ public class OrderRedisClient implements DisposableBean {
   /** 仅用于库存、预占和消费去重的连接工厂。 */
   private final LettuceConnectionFactory factory;
 
-  /** 独立字符串模板，不注册为全局 StringRedisTemplate Bean。 */
+  /** 读写交易 Redis 的消息去重标记，并执行相关原子操作。 */
   private final StringRedisTemplate template;
 
   /** 创建客户端对象；实际命令执行前不会要求 Redis 必须可用。 */
@@ -23,7 +23,9 @@ public class OrderRedisClient implements DisposableBean {
     var config =
         new RedisStandaloneConfiguration(properties.getRedisHost(), properties.getRedisPort());
     config.setDatabase(properties.getRedisDatabase());
-    if (!properties.getRedisPassword().isBlank()) config.setPassword(properties.getRedisPassword());
+    if (!properties.getRedisPassword().isBlank()) {
+      config.setPassword(properties.getRedisPassword());
+    }
     factory =
         new LettuceConnectionFactory(
             config,

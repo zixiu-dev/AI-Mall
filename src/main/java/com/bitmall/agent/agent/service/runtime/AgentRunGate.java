@@ -13,7 +13,9 @@ public class AgentRunGate {
 
     /** 尝试登记会话正在处理；已登记则拒绝并发，成功后返回释放句柄。 */
     public Lease acquire(String conversationId) {
-        if (!running.add(conversationId)) throw new IllegalStateException("当前会话正在处理中，请稍后再试");
+        if (!running.add(conversationId)) {
+            throw new IllegalStateException("当前会话正在处理中，请稍后再试");
+        }
         return () -> running.remove(conversationId);
     }
 

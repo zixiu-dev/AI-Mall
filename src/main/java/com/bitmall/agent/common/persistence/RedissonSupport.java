@@ -10,6 +10,7 @@ import org.redisson.api.RScript;
 import org.redisson.client.codec.StringCodec;
 import org.redisson.config.Config;
 import org.springframework.core.io.ClassPathResource;
+import org.redisson.config.SingleServerConfig;
 
 /** Redisson 连接和原子脚本的公共适配；字符串编码保持与既有库存键兼容，不重写交易状态。 */
 public final class RedissonSupport {
@@ -21,11 +22,13 @@ public final class RedissonSupport {
     Config config = new Config();
     config.setLazyInitialization(true).setThreads(2).setNettyThreads(2);
     config.setCodec(StringCodec.INSTANCE);
-    var server = config.useSingleServer().setAddress("redis://" + host + ":" + port)
+    SingleServerConfig server = config.useSingleServer().setAddress("redis://" + host + ":" + port)
         .setDatabase(database).setConnectionPoolSize(16).setConnectionMinimumIdleSize(1)
         .setSubscriptionConnectionPoolSize(4).setSubscriptionConnectionMinimumIdleSize(1)
         .setConnectTimeout(connectTimeout).setTimeout(commandTimeout).setRetryAttempts(0);
-    if (password != null && !password.isBlank()) server.setPassword(password);
+    if (password != null && !password.isBlank()) {
+      server.setPassword(password);
+    }
     return Redisson.create(config);
   }
 

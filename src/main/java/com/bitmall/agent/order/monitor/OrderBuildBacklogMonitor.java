@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import java.sql.Timestamp;
 
 /** 只读采样异步购买及库存整理，使用同一份快照发布指标和管理端聚合信息。 */
 @Component
@@ -20,7 +21,9 @@ public final class OrderBuildBacklogMonitor {
       List.of("processing", "confirm_pending", "release_pending");
   private static final long FRESHNESS_SECONDS = 30;
 
+  /** 按阶段统计异步建单积压（数量和最长等待时间）。 */
   private final OrderTraceRepository traces;
+
   private volatile Snapshot snapshot = new Snapshot(0, Map.of());
 
   public OrderBuildBacklogMonitor(OrderTraceRepository traces, MeterRegistry registry) {
@@ -37,7 +40,9 @@ public final class OrderBuildBacklogMonitor {
           .register(registry);
     }
     Gauge.builder(
-            "mall.order.build.sample.timestamp.seconds", this, monitor -> monitor.snapshot.sampledAt)
+            "mall.order.build.sample.timestamp.seconds",
+            this,
+            monitor -> monitor.snapshot.sampledAt)
         .register(registry);
   }
 
@@ -45,14 +50,15 @@ public final class OrderBuildBacklogMonitor {
   @Scheduled(fixedDelay = 10000)
   public void sample() {
     try {
-      var rows = traces.asyncBuildBacklog();
+      List<Map<String, Object>> rows = traces.asyncBuildBacklog();
       LocalDateTime now = LocalDateTime.now();
       Map<String, Map<String, Long>> stages = new LinkedHashMap<>();
-      for (var row : rows) {
-        var oldest = RowValues.timestamp(row, "oldest");
-        long age = oldest == null
-            ? 0
-            : Math.max(0, Duration.between(oldest.toLocalDateTime(), now).getSeconds());
+      for (Map<String, Object> row : rows) {
+        Timestamp oldest = RowValues.timestamp(row, "oldest");
+        long age =
+            oldest == null
+                ? 0
+                : Math.max(0, Duration.between(oldest.toLocalDateTime(), now).getSeconds());
         stages.put(
             RowValues.string(row, "stage"),
             Map.of("pending", RowValues.longValue(row, "pending"), "oldestWaitSeconds", age));
@@ -67,13 +73,14 @@ public final class OrderBuildBacklogMonitor {
     Snapshot current = snapshot;
     return Map.of(
         "sampledAtEpochSeconds", current.sampledAt,
-        "fresh", current.sampledAt > 0
-            && Instant.now().getEpochSecond() - current.sampledAt < FRESHNESS_SECONDS,
+        "fresh",
+            current.sampledAt > 0
+                && Instant.now().getEpochSecond() - current.sampledAt < FRESHNESS_SECONDS,
         "stages", current.stages);
   }
 
   private double measure(String stage, String field) {
-    var values = snapshot.stages.get(stage);
+    Map<String, Long> values = snapshot.stages.get(stage);
     return values == null ? Double.NaN : values.get(field).doubleValue();
   }
 

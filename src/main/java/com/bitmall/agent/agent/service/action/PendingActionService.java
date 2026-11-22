@@ -14,24 +14,29 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.SerializationFeature;
+import com.bitmall.agent.agent.service.tool.support.ToolArguments;
+import com.bitmall.agent.order.service.OrderService;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.TreeMap;
 
 /** 管理待确认操作。 生成稳定操作编号和参数摘要、保存确认卡数据、核对参数完整性，并协调执行成功或失败的状态更新。 */
 @Service
 public class PendingActionService {
-  /** 订单提议阶段冻结购买内容，确认时复用后端生成的 trace。 */
-  private final com.bitmall.agent.order.service.OrderService orders;
+  /** 创建下单确认卡时，同时冻结这次购买的快照（来源键为 agent:<确认卡ID>）；确认前不扣库存。 */
+  private final OrderService orders;
 
-  /** 依赖组件：待确认操作表的数据访问组件。 */
+  /** 读写确认卡及冻结参数，按当前状态更新批准、取消或执行结果。 */
   private final PendingActionRepository mapper;
 
-  /** 专门用于稳定参数表示的 JSON 转换器，固定 Map 键顺序以计算幂等键和摘要。 */
+  /** 在注入的 ObjectMapper 基础上开启按键排序，把操作参数序列化成稳定 JSON，用于计算参数摘要、确认时校验参数未被篡改。 */
   private final ObjectMapper canonicalMapper;
 
   /** 保存数据访问组件，并复制 JSON 配置以固定参数键顺序，为后续幂等计算做准备。 */
   public PendingActionService(
       PendingActionRepository mapper,
       ObjectMapper objectMapper,
-      com.bitmall.agent.order.service.OrderService orders) {
+      OrderService orders) {
     this.mapper = mapper;
     this.orders = orders;
     this.canonicalMapper =
@@ -68,11 +73,12 @@ public class PendingActionService {
             LocalDateTime.now());
     // 这里只保存“准备执行什么”；用户点击确认后才会触发真正业务。
     mapper.insert(action);
-    if ("order_create".equals(tool.getName()))
+    if ("order_create".equals(tool.getName())) {
       orders.prepareAction(
           context.getUserId(),
-          com.bitmall.agent.agent.service.tool.support.ToolArguments.orderCommand(arguments),
+          ToolArguments.orderCommand(arguments),
           id);
+    }
     return mapper.find(id, context.getUserId()).orElseThrow();
   }
 
@@ -80,8 +86,9 @@ public class PendingActionService {
   @Transactional
   public PendingActionDO decide(String id, long userId, boolean approved) {
     PendingActionDO action = find(id, userId);
-    if (approved && !action.getArgumentsHash().equals(sha256(canonical(action.getArguments()))))
+    if (approved && !action.getArgumentsHash().equals(sha256(canonical(action.getArguments())))) {
       throw new IllegalStateException("确认参数完整性校验失败，请重新发起操作");
+    }
     return mapper.decide(id, userId, approved);
   }
 
@@ -118,14 +125,17 @@ public class PendingActionService {
   // 因此先统一数字和键顺序，再计算摘要，避免同一业务参数校验失败。
   /** 递归排序 Map 键并统一数字表示，让 4999.00 与 4999.0 得到相同业务摘要。 */
   private Object normalize(Object value) {
-    if (value instanceof Number n)
-      return new java.math.BigDecimal(n.toString()).stripTrailingZeros();
+    if (value instanceof Number n) {
+      return new BigDecimal(n.toString()).stripTrailingZeros();
+    }
     if (value instanceof Map<?, ?> map) {
-      Map<String, Object> sorted = new java.util.TreeMap<>();
+      Map<String, Object> sorted = new TreeMap<>();
       map.forEach((key, item) -> sorted.put(key.toString(), normalize(item)));
       return sorted;
     }
-    if (value instanceof java.util.List<?> list) return list.stream().map(this::normalize).toList();
+    if (value instanceof List<?> list) {
+      return list.stream().map(this::normalize).toList();
+    }
     return value;
   }
 

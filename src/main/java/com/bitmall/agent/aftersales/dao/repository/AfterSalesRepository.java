@@ -5,18 +5,19 @@ import com.bitmall.agent.aftersales.vo.AfterSalesVO;
 import com.bitmall.agent.common.persistence.RowValues;
 import java.math.BigDecimal;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /** 售后表的数据访问组件。 只负责按用户、订单或售后编号读写 after_sales，资格和退款金额由 AfterSalesService 决定。 */
 @Repository
+@RequiredArgsConstructor
 public class AfterSalesRepository {
-  /** 执行带绑定参数的 MyBatis-Plus Mapper；SQL 位于对应 XML。 */
+  /** 售后申请的 SQL，定义在 mapper/aftersales/AfterSalesMapper.xml。 */
   private final AfterSalesMapper mapper;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public AfterSalesRepository(AfterSalesMapper mapper) {
-    this.mapper = mapper;
-  }
 
   /** 按用户编号和售后单号查询，确保只能读取自己的申请。 */
   public Optional<AfterSalesVO> findAfterSales(long userId, String afterSalesId) {
@@ -32,7 +33,7 @@ public class AfterSalesRepository {
                         RowValues.string(row, "status"),
                         RowValues.decimal(row, "refund_amount"),
                         RowValues.timestamp(row, "created_at").toLocalDateTime()))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new)));
+            .collect(Collectors.toCollection(ArrayList::new)));
   }
 
   /** 按当前用户和订单号查询最近一笔售后申请。 */
@@ -49,7 +50,7 @@ public class AfterSalesRepository {
                         RowValues.string(row, "status"),
                         RowValues.decimal(row, "refund_amount"),
                         RowValues.timestamp(row, "created_at").toLocalDateTime()))
-            .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new)));
+            .collect(Collectors.toCollection(ArrayList::new)));
   }
 
   /** 把已经由服务层核对过的售后参数插入数据库，初始状态为审核中。 */
@@ -73,9 +74,11 @@ public class AfterSalesRepository {
   }
 
   /** 参数按原类型绑定，允许可选字段为 null。 */
-  private static java.util.Map<String, Object> parameters(Object... pairs) {
-    java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-    for (int i = 0; i < pairs.length; i += 2) values.put((String) pairs[i], pairs[i + 1]);
+  private static Map<String, Object> parameters(Object... pairs) {
+    Map<String, Object> values = new LinkedHashMap<>();
+    for (int i = 0; i < pairs.length; i += 2) {
+      values.put((String) pairs[i], pairs[i + 1]);
+    }
     return values;
   }
 }

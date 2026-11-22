@@ -5,19 +5,18 @@ import com.bitmall.agent.common.persistence.RowValues;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /** 版本化 Agent 消息状态的数据访问组件。 按用户、会话和状态键保存 JSON 字符串，不依赖模型框架类型，序列化由上层适配器完成。 */
 @Repository
+@RequiredArgsConstructor
 public class AgentStateRepository {
-  /** 执行带绑定参数的 MyBatis-Plus Mapper；SQL 位于对应 XML。 */
+  /** 模型上下文状态的 SQL，定义在 mapper/agent/AgentStateMapper.xml。 */
   private final AgentStateMapper mapper;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public AgentStateRepository(AgentStateMapper mapper) {
-    this.mapper = mapper;
-  }
 
   /** 先更新已有状态，不存在再插入；并发创建同一状态时重新更新。 */
   public void put(String user, String session, String key, String payload) {
@@ -67,9 +66,11 @@ public class AgentStateRepository {
   }
 
   /** 参数按原类型绑定，允许可选字段为 null。 */
-  private static java.util.Map<String, Object> parameters(Object... pairs) {
-    java.util.Map<String, Object> values = new java.util.LinkedHashMap<>();
-    for (int i = 0; i < pairs.length; i += 2) values.put((String) pairs[i], pairs[i + 1]);
+  private static Map<String, Object> parameters(Object... pairs) {
+    Map<String, Object> values = new LinkedHashMap<>();
+    for (int i = 0; i < pairs.length; i += 2) {
+      values.put((String) pairs[i], pairs[i + 1]);
+    }
     return values;
   }
 }

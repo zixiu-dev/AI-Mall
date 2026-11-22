@@ -1,11 +1,13 @@
 package com.bitmall.agent.order.mq.message;
 
+import lombok.Getter;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /** 在 MQ 中传输的订单事件。只包含事件编号、订单编号、用户、金额和发生时间，不传收货地址、手机号或模型上下文。 */
+@Getter
 public final class OrderEventMessage {
   /** 待支付订单已经创建，不代表支付完成。 */
   public static final String CREATED = "ORDER_CREATED";
@@ -62,35 +64,5 @@ public final class OrderEventMessage {
     this.userId = userId;
     this.payAmount = payAmount;
     this.occurredAt = occurredAt;
-  }
-
-  /** 获取幂等事件编号。 */
-  public String getEventId() {
-    return eventId;
-  }
-
-  /** 获取事件类型。 */
-  public String getEventType() {
-    return eventType;
-  }
-
-  /** 获取订单编号。 */
-  public String getOrderId() {
-    return orderId;
-  }
-
-  /** 获取所属用户编号。 */
-  public long getUserId() {
-    return userId;
-  }
-
-  /** 获取订单金额。 */
-  public BigDecimal getPayAmount() {
-    return payAmount;
-  }
-
-  /** 获取事件生成时间。 */
-  public LocalDateTime getOccurredAt() {
-    return occurredAt;
   }
 }

@@ -1,7 +1,15 @@
 package com.bitmall.agent.order.monitor;
 
 import com.bitmall.agent.order.dao.repository.OrderTraceRepository;
-import java.util.*;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.boot.actuate.endpoint.annotation.*;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -11,21 +19,21 @@ import org.springframework.stereotype.Component;
 @Endpoint(id = "ordermonitor")
 public class OrderMonitorEndpoint {
   /** 最近采样的持久化在途任务数。 */
-  private final java.util.concurrent.atomic.AtomicLong pending =
-      new java.util.concurrent.atomic.AtomicLong();
+  private final AtomicLong pending = new AtomicLong();
 
   /** 最近采样时最老任务的等待秒数。 */
-  private final java.util.concurrent.atomic.AtomicLong oldestAge =
-      new java.util.concurrent.atomic.AtomicLong();
+  private final AtomicLong oldestAge = new AtomicLong();
 
-  /** 入口计数和并发信息。 */
+  /** 读取下单指标快照。 */
   private final OrderMetrics metrics;
 
+  /** 读取自动路由的当前状态。 */
   private final OrderPressureRouter routing;
 
+  /** 采样未完成建单任务数量和最长等待时间，供排查积压与告警。 */
   private final OrderBuildBacklogMonitor buildBacklog;
 
-  /** 定期读取持久化积压。 */
+  /** 读取异步建单积压。 */
   private final OrderTraceRepository traces;
 
   /** 最近一次业务采样，失败时保留上次结果。 */
@@ -35,20 +43,15 @@ public class OrderMonitorEndpoint {
   public OrderMonitorEndpoint(
       OrderMetrics metrics,
       OrderTraceRepository traces,
-      io.micrometer.core.instrument.MeterRegistry registry,
+      MeterRegistry registry,
       OrderPressureRouter routing,
       OrderBuildBacklogMonitor buildBacklog) {
     this.routing = routing;
     this.metrics = metrics;
     this.traces = traces;
     this.buildBacklog = buildBacklog;
-    io.micrometer.core.instrument.Gauge.builder(
-            "mall.order.pending", pending, java.util.concurrent.atomic.AtomicLong::get)
-        .register(registry);
-    io.micrometer.core.instrument.Gauge.builder(
-            "mall.order.oldest.pending.seconds",
-            oldestAge,
-            java.util.concurrent.atomic.AtomicLong::get)
+    Gauge.builder("mall.order.pending", pending, AtomicLong::get).register(registry);
+    Gauge.builder("mall.order.oldest.pending.seconds", oldestAge, AtomicLong::get)
         .register(registry);
   }
 
@@ -57,26 +60,40 @@ public class OrderMonitorEndpoint {
   public void sample() {
     try {
       backlog = Collections.unmodifiableMap(new LinkedHashMap<>(traces.backlog()));
-      Object count = backlog.get("pending"), oldest = backlog.get("oldest");
-      pending.set(count instanceof Number n ? n.longValue() : 0);
-      java.time.LocalDateTime time =
-          oldest instanceof java.sql.Timestamp t
-              ? t.toLocalDateTime()
-              : oldest instanceof java.time.LocalDateTime t ? t : null;
-      oldestAge.set(
-          time == null
-              ? 0
-              : Math.max(
-                  0, java.time.Duration.between(time, java.time.LocalDateTime.now()).getSeconds()));
+      updateBacklogGauges();
     } catch (RuntimeException ignored) {
       /* 数据源恢复后再采样。 */
     }
   }
 
+  /** 适配 JDBC 聚合值的数值及时间类型，更新积压数量和最老等待秒数。 */
+  private void updateBacklogGauges() {
+    Object pendingCount = backlog.get("pending");
+    pending.set(pendingCount instanceof Number count ? count.longValue() : 0);
+
+    LocalDateTime oldestCreatedAt = pendingCreatedAt(backlog.get("oldest"));
+    long waitingSeconds =
+        oldestCreatedAt == null
+            ? 0
+            : Math.max(0, Duration.between(oldestCreatedAt, LocalDateTime.now()).getSeconds());
+    oldestAge.set(waitingSeconds);
+  }
+
+  /** 数据库驱动可能返回 Timestamp 或 LocalDateTime；缺少有效时间时不计算等待年龄。 */
+  private static LocalDateTime pendingCreatedAt(Object oldest) {
+    if (oldest instanceof Timestamp timestamp) {
+      return timestamp.toLocalDateTime();
+    }
+    if (oldest instanceof LocalDateTime createdAt) {
+      return createdAt;
+    }
+    return null;
+  }
+
   /** 管理端口提供只读监控信息，不暴露用户与 trace 明细。 */
   @ReadOperation
   public Map<String, Object> status() {
-    var result = new LinkedHashMap<>(metrics.snapshot());
+    Map<String, Object> result = new LinkedHashMap<>(metrics.snapshot());
     result.put("backlog", backlog);
     result.put("asyncBuild", buildBacklog.status());
     result.put("routing", routing.status());

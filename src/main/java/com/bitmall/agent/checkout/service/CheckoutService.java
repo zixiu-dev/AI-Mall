@@ -13,10 +13,12 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /** 统一计算立即购买和购物车的结算报价。 直接读取数据库中的库存、地址和用户券，核对使用条件后计算商品金额、优惠、运费和实付金额。 */
 @Service
+@RequiredArgsConstructor
 public class CheckoutService {
   /** 免基础运费的商品金额门槛，按优惠后的商品金额判断。 */
   private static final BigDecimal FREE_SHIPPING_THRESHOLD = new BigDecimal("99.00");
@@ -24,29 +26,17 @@ public class CheckoutService {
   /** 未达到免运费门槛时收取的基础运费。 */
   private static final BigDecimal FREIGHT = new BigDecimal("8.00");
 
-  /** 依赖组件：商品和规格的基础数据访问组件。 */
+  /** 读取 SKU 当前价格和库存，确认商品在售。 */
   private final ProductRepository products;
 
-  /** 依赖组件：购物车表的数据访问组件。 */
+  /** 购物车结算时读取用户的购物车条目。 */
   private final CartRepository carts;
 
-  /** 依赖组件：收货地址的数据访问组件。 */
+  /** 查询当前用户的收货地址，核对结算地址归属。 */
   private final AddressRepository addresses;
 
-  /** 依赖组件：优惠券活动和用户券的数据访问组件。 */
+  /** 读取用户选择的优惠券，校验归属和是否可用。 */
   private final CouponRepository coupons;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public CheckoutService(
-      ProductRepository products,
-      CartRepository carts,
-      AddressRepository addresses,
-      CouponRepository coupons) {
-    this.products = products;
-    this.carts = carts;
-    this.addresses = addresses;
-    this.coupons = coupons;
-  }
 
   /** 立即购买试算：直接读取所选规格的当前库存和价格，再交给统一报价逻辑。 */
   public CheckoutQuoteVO checkoutQuote(long userId, long skuId, int quantity, Long addressId) {
@@ -68,7 +58,9 @@ public class CheckoutService {
   public CheckoutQuoteVO cartCheckoutQuote(long userId, Long addressId, Long userCouponId) {
     List<CartItemVO> selected =
         carts.listCart(userId).stream().filter(CartItemVO::isSelected).toList();
-    if (selected.isEmpty()) throw new IllegalStateException("请先选择需要结算的购物车商品");
+    if (selected.isEmpty()) {
+      throw new IllegalStateException("请先选择需要结算的购物车商品");
+    }
     return quote(userId, selected, addressId, userCouponId, "CART");
   }
 
@@ -131,6 +123,8 @@ public class CheckoutService {
 
   /** 限制单项数量，防止非法或过大数量进入报价。 */
   private static void validateQuantity(int quantity) {
-    if (quantity < 1 || quantity > 20) throw new IllegalArgumentException("购买数量必须在 1 到 20 之间");
+    if (quantity < 1 || quantity > 20) {
+      throw new IllegalArgumentException("购买数量必须在 1 到 20 之间");
+    }
   }
 }

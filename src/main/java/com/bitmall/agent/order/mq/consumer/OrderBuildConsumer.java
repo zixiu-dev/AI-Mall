@@ -2,6 +2,7 @@ package com.bitmall.agent.order.mq.consumer;
 
 import com.bitmall.agent.order.service.OrderBuildCommandService;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,15 +19,15 @@ import tools.jackson.databind.ObjectMapper;
     consumeThreadNumber = 2,
     consumeThreadMax = 4,
     maxReconsumeTimes = OrderBuildConsumer.MAX_RETRIES)
+@RequiredArgsConstructor
 public class OrderBuildConsumer implements RocketMQListener<String> {
   static final int MAX_RETRIES = 5;
-  private final ObjectMapper json;
-  private final OrderBuildCommandService commands;
 
-  public OrderBuildConsumer(ObjectMapper json, OrderBuildCommandService commands) {
-    this.json = json;
-    this.commands = commands;
-  }
+  /** 解析建单消息正文。 */
+  private final ObjectMapper json;
+
+  /** 接收建单消息，调用建单事务并在回滚后记录业务失败。 */
+  private final OrderBuildCommandService commands;
 
   @Override
   public void onMessage(String payload) {

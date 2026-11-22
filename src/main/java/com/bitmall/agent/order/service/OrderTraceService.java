@@ -8,46 +8,40 @@ import com.bitmall.agent.order.model.CreateOrderCommand;
 import com.bitmall.agent.order.vo.OrderSubmitVO;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import com.bitmall.agent.checkout.vo.CheckoutQuoteVO;
+import java.util.Optional;
 
 /** 后端发号、保存购买快照和返回进度。生成编号不会预扣库存，同参数的新购买可生成新的 trace。 */
 @Service
+@RequiredArgsConstructor
 public class OrderTraceService {
-  /** trace 持久化组件。 */
+  /** 查找已有 trace（按 traceId 或来源键），写入新 trace。 */
   private final OrderTraceRepository traces;
 
-  /** 后端报价和 JSON 快照工具。 */
+  /** 生成、读取购买快照并计算摘要。 */
   private final OrderSnapshotService snapshots;
 
-  /** 未提交凭证的有效期配置。 */
+  /** 读取购买编号（trace）的有效期。 */
   private final OrderProcessingProperties properties;
 
-  /** 只由后端配置选择执行路径。 */
+  /** 为新购买确定初始执行模式。 */
   private final OrderSubmissionPolicy policy;
-
-  /** 注入发号前需要的业务组件。 */
-  public OrderTraceService(
-      OrderTraceRepository traces,
-      OrderSnapshotService snapshots,
-      OrderProcessingProperties properties,
-      OrderSubmissionPolicy policy) {
-    this.traces = traces;
-    this.snapshots = snapshots;
-    this.properties = properties;
-    this.policy = policy;
-  }
 
   /** 准备确认；origin 只由后端给 Agent 操作绑定，前端无权指定其他来源编号。 */
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   @Idempotent(scene = "ORDER_PREPARE")
   public OrderSubmitVO prepare(long user, CreateOrderCommand command, String origin) {
     if (origin != null) {
-      var old = traces.findOrigin(origin);
-      if (old.isPresent()) return view(owned(old.get(), user));
+      Optional<OrderTraceDO> old = traces.findOrigin(origin);
+      if (old.isPresent()) {
+        return view(owned(old.get(), user));
+      }
     }
-    var quote = snapshots.prepare(user, command);
+    CheckoutQuoteVO quote = snapshots.prepare(user, command);
     String payload = snapshots.write(quote), id = UUID.randomUUID().toString();
     traces.insert(
         id,
@@ -77,7 +71,9 @@ public class OrderTraceService {
 
   /** 用户检查必须在任何结果返回前完成。 */
   public OrderTraceDO owned(OrderTraceDO trace, long user) {
-    if (trace.getUserId() != user) throw new IllegalArgumentException("下单任务不存在或不属于当前用户");
+    if (trace.getUserId() != user) {
+      throw new IllegalArgumentException("下单任务不存在或不属于当前用户");
+    }
     return trace;
   }
 

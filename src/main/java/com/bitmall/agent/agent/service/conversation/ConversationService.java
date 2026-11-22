@@ -6,19 +6,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 会话身份和消息访问的业务入口。 负责生成会话编号、检查用户归属、保存和读取消息；页面查历史也必须经过这里。 */
 @Service
+@RequiredArgsConstructor
 public class ConversationService {
-  /** 依赖组件：会话和消息表的数据访问组件。 */
+  /** 会话和消息的读写：创建会话、校验归属、保存消息、读取最近消息和摘要。 */
   private final ConversationRepository mapper;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public ConversationService(ConversationRepository mapper) {
-    this.mapper = mapper;
-  }
 
   /** 缺少编号时创建会话；已有编号必须核对所属用户，标题从首条消息截取。 */
   public String ensure(String requestedId, long userId, String firstMessage) {
@@ -30,8 +27,12 @@ public class ConversationService {
         firstMessage == null || firstMessage.isBlank()
             ? "新会话"
             : firstMessage.substring(0, Math.min(30, firstMessage.length()));
-    if (!mapper.exists(id)) mapper.insert(id, userId, title);
-    if (!mapper.belongsTo(id, userId)) throw new IllegalArgumentException("会话不存在或不属于当前用户");
+    if (!mapper.exists(id)) {
+      mapper.insert(id, userId, title);
+    }
+    if (!mapper.belongsTo(id, userId)) {
+      throw new IllegalArgumentException("会话不存在或不属于当前用户");
+    }
     return id;
   }
 

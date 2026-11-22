@@ -257,6 +257,48 @@ class AgentFlowIntegrationTest {
         .andExpect(content().string(containsString("event:done")));
   }
 
+  @Autowired
+  @org.springframework.beans.factory.annotation.Qualifier("agentChatExecutor")
+  org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor chatExecutor;
+
+  /** 占满执行线程与队列后，请求得到明确 SSE 错误，且没有开始新的聊天。 */
+  @Test
+  void saturatedChatExecutorReturnsSseError() throws Exception {
+    var release = new java.util.concurrent.CountDownLatch(1);
+    var started = new java.util.concurrent.CountDownLatch(16);
+    try {
+      for (int i = 0; i < 48; i++) {
+        chatExecutor.execute(
+            () -> {
+              started.countDown();
+              try {
+                release.await();
+              } catch (InterruptedException stopped) {
+                Thread.currentThread().interrupt();
+              }
+            });
+      }
+      assertThat(started.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+      MvcResult streaming =
+          mockMvc
+              .perform(
+                  post("/api/agent/chat/stream")
+                      .contentType(MediaType.APPLICATION_JSON)
+                      .accept(MediaType.TEXT_EVENT_STREAM)
+                      .content("{\"userId\":10001,\"message\":\"推荐电脑\"}"))
+              .andExpect(request().asyncStarted())
+              .andReturn();
+      mockMvc
+          .perform(asyncDispatch(streaming))
+          .andExpect(status().isOk())
+          .andExpect(content().string(containsString("event:error")))
+          .andExpect(result -> assertThat(result.getResponse().getContentAsString(
+              java.nio.charset.StandardCharsets.UTF_8)).contains("聊天请求较多"));
+    } finally {
+      release.countDown();
+    }
+  }
+
   /** 通过页面接口依次领券、试算、建单和取消，核对优惠金额及券状态。 */
   @Test
   void manualCouponCheckoutAndCancellationFormACompleteCommerceLoop() throws Exception {

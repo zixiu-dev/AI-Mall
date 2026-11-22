@@ -4,34 +4,41 @@ import com.bitmall.agent.common.config.AiModelEndpoints;
 import com.bitmall.agent.knowledge.config.KnowledgeProperties;
 import com.bitmall.agent.knowledge.model.KnowledgeVectors;
 import java.time.Duration;
-import java.util.*;
-import org.springframework.ai.embedding.*;
-import org.springframework.ai.openai.*;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import java.util.Arrays;
+import org.springframework.ai.embedding.Embedding;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
+import java.util.List;
+import org.springframework.ai.openai.OpenAiEmbeddingModel;
+import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 
 /** Spring AI EmbeddingModel 适配器。验证模型身份、响应顺序和向量维度后，才允许进入版本化索引。 */
 @Component
+@RequiredArgsConstructor
 public class SpringAiEmbeddingClient implements EmbeddingClient {
+  /** 读取知识检索、embedding 模型及检索并发预算等配置。 */
   private final KnowledgeProperties properties;
-  private volatile EmbeddingModel model;
 
-  public SpringAiEmbeddingClient(KnowledgeProperties properties) {
-    this.properties = properties;
-  }
+  private volatile EmbeddingModel model;
 
   /** 懒初始化确保 KEYWORD 模式无需模型凭据；连接复用，调用超时使用本次检索剩余预算。 */
   private EmbeddingModel model() {
-    if (model == null)
+    if (model == null) {
       synchronized (this) {
         if (model == null) {
           if (properties.getEmbeddingBaseUrl().isBlank()
               || properties.getEmbeddingModel().isBlank()
               || properties.getEmbeddingVersion().isBlank()
-              || properties.getEmbeddingDimension() < 1)
+              || properties.getEmbeddingDimension() < 1) {
             throw new IllegalStateException("真实 embedding 配置缺失：请设置地址、模型、版本和维度");
+          }
           model = new OpenAiEmbeddingModel(options(Duration.ofSeconds(8)));
         }
       }
+    }
     return model;
   }
 
@@ -55,22 +62,29 @@ public class SpringAiEmbeddingClient implements EmbeddingClient {
   @Override
   public List<double[]> embed(List<String> texts, long deadlineNanos) {
     long remaining = deadlineNanos - System.nanoTime();
-    if (remaining <= 0) throw new IllegalStateException("embedding 截止时间已到");
+    if (remaining <= 0) {
+      throw new IllegalStateException("embedding 截止时间已到");
+    }
     try {
       EmbeddingResponse response =
           model().call(new EmbeddingRequest(texts, options(Duration.ofNanos(remaining))));
-      if (!properties.getEmbeddingModel().equals(response.getMetadata().getModel()))
+      if (!properties.getEmbeddingModel().equals(response.getMetadata().getModel())) {
         throw new IllegalStateException("embedding 响应模型身份不一致");
-      if (response.getResults().size() != texts.size())
+      }
+      if (response.getResults().size() != texts.size()) {
         throw new IllegalStateException("embedding 响应数量不符");
+      }
       double[][] vectors = new double[texts.size()][];
       for (Embedding item : response.getResults()) {
         int index = item.getIndex();
-        if (index < 0 || index >= vectors.length || vectors[index] != null)
+        if (index < 0 || index >= vectors.length || vectors[index] != null) {
           throw new IllegalStateException("embedding 响应索引错误");
+        }
         float[] value = item.getOutput();
         double[] converted = new double[value.length];
-        for (int i = 0; i < value.length; i++) converted[i] = value[i];
+        for (int i = 0; i < value.length; i++) {
+          converted[i] = value[i];
+        }
         KnowledgeVectors.validate(converted, properties.getEmbeddingDimension());
         vectors[index] = converted;
       }

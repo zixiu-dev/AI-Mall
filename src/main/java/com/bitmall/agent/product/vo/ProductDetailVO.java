@@ -6,32 +6,30 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
 
 /** 单个商品的完整展示数据，包含商品属性和全部可见 SKU。 商品编号标识一款商品，SKU 编号标识颜色、尺码等具体规格，二者不能混用。 */
+@Getter
+@EqualsAndHashCode
+@ToString
 public final class ProductDetailVO {
-    /** 商品编号。 */
     private final long id;
 
-    /** 商品展示名称。 */
     private final String name;
 
-    /** 商品或知识文档所属分类。 */
     private final String category;
 
-    /** 商品品牌。 */
     private final String brand;
 
-    /** 供用户阅读的简要说明。 */
     private final String summary;
 
     /** 前端选择商品图片时使用的资源标识。 */
     private final String imageKey;
 
-    /** 商品展示评分。 */
     private final BigDecimal rating;
 
-    /** 商品展示销量。 */
     private final int salesCount;
 
     /** 这个商品的全部可见规格。 */
@@ -40,7 +38,6 @@ public final class ProductDetailVO {
     /** 结构化属性，例如颜色、尺码、材质。 */
     private final Map<String, String> attributes;
 
-    /** 使用完整字段创建对象，创建后通过 Getter 读取。 构造方法上的 JsonCreator 和参数上的 JsonProperty 明确指定 JSON 字段的对应关系。 */
     @JsonCreator
     public ProductDetailVO(
             @JsonProperty("id") long id,
@@ -63,108 +60,6 @@ public final class ProductDetailVO {
         this.salesCount = salesCount;
         this.skus = skus;
         this.attributes = attributes;
-    }
-
-    /** 获取商品编号。 */
-    public long getId() {
-        return id;
-    }
-
-    /** 获取商品展示名称。 */
-    public String getName() {
-        return name;
-    }
-
-    /** 获取商品或知识文档所属分类。 */
-    public String getCategory() {
-        return category;
-    }
-
-    /** 获取商品品牌。 */
-    public String getBrand() {
-        return brand;
-    }
-
-    /** 获取供用户阅读的简要说明。 */
-    public String getSummary() {
-        return summary;
-    }
-
-    /** 获取前端选择商品图片时使用的资源标识。 */
-    public String getImageKey() {
-        return imageKey;
-    }
-
-    /** 获取商品展示评分。 */
-    public BigDecimal getRating() {
-        return rating;
-    }
-
-    /** 获取商品展示销量。 */
-    public int getSalesCount() {
-        return salesCount;
-    }
-
-    /** 获取这个商品的全部可见规格。 */
-    public List<SkuVO> getSkus() {
-        return skus;
-    }
-
-    /** 获取结构化属性，例如颜色、尺码、材质。 */
-    public Map<String, String> getAttributes() {
-        return attributes;
-    }
-
-    /** 按全部字段比较内容，便于查询结果和缓存结果进行一致性判断。 */
-    @Override
-    public boolean equals(Object other) {
-        if (this == other) return true;
-        if (other == null || getClass() != other.getClass()) return false;
-        ProductDetailVO that = (ProductDetailVO) other;
-        return Objects.equals(id, that.id)
-                && Objects.equals(name, that.name)
-                && Objects.equals(category, that.category)
-                && Objects.equals(brand, that.brand)
-                && Objects.equals(summary, that.summary)
-                && Objects.equals(imageKey, that.imageKey)
-                && Objects.equals(rating, that.rating)
-                && Objects.equals(salesCount, that.salesCount)
-                && Objects.equals(skus, that.skus)
-                && Objects.equals(attributes, that.attributes);
-    }
-
-    /** 与 equals 使用相同字段，保证放入集合后的比较规则一致。 */
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-                id, name, category, brand, summary, imageKey, rating, salesCount, skus, attributes);
-    }
-
-    /** 返回字段摘要，供日志和本地调试查看。 */
-    @Override
-    public String toString() {
-        return "ProductDetailVO["
-                + "id="
-                + id
-                + ", name="
-                + name
-                + ", category="
-                + category
-                + ", brand="
-                + brand
-                + ", summary="
-                + summary
-                + ", imageKey="
-                + imageKey
-                + ", rating="
-                + rating
-                + ", salesCount="
-                + salesCount
-                + ", skus="
-                + skus
-                + ", attributes="
-                + attributes
-                + "]";
     }
 
     /**

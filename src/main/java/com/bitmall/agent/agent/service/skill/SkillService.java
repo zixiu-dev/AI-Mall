@@ -5,19 +5,16 @@ import com.bitmall.agent.agent.dao.repository.SkillRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 业务技能目录和会话加载状态的入口。 加载时核对技能是否启用，随后记录会话已加载技能；上下文裁剪后会重新同步有效技能。 */
 @Service
+@RequiredArgsConstructor
 public class SkillService {
-  /** 依赖组件：技能目录和会话技能关联表的数据访问组件。 */
+  /** 读取业务技能手册，并读写会话与已加载技能的关联。 */
   private final SkillRepository mapper;
-
-  /** 由 Spring 创建本组件时注入所需依赖。 这里只保存依赖，具体业务在下面的方法中执行。 */
-  public SkillService(SkillRepository mapper) {
-    this.mapper = mapper;
-  }
 
   /** 读取启用的业务手册目录，作为模型可查询的技能介绍。 */
   public List<SkillDO> listEnabled() {

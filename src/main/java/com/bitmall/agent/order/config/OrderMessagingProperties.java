@@ -1,8 +1,10 @@
 package com.bitmall.agent.order.config;
 
+import lombok.Getter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** 订单消息配置。管理开关、Topic、每批发送数量、发送租约和失败重试间隔；连接参数仍使用标准 rocketmq 配置。 */
+@Getter
 @ConfigurationProperties("app.order-messaging")
 public final class OrderMessagingProperties {
     /** 是否启动 RocketMQ 连接、后台发送和消息消费；关闭时仍保存本地待发送消息。 */
@@ -28,30 +30,5 @@ public final class OrderMessagingProperties {
         this.batchSize = batchSize > 0 ? Math.min(batchSize, 100) : 20;
         this.leaseSeconds = leaseSeconds > 0 ? leaseSeconds : 60;
         this.retryDelaySeconds = retryDelaySeconds > 0 ? retryDelaySeconds : 10;
-    }
-
-    /** 获取消息开关。 */
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    /** 获取订单消息主题。 */
-    public String getTopic() {
-        return topic;
-    }
-
-    /** 获取单批发送上限。 */
-    public int getBatchSize() {
-        return batchSize;
-    }
-
-    /** 获取发送占用时间。 */
-    public int getLeaseSeconds() {
-        return leaseSeconds;
-    }
-
-    /** 获取失败重试的基础等待时间。 */
-    public int getRetryDelaySeconds() {
-        return retryDelaySeconds;
     }
 }

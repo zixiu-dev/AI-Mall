@@ -34,9 +34,10 @@ public class ApiExceptionHandler {
   /** 限流/暂不可用保留准确 HTTP 状态和重试提示，不把压力保护当成参数错误。 */
   @ExceptionHandler(ResponseStatusException.class)
   public ResponseEntity<Map<String, Object>> status(ResponseStatusException exception) {
-    var response = ResponseEntity.status(exception.getStatusCode());
-    if (exception.getStatusCode().value() == 429 || exception.getStatusCode().value() == 503)
+    ResponseEntity.BodyBuilder response = ResponseEntity.status(exception.getStatusCode());
+    if (exception.getStatusCode().value() == 429 || exception.getStatusCode().value() == 503) {
       response.header("Retry-After", "1");
+    }
     return response.body(
         Map.of(
             "success",
