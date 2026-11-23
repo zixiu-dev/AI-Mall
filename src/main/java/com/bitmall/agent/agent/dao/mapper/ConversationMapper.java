@@ -14,8 +14,8 @@ import org.apache.ibatis.annotations.Options;
 @Mapper
 public interface ConversationMapper extends BaseMapper<ConversationEntity> {
   @Insert(
-      "INSERT INTO chat_message(conversation_id,role,content,metadata) VALUES"
-          + " (#{conversationId},#{role},#{content},#{metadata})")
+      "INSERT INTO chat_message(conversation_id,role,content,metadata,generation_status,reply_to_message_id,request_key) VALUES"
+          + " (#{conversationId},#{role},#{content},#{metadata},#{generationStatus},#{replyToMessageId},#{requestKey})")
   @Options(
       useGeneratedKeys = true,
       keyProperty = "id",
@@ -26,6 +26,14 @@ public interface ConversationMapper extends BaseMapper<ConversationEntity> {
 
   List<Map<String, Object>> recentMessagesSql(
       Map<String, Object> values);
+
+  Map<String, Object> ownedAnswer(Map<String, Object> values);
+
+  Map<String, Object> answerByRequest(Map<String, Object> values);
+
+  int finishAnswer(Map<String, Object> values);
+
+  int interruptUnfinishedAnswers();
 
   List<Integer> messageCountSql(Map<String, Object> values);
 

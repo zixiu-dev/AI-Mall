@@ -1,6 +1,7 @@
 package com.bitmall.agent.agent.dao.entity;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDateTime;
@@ -34,6 +35,14 @@ public final class ChatMessageDO {
 
     private final LocalDateTime createdAt;
 
+    /** 可恢复回答的生成状态，历史消息为空。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final String generationStatus;
+
+    /** 这条助手消息对应的用户问题编号。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final Long replyToMessageId;
+
     @JsonCreator
     public ChatMessageDO(
             @JsonProperty("id") long id,
@@ -41,12 +50,22 @@ public final class ChatMessageDO {
             @JsonProperty("role") String role,
             @JsonProperty("content") String content,
             @JsonProperty("metadata") Map<String, Object> metadata,
-            @JsonProperty("createdAt") LocalDateTime createdAt) {
+            @JsonProperty("createdAt") LocalDateTime createdAt,
+            @JsonProperty("generationStatus") String generationStatus,
+            @JsonProperty("replyToMessageId") Long replyToMessageId) {
         this.id = id;
         this.conversationId = conversationId;
         this.role = role;
         this.content = content;
         this.metadata = metadata;
         this.createdAt = createdAt;
+        this.generationStatus = generationStatus;
+        this.replyToMessageId = replyToMessageId;
+    }
+
+    public ChatMessageDO(
+            long id, String conversationId, String role, String content,
+            Map<String, Object> metadata, LocalDateTime createdAt) {
+        this(id, conversationId, role, content, metadata, createdAt, null, null);
     }
 }

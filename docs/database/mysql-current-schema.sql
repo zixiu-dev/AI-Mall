@@ -1,4 +1,4 @@
--- 当前 MySQL 表结构快照；由 scripts/export-database-schema.py 从空库重放 V1～V19 后导出。
+-- 当前 MySQL 表结构快照；由 scripts/export-database-schema.py 从空库重放 V1～V20 后导出。
 -- 阅读/对照用途，含表与索引，不含业务数据、Flyway 历史、密钥或旧演化语句。
 -- 正常初始化请启动应用交给 Flyway；不要先导入本文件再让 Flyway 执行 V1。
 SET NAMES utf8mb4;
@@ -77,8 +77,13 @@ CREATE TABLE `chat_message` (
   `content` mediumtext COLLATE utf8mb4_bin NOT NULL,
   `metadata` mediumtext COLLATE utf8mb4_bin NOT NULL DEFAULT (_utf8mb4'{}'),
   `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `generation_status` varchar(16) COLLATE utf8mb4_bin DEFAULT NULL,
+  `reply_to_message_id` bigint DEFAULT NULL,
+  `request_key` varchar(100) COLLATE utf8mb4_bin DEFAULT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_chat_message_request_key` (`request_key`),
   KEY `idx_chat_message_conversation` (`conversation_id`,`id`),
+  KEY `idx_chat_message_generation` (`generation_status`,`conversation_id`,`id`),
   CONSTRAINT `fk_chat_message_conversation_id` FOREIGN KEY (`conversation_id`) REFERENCES `conversation` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 

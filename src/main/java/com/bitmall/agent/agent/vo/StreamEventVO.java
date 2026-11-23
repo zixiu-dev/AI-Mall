@@ -1,6 +1,7 @@
 package com.bitmall.agent.agent.vo;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.EqualsAndHashCode;
@@ -24,16 +25,26 @@ public final class StreamEventVO {
     /** 完成事件携带的完整助手回复。 */
     private final AgentReplyVO reply;
 
+    /** 可重连流中的草稿版本，旧聊天入口的事件省略该字段。 */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final Long revision;
+
     @JsonCreator
     public StreamEventVO(
             @JsonProperty("type") String type,
             @JsonProperty("conversationId") String conversationId,
             @JsonProperty("content") String content,
-            @JsonProperty("reply") AgentReplyVO reply) {
+            @JsonProperty("reply") AgentReplyVO reply,
+            @JsonProperty("revision") Long revision) {
         this.type = type;
         this.conversationId = conversationId;
         this.content = content;
         this.reply = reply;
+        this.revision = revision;
+    }
+
+    public StreamEventVO(String type, String conversationId, String content, AgentReplyVO reply) {
+        this(type, conversationId, content, reply, null);
     }
 
     /** 创建会话开始事件，让页面知道这一轮归属哪个会话。 */

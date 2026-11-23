@@ -80,9 +80,26 @@ class MySQLMigrationIntegrationTest {
             jdbc.sql("SELECT COUNT(*) FROM flyway_schema_history WHERE success=TRUE")
                 .query(Integer.class)
                 .single())
-        .isEqualTo(19);
+        .isEqualTo(20);
     assertThat(products.product(101L).getSkus()).isNotEmpty();
     assertThat(knowledge.search("优惠券")).isNotEmpty();
+  }
+
+  @Autowired com.bitmall.agent.agent.service.conversation.ConversationService conversationService;
+
+  @Test
+  void resumableAnswerStoresQuestionAndUpdatesSameMessageInMySql() {
+    String conversationId = java.util.UUID.randomUUID().toString();
+    String requestKey = "10001:" + java.util.UUID.randomUUID();
+    var accepted = conversationService.createAnswer(10001L, conversationId, true, "查订单", requestKey);
+    long messageId = accepted.getMessage().getId();
+    assertThat(accepted.getMessage().getGenerationStatus()).isEqualTo("GENERATING");
+    assertThat(accepted.getMessage().getReplyToMessageId()).isPositive();
+    assertThat(conversationService.answerByRequest(10001L, requestKey)).isPresent();
+
+    conversationService.finishAnswer(conversationId, messageId, "COMPLETED", "完整回复", Map.of());
+    assertThat(conversationService.answer(10001L, messageId).getMessage().getContent()).isEqualTo("完整回复");
+    assertThat(conversations.recentMessages(conversationId, 10)).hasSize(2);
   }
 
   @Test

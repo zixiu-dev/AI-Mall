@@ -42,6 +42,11 @@ public class ConversationSnapshotService {
         .map(actionId -> orders.findActionProgress(userId, actionId))
         .flatMap(Optional::stream)
         .toList();
-    return new ConversationSnapshotVO(conversationId, messages, card, progress);
+    Long activeMessageId = messages.stream()
+        .filter(message -> "GENERATING".equals(message.getGenerationStatus()))
+        .map(ChatMessageDO::getId)
+        .findFirst()
+        .orElse(null);
+    return new ConversationSnapshotVO(conversationId, messages, activeMessageId, card, progress);
   }
 }

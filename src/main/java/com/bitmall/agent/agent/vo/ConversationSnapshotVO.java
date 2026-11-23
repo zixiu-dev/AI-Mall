@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 public final class ConversationSnapshotVO {
   private final String conversationId;
   private final List<ChatMessageDO> messages;
+  private final Long activeMessageId;
   private final PendingActionVO pendingAction;
   private final List<OrderSubmitVO> orderProgress;
 }

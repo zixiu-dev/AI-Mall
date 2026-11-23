@@ -1,6 +1,7 @@
 package com.bitmall.agent.agent.service.conversation;
 
 import com.bitmall.agent.agent.dao.entity.ChatMessageDO;
+import com.bitmall.agent.agent.dao.entity.AgentAnswerDO;
 import com.bitmall.agent.agent.dao.repository.ConversationRepository;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +51,41 @@ public class ConversationService {
     return mapper.addMessage(conversationId, role, content, metadata);
   }
 
-  /** 读取有限条历史消息，供页面展示或本轮模型输入使用。 */
+  /** 同一短事务保存问题和助手占位。后台线程只领取已提交的回答。 */
+  @Transactional
+  public AgentAnswerDO createAnswer(
+      long userId, String conversationId, boolean newConversation, String question, String requestKey) {
+    if (newConversation) {
+      ensure(conversationId, userId, question);
+    } else {
+      requireOwned(userId, conversationId);
+    }
+    long questionId = mapper.addMessage(conversationId, "user", question, Map.of());
+    long answerId = mapper.addGeneratingAnswer(conversationId, questionId, requestKey);
+    return mapper.ownedAnswer(userId, answerId).orElseThrow();
+  }
+
+  @Transactional
+  public void finishAnswer(
+      String conversationId, long id, String status, String content, Map<String, Object> metadata) {
+    mapper.finishAnswer(conversationId, id, status, content, metadata);
+  }
+
+  public Optional<AgentAnswerDO> answerByRequest(long userId, String requestKey) {
+    return mapper.answerByRequest(userId, requestKey);
+  }
+
+  public AgentAnswerDO answer(long userId, long id) {
+    return mapper.ownedAnswer(userId, id)
+        .orElseThrow(() -> new IllegalArgumentException("回答不存在或不属于当前用户"));
+  }
+
+  /** 读取可用于模型输入的近期消息，包括本轮用户问题。 */
+  public List<ChatMessageDO> modelHistory(String conversationId, int limit) {
+    return mapper.recentMessages(conversationId, limit, true);
+  }
+
+  /** 读取有限条页面历史消息。 */
   public List<ChatMessageDO> recentMessages(String conversationId, int limit) {
     return mapper.recentMessages(conversationId, limit);
   }

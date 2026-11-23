@@ -11,7 +11,7 @@
 | [数据模型](../data-design.md) | 表为何存在、库存与状态关系、事务边界 |
 | [启动说明](../deployment.md) | 凭据配置、创建空库、启动与索引构建 |
 
-快照用于阅读和结构对照，**不是完整商城初始化脚本**：它们不包含技能、商品、政策、用户或 Flyway 历史。正常运行只需要创建空库并启动应用，由 Flyway 自动建表和导入项目种子数据，不需要自己逐份执行 V1～V19。
+快照用于阅读和结构对照，**不是完整商城初始化脚本**：它们不包含技能、商品、政策、用户或 Flyway 历史。正常运行只需要创建空库并启动应用，由 Flyway 自动建表和导入项目种子数据，不需要自己逐份执行 V1～V20。
 
 ## 新环境与已有环境怎么处理
 
@@ -27,8 +27,8 @@
 
 ## 历史脚本放在哪里
 
-- [MySQL 迁移](../../src/main/resources/db/mysql)：V1～V19，主运行路径。
-- [H2 迁移](../../src/main/resources/db/migration)：V1～V19，测试/demo 方言。
+- [MySQL 迁移](../../src/main/resources/db/mysql)：V1～V20，主运行路径。
+- [H2 迁移](../../src/main/resources/db/migration)：V1～V20，测试/demo 方言。
 - [PostgreSQL 迁移](../../src/main/resources/db/pgvector)：独立 V1，不与商城主库混跑。
 
 这些是应用的升级记录，保留在 resources 中给 Flyway 使用。它们不是面试阅读顺序；旧活动表在 V13 已删除，当前结构快照没有活动表。
@@ -37,7 +37,7 @@
 
 ## 更新快照
 
-当前 MySQL 快照来自 **全新临时库重放 V1～V19**，再导入第二个临时库并比对结构，没有读取用户现有业务库。执行：
+当前 MySQL 快照来自 **全新临时库重放 V1～V20**，再导入第二个临时库并比对结构，没有读取用户现有业务库。执行：
 
 ```bash
 python3 scripts/export-database-schema.py

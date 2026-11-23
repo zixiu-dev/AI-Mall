@@ -2,6 +2,7 @@ package com.bitmall.agent.agent.dao.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bitmall.agent.agent.dao.entity.ChatMessageDO;
+import com.bitmall.agent.agent.dao.entity.AgentAnswerDO;
 import com.bitmall.agent.agent.dao.entity.ChatMessageEntity;
 import com.bitmall.agent.agent.dao.entity.ConversationEntity;
 import com.bitmall.agent.agent.dao.mapper.ConversationMapper;
@@ -73,22 +74,78 @@ public class ConversationRepository {
     entity.setRole(role);
     entity.setContent(content);
     entity.setMetadata(writeJson(safeMetadata));
+    return insertMessage(entity);
+  }
+
+  /** 插入助手占位行，数据库分配最终用于重连的消息编号。 */
+  public long addGeneratingAnswer(String conversationId, long questionId, String requestKey) {
+    ChatMessageEntity answer = new ChatMessageEntity();
+    answer.setConversationId(conversationId);
+    answer.setRole("assistant");
+    answer.setContent("");
+    answer.setMetadata("{}");
+    answer.setGenerationStatus("GENERATING");
+    answer.setReplyToMessageId(questionId);
+    answer.setRequestKey(requestKey);
+    return insertMessage(answer);
+  }
+
+  private long insertMessage(ChatMessageEntity entity) {
     mapper.insertMessage(entity);
     if (entity.getId() == null) {
       throw new IllegalStateException("消息主键生成失败");
     }
     long messageId = entity.getId();
-    mapper.touchConversation(parameters("id", conversationId));
+    mapper.touchConversation(parameters("id", entity.getConversationId()));
     return messageId;
   }
 
   /** 返回最近 limit 条消息，按时间从旧到新排列。SQL 按最新在前取数，因此这里需要反转一次。 */
   public List<ChatMessageDO> recentMessages(String conversationId, int limit) {
-    List<Map<String, Object>> newestFirstRows =
-        mapper.recentMessagesSql(parameters("conversationId", conversationId, "limit", limit));
+    return recentMessages(conversationId, limit, false);
+  }
+
+  /** 模型上下文排除正在生成的占位和失败提示，页面历史仍可读取这些消息。 */
+  public List<ChatMessageDO> recentMessages(String conversationId, int limit, boolean finishedOnly) {
+    List<Map<String, Object>> newestFirstRows = mapper.recentMessagesSql(
+        parameters("conversationId", conversationId, "limit", limit, "finishedOnly", finishedOnly));
     List<ChatMessageDO> messages = toMessages(newestFirstRows);
     Collections.reverse(messages);
     return messages;
+  }
+
+  /** 主键查询同时核对会话归属，普通聊天消息不能被当成后台回答订阅。 */
+  public Optional<AgentAnswerDO> ownedAnswer(long userId, long messageId) {
+    return Optional.ofNullable(mapper.ownedAnswer(parameters("userId", userId, "id", messageId)))
+        .map(this::toAnswer);
+  }
+
+  /** 查询同一次发送已提交的原问题和回答，用于请求超时后的重试。 */
+  public Optional<AgentAnswerDO> answerByRequest(long userId, String requestKey) {
+    return Optional.ofNullable(
+        mapper.answerByRequest(parameters("userId", userId, "requestKey", requestKey)))
+        .map(this::toAnswer);
+  }
+
+  private AgentAnswerDO toAnswer(Map<String, Object> row) {
+    return new AgentAnswerDO(toMessage(row), RowValues.string(row, "question"));
+  }
+
+  /** 以条件更新一次性写入终态和正文，并刷新会话时间。 */
+  public void finishAnswer(
+      String conversationId, long messageId, String status, String content, Map<String, Object> metadata) {
+    int updated = mapper.finishAnswer(parameters(
+        "conversationId", conversationId, "id", messageId, "status", status,
+        "content", content, "metadata", writeJson(metadata)));
+    if (updated != 1) {
+      throw new IllegalStateException("回答状态已变化");
+    }
+    mapper.touchConversation(parameters("id", conversationId));
+  }
+
+  /** 单实例启动时结束上一进程留下的回答占位。 */
+  public void interruptUnfinishedAnswers() {
+    mapper.interruptUnfinishedAnswers();
   }
 
   /** 统计当前会话消息条数，供摘要策略判断是否需要整理。 */
@@ -144,7 +201,9 @@ public class ConversationRepository {
         RowValues.string(row, "role"),
         RowValues.string(row, "content"),
         readMap(RowValues.string(row, "metadata")),
-        RowValues.timestamp(row, "created_at").toLocalDateTime());
+        RowValues.timestamp(row, "created_at").toLocalDateTime(),
+        RowValues.string(row, "generation_status"),
+        RowValues.value(row, "reply_to_message_id") == null ? null : RowValues.longValue(row, "reply_to_message_id"));
   }
 
   /** 序列化消息附加信息，写入失败时明确抛出异常。 */

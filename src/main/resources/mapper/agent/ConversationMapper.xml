@@ -7,10 +7,37 @@
     </update>
     <!-- recentMessagesSql: 读取数据库投影 -->
     <select id="recentMessagesSql" resultType="map">
-        SELECT id, conversation_id, role, content, metadata, created_at
+        SELECT id, conversation_id, role, content, metadata, created_at,
+               generation_status, reply_to_message_id
         FROM chat_message WHERE conversation_id = #{conversationId}
+        <if test="finishedOnly">AND (generation_status IS NULL OR generation_status = 'COMPLETED')</if>
         ORDER BY id DESC LIMIT #{limit}
     </select>
+    <sql id="answerColumns">
+        a.id, a.conversation_id, a.role, a.content, a.metadata, a.created_at,
+        a.generation_status, a.reply_to_message_id, q.content AS question
+    </sql>
+    <select id="ownedAnswer" resultType="map">
+        SELECT <include refid="answerColumns"/>
+        FROM chat_message a JOIN conversation c ON c.id=a.conversation_id
+        JOIN chat_message q ON q.id=a.reply_to_message_id AND q.conversation_id=a.conversation_id
+        WHERE a.id=#{id} AND c.user_id=#{userId} AND a.generation_status IS NOT NULL
+    </select>
+    <select id="answerByRequest" resultType="map">
+        SELECT <include refid="answerColumns"/>
+        FROM chat_message a JOIN conversation c ON c.id=a.conversation_id
+        JOIN chat_message q ON q.id=a.reply_to_message_id AND q.conversation_id=a.conversation_id
+        WHERE a.request_key=#{requestKey} AND c.user_id=#{userId}
+    </select>
+    <update id="finishAnswer">
+        UPDATE chat_message SET content=#{content}, metadata=#{metadata}, generation_status=#{status}
+        WHERE id=#{id} AND conversation_id=#{conversationId} AND generation_status='GENERATING'
+    </update>
+    <update id="interruptUnfinishedAnswers">
+        UPDATE chat_message SET content='上次回答因服务重启而中断，请重新发送。',
+                                generation_status='FAILED'
+        WHERE generation_status='GENERATING'
+    </update>
     <!-- messageCountSql: 读取数据库投影 -->
     <select id="messageCountSql" resultType="java.lang.Integer">
         SELECT COUNT(*) FROM chat_message WHERE conversation_id = #{conversationId}
@@ -28,7 +55,9 @@
     <select id="selectUnsummarizedMessages" resultType="map">
         SELECT m.id, m.conversation_id, m.role, m.content, m.metadata, m.created_at
         FROM chat_message m JOIN conversation c ON c.id=m.conversation_id
-        WHERE m.conversation_id=#{c} AND m.id &gt; COALESCE(c.summarized_until_id, 0) AND m.id &lt; #{cutoff}
+        WHERE m.conversation_id=#{c}
+          AND (m.generation_status IS NULL OR m.generation_status='COMPLETED')
+          AND m.id &gt; COALESCE(c.summarized_until_id, 0) AND m.id &lt; #{cutoff}
         ORDER BY m.id LIMIT 200
     </select>
     <!-- updateSummarySql: 条件更新，调用者检查影响行数 -->

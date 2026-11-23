@@ -28,7 +28,7 @@ def main():
             ddl=sql('SHOW CREATE TABLE `'+table+'`;', source).split('\t',1)[1].strip()
             ddl=re.sub(r' AUTO_INCREMENT=\d+', '', ddl)
             statements.append('-- '+table+'\n'+ddl+';')
-        header='''-- 当前 MySQL 表结构快照；由 scripts/export-database-schema.py 从空库重放 V1～V19 后导出。
+        header='''-- 当前 MySQL 表结构快照；由 scripts/export-database-schema.py 从空库重放 V1～V20 后导出。
 -- 阅读/对照用途，含表与索引，不含业务数据、Flyway 历史、密钥或旧演化语句。
 -- 正常初始化请启动应用交给 Flyway；不要先导入本文件再让 Flyway 执行 V1。
 SET NAMES utf8mb4;

@@ -13,7 +13,15 @@
 - [会话历史与模型状态](../openspec/specs/agent-memory/spec.md)
 
 
-## 同步执行与 SSE
+## 商城页面的后台回答与重连
+
+页面通过 `POST /api/agent/chat/turns` 提交问题。MySQL 在同一事务保存用户消息和助手占位，助手消息的 ID 用于订阅和查询，客户端请求编号用于幂等重试。活动回复在本进程积累草稿，`GET /api/agent/messages/{messageId}/stream` 返回带版本的完整快照，再按顺序推送增量。断线只清理对应连接，工作线程继续生成。最终正文和生成状态入库后才发送终态。
+
+刷新页面先读会话快照。若有 `activeMessageId`，前端重新订阅该消息，收到快照后覆盖旧气泡。模型失败或服务器重启中断时，页面显示失败提示。草稿与会话互斥按单实例管理。确认卡和订单状态继续根据数据库中的确认记录和购买 trace 恢复。
+
+<a id="同步执行与-sse"></a>
+
+## 兼容入口的同步执行与 SSE
 
 `POST /api/agent/chat/stream` 由 Controller 创建 `SseEmitter`，把一轮聊天提交给独立的有界线程池。`AgentChatService` 在普通 Java 调用栈中持有会话执行权，最后通过 `finally` 释放。
 
@@ -29,6 +37,6 @@
 
 SSE 工作线程池为核心 4、最多 16、等待队列 32，满时发送 `error` 提示稍后重试。排队计入 `app.agent.request-timeout-seconds`，默认总预算 180 秒。每次模型推理最多 60 秒，每次工具最多 15 秒，均受本轮剩余预算约束。
 
-Controller 检测到发送失败、容器超时或连接结束后，用 `AgentExecution.cancel()` 中断工作线程。模型流在 try-with-resources 中关闭，后续推理和工具在执行前检查取消。如果当前数据库调用暂时忽略中断，会话执行权保留到它真正退出；持久化确认卡和交易结果仍按业务服务核对。没有配对结果的工具调用继续沿用下一轮恢复机制，补中断回执并由用户决定后续动作。
+兼容的 POST SSE Controller 检测到发送失败、容器超时或连接结束后，用 `AgentExecution.cancel()` 中断工作线程。模型流在 try-with-resources 中关闭，后续推理和工具在执行前检查取消。如果当前数据库调用暂时忽略中断，会话执行权保留到它真正退出；持久化确认卡和交易结果仍按业务服务核对。没有配对结果的工具调用继续沿用下一轮恢复机制，补中断回执并由用户决定后续动作。
 
 [同步模型循环](../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [SDK 流式适配](../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiStreamReader.java) · [请求预算](../src/main/java/com/bitmall/agent/agent/service/runtime/AgentExecution.java) · [SSE Controller](../src/main/java/com/bitmall/agent/agent/controller/AgentChatController.java)

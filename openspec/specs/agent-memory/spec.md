@@ -21,7 +21,7 @@
 
 [历史裁剪](../../../src/main/java/com/bitmall/agent/agent/service/conversation/AgentHistorySelector.java) · [用户偏好](../../../src/main/java/com/bitmall/agent/agent/service/memory/MemoryService.java)
 
-打开商城助手时，页面通过 `GET /api/agent/conversations/{conversationId}/snapshot` 恢复近期消息、仍待处理的确认卡与已决定执行的购买进度。购买按已有操作来源查 trace，仍在处理的购买继续使用原进度接口。
+打开商城助手时，页面通过 `GET /api/agent/conversations/{conversationId}/snapshot` 恢复近期消息、仍待处理的确认卡与已决定执行的购买进度。购买按已有操作来源查 trace，仍在处理的购买继续使用原进度接口。仍在生成的助手消息通过 `activeMessageId` 标识，页面可以重新订阅它。
 
 ## Requirements
 

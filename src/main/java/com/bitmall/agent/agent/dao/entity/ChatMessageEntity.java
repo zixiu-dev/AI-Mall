@@ -12,4 +12,9 @@ public class ChatMessageEntity {
   private String role;
   private String content;
   private String metadata;
+  /** 仅可恢复的助手回答写入生成状态和原问题编号。 */
+  private String generationStatus;
+  private Long replyToMessageId;
+  /** 用户与请求编号组合，由数据库唯一约束保证重试幂等。 */
+  private String requestKey;
 }

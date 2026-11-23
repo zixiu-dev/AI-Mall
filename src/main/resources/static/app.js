@@ -47,23 +47,25 @@ async function api(url, options = {}) {
     ...options,
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok)
-    throw new Error(data.message || `请求失败（${response.status}）`);
+  if (!response.ok) {
+    const error = new Error(data.message || `请求失败（${response.status}）`);
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 // 按 SSE 事件读取模型输出和工具进度，真正的写操作仍需确认卡。
-async function streamApi(url, body, onEvent) {
+async function streamApi(url, signal, onEvent) {
   const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-    },
-    body: JSON.stringify(body),
+    headers: { Accept: "text/event-stream, application/json" },
+    signal,
+    cache: "no-store",
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.message || `请求失败（${response.status}）`);
+    const error = new Error(data.message || `请求失败（${response.status}）`);
+    error.status = response.status;
+    throw error;
   }
   if (!response.body) throw new Error("浏览器不支持流式响应");
   const reader = response.body.getReader(),
@@ -71,8 +73,7 @@ async function streamApi(url, body, onEvent) {
   let buffer = "";
   while (true) {
     const { value, done } = await reader.read();
-    buffer += decoder
-      .decode(value || new Uint8Array(), { stream: !done })
+    buffer = (buffer + decoder.decode(value || new Uint8Array(), { stream: !done }))
       .replace(/\r\n/g, "\n");
     let boundary;
     while ((boundary = buffer.indexOf("\n\n")) >= 0) {
@@ -258,24 +259,61 @@ async function refreshAgentMode() {
     showAgentMode(null);
   }
 }
-async function restoreConversation() {
-  const conversationId = state.conversationId;
-  if (!conversationId || state.busy) return;
-  state.busy = true;
+const pendingTurnKey = "wowo.pendingAgentRequest";
+let activeAnswer = null;
+let retryableTurn = null;
+
+function rememberConversation(id) {
+  state.conversationId = id;
+  localStorage.setItem("wowo.conversationId", id);
+}
+
+async function recoverSubmittedTurn() {
+  const requestId = localStorage.getItem(pendingTurnKey);
+  if (!requestId) return;
   try {
-    const snapshot = await api(
-      `/api/agent/conversations/${encodeURIComponent(conversationId)}/snapshot`,
-    );
-    messages.replaceChildren();
-    for (const message of snapshot.messages) {
+    const turn = await api(`/api/agent/chat/turns/${encodeURIComponent(requestId)}`);
+    rememberConversation(turn.conversationId);
+    localStorage.removeItem(pendingTurnKey);
+    retryableTurn = null;
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
+}
+
+async function loadConversationSnapshot() {
+  const snapshot = await api(
+    `/api/agent/conversations/${encodeURIComponent(state.conversationId)}/snapshot`,
+    { cache: "no-store" },
+  );
+  messages.replaceChildren();
+  let active = null;
+  for (const message of snapshot.messages) {
+    if (message.id === snapshot.activeMessageId) {
+      active = { id: message.id, element: addLoading() };
+    } else {
       addMessage(message.role, message.content);
     }
-    if (snapshot.pendingAction) addConfirm(snapshot.pendingAction);
-    for (const order of snapshot.orderProgress) {
-      showRestoredOrder(order);
-      if (["INIT", "PROCESSING"].includes(order.status) && !trackedOrders[order.traceId]) {
-        rememberOrder(order.traceId, "agent");
-      }
+  }
+  if (snapshot.pendingAction) addConfirm(snapshot.pendingAction);
+  for (const order of snapshot.orderProgress) {
+    showRestoredOrder(order);
+    if (["INIT", "PROCESSING"].includes(order.status) && !trackedOrders[order.traceId]) {
+      rememberOrder(order.traceId, "agent");
+    }
+  }
+  return active;
+}
+
+async function restoreConversation() {
+  if (state.busy) return;
+  state.busy = true;
+  try {
+    await recoverSubmittedTurn();
+    if (!state.conversationId || !panel.classList.contains("open")) return;
+    const active = await loadConversationSnapshot();
+    if (active && panel.classList.contains("open")) {
+      await watchAnswer(active.id, active.element);
     }
   } catch (error) {
     toast(`聊天记录加载失败：${error.message}`);
@@ -298,14 +336,15 @@ function showRestoredOrder(order) {
 }
 
 function openChat(prefill = "") {
-  void restoreConversation();
   refreshAgentMode();
   panel.classList.add("open");
+  void restoreConversation();
   panel.setAttribute("aria-hidden", "false");
   if (prefill) input.value = prefill;
   setTimeout(() => input.focus(), 100);
 }
 function closeChat() {
+  activeAnswer?.abort();
   panel.classList.remove("open");
   panel.setAttribute("aria-hidden", "true");
   $("#chatFab").focus();
@@ -331,71 +370,124 @@ async function sendMessage(text) {
   const message = text.trim();
   if (!message || state.busy) return;
   state.busy = true;
-  addMessage("user", message);
-  input.value = "";
-  resize();
-  const streaming = addLoading(),
-    bubble = streaming.querySelector(".bubble"),
-    progress = document.createElement("div");
+  const request = retryableTurn?.message === message
+    ? retryableTurn
+    : {
+      conversationId: state.conversationId,
+      message,
+      clientRequestId: Array.from(crypto.getRandomValues(new Uint8Array(16)),
+        (byte) => byte.toString(16).padStart(2, "0")).join(""),
+    };
+  try {
+    localStorage.setItem(pendingTurnKey, request.clientRequestId);
+    const turn = await api("/api/agent/chat/turns", {
+      method: "POST",
+      body: JSON.stringify({ userId: 10001, ...request }),
+    });
+    rememberConversation(turn.conversationId);
+    localStorage.removeItem(pendingTurnKey);
+    retryableTurn = null;
+    input.value = "";
+    resize();
+    if (!panel.classList.contains("open")) return;
+    const active = await loadConversationSnapshot();
+    if (active) {
+      await watchAnswer(active.id, active.element);
+    }
+  } catch (error) {
+    if (localStorage.getItem(pendingTurnKey) === request.clientRequestId) {
+      // 网络错误可能丢的是回执，重按发送沿用编号，刷新则只读服务器已有结果。
+      if (!error.status || error.status >= 500 || error.status === 409) {
+        retryableTurn = request;
+      } else {
+        localStorage.removeItem(pendingTurnKey);
+        retryableTurn = null;
+      }
+    }
+    toast(error.message);
+  } finally {
+    state.busy = false;
+  }
+}
+
+function waitForStreamRetry(delay, signal) {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    function complete() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", complete);
+      resolve();
+    }
+    const timer = setTimeout(complete, delay);
+    signal.addEventListener("abort", complete, { once: true });
+  });
+}
+
+async function watchAnswer(messageId, element) {
+  const controller = new AbortController();
+  activeAnswer = controller;
+  const bubble = element.querySelector(".bubble");
+  const progress = document.createElement("div");
   progress.className = "agent-progress";
   progress.setAttribute("role", "status");
   progress.textContent = "正在处理…";
-  messages.appendChild(progress);
-  let content = "",
-    finished = false;
+  element.after(progress);
+  let content = "";
+  let finished = false;
+  let needsSnapshot = false;
+  let retryDelay = 500;
+
+  function render(text) {
+    content = text;
+    element.classList.toggle("loading", !content);
+    bubble.innerHTML = content ? format(content) : "<span></span><span></span><span></span>";
+    scroll();
+  }
+
   try {
-    await streamApi(
-      "/api/agent/chat/stream",
-      { userId: 10001, conversationId: state.conversationId, message },
-      (event, data) => {
-        if (data.conversationId) {
-          state.conversationId = data.conversationId;
-          localStorage.setItem("wowo.conversationId", state.conversationId);
-        }
-        if (event === "tool_start" || event === "tool_end") {
-          const label = toolLabels[data.content] || "处理商城业务";
-          progress.textContent =
-            event === "tool_start" ? `${label}…` : `${label}已返回，继续处理…`;
-          scroll();
-        } else if (event === "reset") {
-          content = "";
-          streaming.classList.add("loading");
-          bubble.innerHTML = "<span></span><span></span><span></span>";
-        } else if (event === "delta") {
-          content += data.content || "";
-          streaming.classList.remove("loading");
-          bubble.innerHTML = format(content);
-          scroll();
-        } else if (event === "done") {
-          finished = true;
-          const reply = data.reply;
-          showAgentMode(reply.debug?.mode);
-          content = reply.content;
-          streaming.classList.remove("loading");
-          bubble.innerHTML = format(content);
-          if (reply.pendingAction) addConfirm(reply.pendingAction);
-          scroll();
-        } else if (event === "error") {
-          finished = true;
-          content = data.content || "流式响应失败";
-          streaming.classList.remove("loading");
-          bubble.innerHTML = format(content);
-          scroll();
-        }
-      },
-    );
-    if (!finished) throw new Error("流式连接提前结束");
-  } catch (e) {
-    if (!content) {
-      streaming.remove();
-      addMessage("assistant", `这次请求没有处理成功：${e.message}`);
-    } else {
-      streaming.classList.remove("loading");
-      bubble.innerHTML = format(`${content}\n\n[连接中断：${e.message}]`);
+    while (!finished && !controller.signal.aborted) {
+      // 每次订阅都从快照开始。用新草稿覆盖旧气泡，避免重连时重复拼接。
+      let revision = -1;
+      try {
+        await streamApi(`/api/agent/messages/${messageId}/stream`, controller.signal, (event, data) => {
+          if (data.revision <= revision) return;
+          revision = data.revision;
+          retryDelay = 500;
+          if (event === "snapshot") {
+            progress.textContent = "正在处理…";
+            render(data.content || "");
+          } else if (event === "delta") {
+            render(content + (data.content || ""));
+          } else if (event === "reset") {
+            render("");
+          } else if (event === "tool_start" || event === "tool_end") {
+            const label = toolLabels[data.content] || "处理商城业务";
+            progress.textContent = event === "tool_start" ? `${label}…` : `${label}已返回，继续处理…`;
+          } else if (event === "done") {
+            finished = true;
+            showAgentMode(data.reply.debug?.mode);
+            render(data.reply.content);
+            if (data.reply.pendingAction) addConfirm(data.reply.pendingAction);
+          } else if (event === "error") {
+            finished = true;
+            needsSnapshot = true;
+            render(data.content || "回答未能完成，请稍后重试。");
+          }
+        });
+      } catch (error) {
+        if (controller.signal.aborted) break;
+        if ([400, 401, 403, 404].includes(error.status)) throw error;
+      }
+      if (!finished && !controller.signal.aborted) {
+        progress.textContent = "连接中断，正在重连…";
+        await waitForStreamRetry(retryDelay, controller.signal);
+        retryDelay = Math.min(retryDelay * 2, 4000);
+      }
     }
+    if (needsSnapshot && !controller.signal.aborted) await loadConversationSnapshot();
   } finally {
     progress.remove();
-    state.busy = false;
+    if (activeAnswer === controller) activeAnswer = null;
   }
 }
 async function confirmAction(id, approved, card) {
@@ -981,8 +1073,11 @@ function addLoading() {
   return el;
 }
 function addConfirm(action) {
+  if ([...messages.querySelectorAll("[data-action-id]")]
+      .some((element) => element.dataset.actionId === action.id)) return;
   const card = document.createElement("div");
   card.className = "confirm-card";
+  card.dataset.actionId = action.id;
   const coupon = action.toolName === "coupon_claim",
     cancel = action.toolName === "order_cancel";
   card.innerHTML = `<small>需要你的确认</small><p>${esc(action.summary)}</p><div class="confirm-actions"><button class="reject">${cancel ? "暂不取消" : coupon ? "暂不领取" : "取消"}</button><button class="approve">${cancel ? "确认取消订单" : coupon ? "确认领取" : "确认执行"}</button></div>`;

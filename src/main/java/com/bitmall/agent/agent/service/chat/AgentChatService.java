@@ -2,6 +2,7 @@ package com.bitmall.agent.agent.service.chat;
 
 import com.bitmall.agent.agent.config.AgentProperties;
 import com.bitmall.agent.agent.dao.entity.ChatMessageDO;
+import com.bitmall.agent.agent.dao.entity.AgentAnswerDO;
 import com.bitmall.agent.agent.dao.entity.PendingActionDO;
 import com.bitmall.agent.agent.model.TextChunk;
 import com.bitmall.agent.agent.service.action.PendingActionService;
@@ -153,6 +154,53 @@ public class AgentChatService {
         }
     }
 
+    /** 执行已提交的后台轮次。调用方持有会话门禁，问题和助手占位已经入库。 */
+    public AgentReplyVO generateAnswer(
+            long userId, AgentAnswerDO answer, AgentExecution execution, Consumer<StreamEventVO> events) {
+        execution.bind();
+        ChatMessageDO message = answer.getMessage();
+        String conversationId = message.getConversationId();
+        PendingActionDO pending = pendingActions.latest(conversationId);
+        String content;
+        if (pending != null) {
+            content = "上一步操作还在等待确认，请先确认或取消：" + pending.getSummary();
+        } else {
+            summaryService.compactIfNeeded(conversationId);
+            ChatRound round = new ChatRound(
+                    "answer:" + message.getId(),
+                    conversations.modelHistory(conversationId, properties.getRecentMessageLimit()));
+            if (properties.isAiEnabled()) {
+                content = springAiResponder.respondStream(
+                        userId, conversationId, round.getRequestId(), answer.getQuestion(),
+                        round.getRecent(), execution, chunk -> sendChunk(conversationId, chunk, events));
+            } else {
+                content = streamWithDemo(userId, conversationId, answer.getQuestion(), round, execution, events);
+            }
+            pending = pendingActions.latest(conversationId);
+            if (pending != null) {
+                content = replies.confirmationMessage(pending);
+            }
+        }
+        execution.check();
+        if (content == null || content.isBlank()) {
+            content = EMPTY_REPLY;
+        }
+        AgentReplyVO reply = replies.create(conversationId, message.getId(), content, pending);
+        Map<String, Object> metadata = pending == null
+                ? Map.of() : Map.of(PENDING_ACTION_ID_KEY, pending.getId());
+        conversations.finishAnswer(conversationId, message.getId(), "COMPLETED", content, metadata);
+        return reply;
+    }
+
+    /** 读取已保存的回复；只有关联的操作仍在等待确认时才返回可点击确认卡。 */
+    public AgentReplyVO savedAnswer(ChatMessageDO message) {
+        PendingActionDO pending = pendingActions.latest(message.getConversationId());
+        if (pending != null && !pending.getId().equals(message.getMetadata().get(PENDING_ACTION_ID_KEY))) {
+            pending = null;
+        }
+        return replies.create(message.getConversationId(), message.getId(), message.getContent(), pending);
+    }
+
     /** 普通聊天调用真实模型；任何异常都记录日志并改用兜底回复，不向调用方抛出。 */
     private String respondWithModel(
             long userId, String conversationId, String message, ChatRound round) {
@@ -248,7 +296,7 @@ public class AgentChatService {
         summaryService.compactIfNeeded(conversationId);
         return new ChatRound(
                 UUID.randomUUID().toString(),
-                conversations.recentMessages(conversationId, properties.getRecentMessageLimit()));
+                conversations.modelHistory(conversationId, properties.getRecentMessageLimit()));
     }
 
     /**
