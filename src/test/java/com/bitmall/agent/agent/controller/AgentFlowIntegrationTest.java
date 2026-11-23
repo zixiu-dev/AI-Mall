@@ -175,6 +175,18 @@ class AgentFlowIntegrationTest {
 
     JsonNode chat = objectMapper.readTree(chatBody);
     String actionId = chat.at("/pendingAction/id").asText();
+    String conversationId = chat.path("conversationId").asText();
+    String snapshotUrl = "/api/agent/conversations/" + conversationId + "/snapshot";
+
+    mockMvc.perform(get(snapshotUrl))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.messages[0].role").value("user"))
+        .andExpect(jsonPath("$.pendingAction.id").value(actionId))
+        .andExpect(jsonPath("$.orderProgress").isEmpty());
+    mockMvc.perform(get(snapshotUrl).param("userId", "99999"))
+        .andExpect(status().isBadRequest());
+    mockMvc.perform(get("/api/agent/conversations/snapshot-does-not-exist/snapshot"))
+        .andExpect(status().isBadRequest());
 
     mockMvc
         .perform(
@@ -186,6 +198,14 @@ class AgentFlowIntegrationTest {
                     """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.content").value(org.hamcrest.Matchers.containsString("订单已经创建成功")));
+
+    mockMvc.perform(get(snapshotUrl))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.pendingAction").doesNotExist())
+        .andExpect(jsonPath("$.orderProgress[0].status").value("SUCCESS"))
+        .andExpect(jsonPath("$.orderProgress[0].traceId").isNotEmpty())
+        .andExpect(jsonPath("$.orderProgress[0].orderId").isNotEmpty())
+        .andExpect(jsonPath("$.messages[?(@.role == 'tool')]").isEmpty());
 
     mockMvc
         .perform(

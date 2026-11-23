@@ -258,7 +258,47 @@ async function refreshAgentMode() {
     showAgentMode(null);
   }
 }
+async function restoreConversation() {
+  const conversationId = state.conversationId;
+  if (!conversationId || state.busy) return;
+  state.busy = true;
+  try {
+    const snapshot = await api(
+      `/api/agent/conversations/${encodeURIComponent(conversationId)}/snapshot`,
+    );
+    messages.replaceChildren();
+    for (const message of snapshot.messages) {
+      addMessage(message.role, message.content);
+    }
+    if (snapshot.pendingAction) addConfirm(snapshot.pendingAction);
+    for (const order of snapshot.orderProgress) {
+      showRestoredOrder(order);
+      if (["INIT", "PROCESSING"].includes(order.status) && !trackedOrders[order.traceId]) {
+        rememberOrder(order.traceId, "agent");
+      }
+    }
+  } catch (error) {
+    toast(`聊天记录加载失败：${error.message}`);
+  } finally {
+    state.busy = false;
+  }
+}
+
+function showRestoredOrder(order) {
+  const text = order.status === "SUCCESS"
+    ? `订单已创建，订单号：${order.orderId}。请到订单中心查看支付状态。`
+    : order.status === "INIT" ? "正在核对确认后的下单进度。" : order.message;
+  const existing = [...messages.querySelectorAll("[data-order-trace]")]
+    .find((element) => element.dataset.orderTrace === order.traceId);
+  if (existing) {
+    existing.querySelector(".bubble").textContent = text;
+  } else {
+    addMessage("assistant", text).dataset.orderTrace = order.traceId;
+  }
+}
+
 function openChat(prefill = "") {
+  void restoreConversation();
   refreshAgentMode();
   panel.classList.add("open");
   panel.setAttribute("aria-hidden", "false");
@@ -705,11 +745,7 @@ async function finishTrackedOrder(result) {
   if (state.checkout?.traceId === result.traceId && isView("checkoutDialog"))
     closeView("checkoutDialog");
   toast(`下单成功：${result.orderId}`);
-  if (item?.origin === "agent")
-    addMessage(
-      "assistant",
-      `订单已创建，订单号：${result.orderId}，应付 ¥${money(result.payAmount)}，请到订单中心查看当前支付状态。`,
-    );
+  if (item.origin === "agent") showRestoredOrder(result);
   await Promise.all([loadProducts(), loadCart(), loadCoupons()]);
   await loadOrders(item.origin === "page");
 }
@@ -732,11 +768,11 @@ async function pollOrderProgress() {
         const item = trackedOrders[traceId];
         forgetOrder(traceId);
         toast(result.message);
-        if (item?.origin === "agent")
-          addMessage("assistant", `本次下单未成功：${result.message}`);
+        if (item?.origin === "agent") showRestoredOrder(result);
+      } else if (trackedOrders[traceId]?.origin === "agent") {
+        showRestoredOrder(result);
+        renderPendingOrders();
       } else if (result.status === "INIT") {
-        // 请求可能根本没有到达服务端：保留原凭证，允许继续提交，而不是创建新 trace。
-        trackedOrders[traceId].status = "INIT";
         renderPendingOrders();
       }
     } catch (e) {
@@ -757,7 +793,7 @@ function renderPendingOrders() {
   box.innerHTML = Object.keys(trackedOrders)
     .map(
       (id) =>
-        `<article class="order-card"><b>正在核实下单结果</b><p>查询编号：${esc(id)}</p><small>系统会自动更新结果，请勿重复发起购买。</small>${trackedOrders[id].status === "INIT" ? `<button data-retry-trace="${attr(id)}">继续提交这次购买</button>` : ""}</article>`,
+        `<article class="order-card"><b>正在核实下单结果</b><p>查询编号：${esc(id)}</p><small>系统会自动更新结果，请勿重复发起购买。</small>${trackedOrders[id].status === "INIT" && trackedOrders[id].origin === "page" ? `<button data-retry-trace="${attr(id)}">继续提交这次购买</button>` : ""}</article>`,
     )
     .join("");
   box.querySelectorAll("[data-retry-trace]").forEach(

@@ -75,6 +75,13 @@ public class OrderService {
     return traceService.get(userId, traceService.originTrace(userId, "agent:" + actionId));
   }
 
+  /** 从确认操作恢复已绑定的购买进度；缺少归属一致的 trace 时省略该项。 */
+  public Optional<OrderSubmitVO> findActionProgress(long userId, String actionId) {
+    return traces.findOrigin("agent:" + actionId)
+        .filter(trace -> trace.getUserId() == userId)
+        .map(traceService::view);
+  }
+
   /** Agent 事务回滚之后记录失败；终态成功不会被覆盖。 */
   public void failAction(long userId, String actionId, String reason) {
     Optional<OrderTraceDO> trace = traces.findOrigin("agent:" + actionId);

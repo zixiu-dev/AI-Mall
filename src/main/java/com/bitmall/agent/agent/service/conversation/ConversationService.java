@@ -36,6 +36,13 @@ public class ConversationService {
     return id;
   }
 
+  /** 查询接口只验证已存在的会话归属，避免读取未知编号时创建会话。 */
+  public void requireOwned(long userId, String conversationId) {
+    if (!mapper.belongsTo(conversationId, userId)) {
+      throw new IllegalArgumentException("会话不存在或不属于当前用户");
+    }
+  }
+
   /** 在事务中保存消息并刷新会话时间，返回数据库生成的消息编号。 */
   @Transactional
   public long addMessage(

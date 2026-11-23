@@ -31,6 +31,13 @@
         FROM pending_action WHERE conversation_id = #{conversationId} AND status = 'PENDING'
         ORDER BY created_at DESC LIMIT 1
     </select>
+    <!-- 购买编号按确认卡来源查询；只返回近期已批准或执行过的下单操作。 -->
+    <select id="recentDecidedOrderIds" resultType="string">
+        SELECT id FROM pending_action
+        WHERE user_id = #{userId} AND conversation_id = #{conversationId}
+          AND tool_name = 'order_create' AND status IN ('APPROVED', 'EXECUTED', 'FAILED')
+        ORDER BY created_at DESC, id DESC LIMIT #{limit}
+    </select>
     <!-- decideSql: 条件更新，调用者检查影响行数 -->
     <update id="decideSql">
         UPDATE pending_action SET status = #{status}, decided_at = CURRENT_TIMESTAMP,

@@ -21,6 +21,8 @@
 
 [历史裁剪](../../../src/main/java/com/bitmall/agent/agent/service/conversation/AgentHistorySelector.java) · [用户偏好](../../../src/main/java/com/bitmall/agent/agent/service/memory/MemoryService.java)
 
+打开商城助手时，页面通过 `GET /api/agent/conversations/{conversationId}/snapshot` 恢复近期消息、仍待处理的确认卡与已决定执行的购买进度。购买按已有操作来源查 trace，仍在处理的购买继续使用原进度接口。
+
 ## Requirements
 
 ### Requirement: MEMORY-001 页面历史归属
@@ -73,6 +75,15 @@
 - **GIVEN** 新状态中工具调用已保存但结果缺失
 - **WHEN** 下一轮恢复
 - **THEN** 为原调用补中断结果并保持协议配对，要求通过业务查询确认实际状态，不自动重放。
+
+### Requirement: MEMORY-005 会话页面恢复
+
+系统 SHALL 在读取会话快照时校验归属，返回近期可展示消息、当前待确认操作及近期已决定执行的下单操作所关联的购买进度。
+
+#### Scenario: 刷新会话
+
+- **WHEN** 用户重新打开已有会话
+- **THEN** 页面恢复消息与当前待确认卡，并继续查询处理中购买；已完成的确认卡不得恢复为可点击。
 
 ## Current limitations
 

@@ -1,6 +1,8 @@
 package com.bitmall.agent.agent.controller;
 
 import com.bitmall.agent.agent.service.conversation.ConversationService;
+import com.bitmall.agent.agent.service.conversation.ConversationSnapshotService;
+import com.bitmall.agent.agent.vo.ConversationSnapshotVO;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,6 +22,16 @@ import java.util.Map;
 public class ConversationController {
     /** 查询会话的历史消息（会校验会话归属）。 */
     private final ConversationService conversations;
+
+    /** 聚合聊天记录、待确认操作和购买结果供页面重新打开时恢复。 */
+    private final ConversationSnapshotService snapshots;
+
+    @GetMapping("/conversations/{conversationId}/snapshot")
+    public ConversationSnapshotVO snapshot(
+            @PathVariable String conversationId,
+            @RequestParam(defaultValue = "10001") long userId) {
+        return snapshots.get(userId, conversationId);
+    }
 
     /** 通过会话服务检查归属后返回最近聊天记录；演示用户编号默认是 10001。 */
     @GetMapping("/conversations/{conversationId}/messages")

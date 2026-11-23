@@ -3,6 +3,7 @@ package com.bitmall.agent.agent.dao.repository;
 import com.bitmall.agent.agent.dao.entity.PendingActionDO;
 import com.bitmall.agent.agent.dao.mapper.PendingActionMapper;
 import com.bitmall.agent.common.persistence.RowValues;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -93,6 +94,12 @@ public class PendingActionRepository {
                         RowValues.intValue(row, "version"),
                         RowValues.timestamp(row, "created_at").toLocalDateTime()))
             .collect(Collectors.toCollection(ArrayList::new)));
+  }
+
+  /** 查询近期已决定执行的下单确认卡，用于会话恢复时反查原购买。 */
+  public List<String> recentDecidedOrderIds(long userId, String conversationId, int limit) {
+    return mapper.recentDecidedOrderIds(
+        parameters("userId", userId, "conversationId", conversationId, "limit", limit));
   }
 
   /** 只把仍为 PENDING 的记录改成批准或拒绝，并核对更新条数，阻止重复确认。 */

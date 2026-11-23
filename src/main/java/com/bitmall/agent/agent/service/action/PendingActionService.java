@@ -112,6 +112,11 @@ public class PendingActionService {
     return mapper.latestPending(conversationId).orElse(null);
   }
 
+  /** 返回该用户在本会话中近期已决定执行的下单操作编号。 */
+  public List<String> recentDecidedOrderIds(long userId, String conversationId, int limit) {
+    return mapper.recentDecidedOrderIds(userId, conversationId, limit);
+  }
+
   /** 把规范化参数序列化为稳定 JSON，确保键顺序和数字表示不会影响幂等判断。 */
   private String canonical(Map<String, Object> arguments) {
     try {

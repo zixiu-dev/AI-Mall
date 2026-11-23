@@ -16,6 +16,8 @@ public interface PendingActionMapper extends BaseMapper<PendingActionEntity> {
   List<Map<String, Object>> latestPendingSql(
       Map<String, Object> values);
 
+  List<String> recentDecidedOrderIds(Map<String, Object> values);
+
   int decideSql(Map<String, Object> values);
 
   int markExecutedSql(Map<String, Object> values);
