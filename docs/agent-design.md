@@ -40,3 +40,39 @@ SSE 工作线程池为核心 4、最多 16、等待队列 32，满时发送 `err
 兼容的 POST SSE Controller 检测到发送失败、容器超时或连接结束后，用 `AgentExecution.cancel()` 中断工作线程。模型流在 try-with-resources 中关闭，后续推理和工具在执行前检查取消。如果当前数据库调用暂时忽略中断，会话执行权保留到它真正退出；持久化确认卡和交易结果仍按业务服务核对。没有配对结果的工具调用继续沿用下一轮恢复机制，补中断回执并由用户决定后续动作。
 
 [同步模型循环](../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [SDK 流式适配](../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiStreamReader.java) · [请求预算](../src/main/java/com/bitmall/agent/agent/service/runtime/AgentExecution.java) · [SSE Controller](../src/main/java/com/bitmall/agent/agent/controller/AgentChatController.java)
+
+## 工具调用失败后怎么办
+
+所有工具先检查后端用户身份、技能权限和参数，再调用业务。失败回执除了 `ok=false`、`error`，还有 `code` 和 `nextAction`，后端按错误类型决定是否可以继续。
+
+| 情况 | 实际处理 |
+|---|---|
+| 缺参、类型或枚举错误 | 返回 `INVALID_ARGUMENT`，模型可根据已知信息修正两次；缺少用户信息就询问，不猜地址或订单号。第三次错误后返回 `CORRECTION_LIMIT`，本轮禁止再执行该工具。 |
+| 越权或业务拒绝 | 返回 `FORBIDDEN` / `BUSINESS_REJECTED`，停止本轮该工具并说明原因。库存不足、订单不可取消不是改参数重试的理由。 |
+| 纯查询遇到可识别的超时、连接故障等 | 最多自动重试两次，分别等待 200～299ms、400～499ms；仍失败返回 `RETRY_EXHAUSTED`。等待计入整轮预算。 |
+| 产生副作用的调用结果不确定 | 返回 `RESULT_UNKNOWN`，查询已有确认卡；查到则返回原卡，查不到或查询失败也不重放。加载技能、保存偏好也按有副作用处理。 |
+| 用户确认后的响应丢失 | 重复提交原 `actionId`，读取原结果。已经 EXECUTED 则返回原回执，APPROVED 则提示处理中或待核对；下单继续查询原 trace。 |
+
+次数按“本轮请求＋工具名”统计，模型换调用 ID 无法重置。新一轮用户消息重新计数。停止只针对出错工具，模型可以解释错误或调用其他允许的查询工具。业务状态与数据库幂等仍是写操作的最终保障。
+
+```mermaid
+flowchart TD
+    A[工具调用] --> B{身份、权限、参数校验}
+    B -->|参数错误| C{本轮同工具已错误三次?}
+    C -->|否| D[返回原因，让模型修正或询问用户]
+    C -->|是| E[停止该工具，向用户说明]
+    B -->|越权| E
+    B -->|通过| F[执行业务]
+    F -->|成功| G[返回真实结果]
+    F -->|明确业务拒绝| E
+    F -->|临时故障| H{纯查询?}
+    H -->|是| I[受总预算约束，退避重试最多两次]
+    H -->|否| J[查原确认卡或执行回执]
+    J --> K[返回原结果或待核对，禁止盲目重放]
+```
+
+例如领券已成功，但保存助手回复时数据库连接断开：先查询确认记录，发现 `EXECUTED` 就返回原成功回执，不能再次领券，也不能标记业务失败。恢复响应 `messageId=0`、`debug.recovered=true` 表示未新增聊天记录。异步下单回执中的 `PROCESSING` 只代表受理，最终建单成功仍以 trace 为准。
+
+当前没有自动续跑所有 `APPROVED` 操作的后台任务；如果执行前进程崩溃，保留原编号核对，不保证自动完成。真实模型能否一次修正参数属于模型效果，本次通过可控模型与故障注入验证后端策略。
+
+[恢复策略](../src/main/java/com/bitmall/agent/agent/service/tool/ToolCallRecovery.java) · [确认恢复](../src/main/java/com/bitmall/agent/agent/service/action/AgentActionService.java)

@@ -120,7 +120,7 @@ public final class AgentExecution implements AutoCloseable {
       throw new CancellationException("聊天连接已断开");
     }
     if (stage.expired) {
-      throw new IllegalStateException(name + "超时");
+      throw new StageTimeoutException(name + "超时");
     }
     check();
   }
@@ -144,6 +144,25 @@ public final class AgentExecution implements AutoCloseable {
       Thread.interrupted();
     }
     owner = null;
+  }
+
+  /** 可识别的阶段超时，供查询重试策略使用。 */
+  public static final class StageTimeoutException extends IllegalStateException {
+    public StageTimeoutException(String message) { super(message); }
+  }
+
+  /** 退避等待也受本轮预算与客户端取消约束。 */
+  public void backoff(long milliseconds) {
+    check();
+    long remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+    if (remaining <= milliseconds) throw new IllegalStateException("剩余预算不足以重试工具");
+    try {
+      Thread.sleep(milliseconds);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new CancellationException("工具重试等待已取消");
+    }
+    check();
   }
 
   /** 一次调用的超时标记，只在 synchronized 块中读写。 */

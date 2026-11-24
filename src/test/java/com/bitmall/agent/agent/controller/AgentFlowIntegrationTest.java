@@ -215,8 +215,8 @@ class AgentFlowIntegrationTest {
                     """
                     {"userId":10001,"approved":true}
                     """))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.message").value("该操作已经处理或不存在"));
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.debug.recovered").value(true));
 
     String orders =
         mockMvc

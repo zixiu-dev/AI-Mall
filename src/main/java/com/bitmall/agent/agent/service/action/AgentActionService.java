@@ -48,8 +48,17 @@ public class AgentActionService {
 
   /** 按用户决定取消或执行；执行成功保存工具回执，失败保存失败状态和可阅读的提示。 */
   private AgentReplyVO confirmLocked(long userId, String actionId, boolean approved) {
-    // 1. 条件更新确认状态：同一张卡只能处理一次，重复点击会在这里被拒绝。
-    PendingActionDO action = pendingActions.decide(actionId, userId, approved);
+    // 已处理的确认请求只读取原结果；跨进程竞争仍由 decide 的数据库 CAS 决定唯一执行者。
+    PendingActionDO stored = pendingActions.find(actionId, userId);
+    if (!"PENDING".equals(stored.getStatus())) return recoveredReply(stored);
+    PendingActionDO action;
+    try {
+      action = pendingActions.decide(actionId, userId, approved);
+    } catch (RuntimeException conflict) {
+      stored = pendingActions.find(actionId, userId);
+      if (!"PENDING".equals(stored.getStatus())) return recoveredReply(stored);
+      throw conflict;
+    }
     // 2. 用户拒绝只记录决定，不调用订单、领券或售后的写处理器。
     if (!approved) {
       String content = "已取消这次操作，系统没有执行任何业务变更。";
@@ -85,35 +94,65 @@ public class AgentActionService {
           ? reply.withOrderTrace((String) result.get("traceId"))
           : reply;
     } catch (Exception e) {
-      // 连接异常或提交后回复写入失败不等于购买失败：保留原 trace，让页面核对结果。
-      if ("order_create".equals(action.getToolName())
-          && !(e instanceof OrderRejectedException)) {
-        OrderSubmitVO progress = orders.actionProgress(userId, action.getId());
-        String content = "本次购买结果需要核对，请使用原购买编号查询，勿重新发起购买。查询编号：" + progress.getTraceId();
-        long messageId =
-            conversations.addMessage(
-                action.getConversationId(),
-                "assistant",
-                content,
-                Map.of("pendingActionId", action.getId(), "decision", "VERIFYING"));
-        return replies
-            .create(action.getConversationId(), messageId, content, null)
-            .withOrderTrace(progress.getTraceId());
+      // 先核对持久化结果。业务已提交而聊天写入失败时，返回已有成功回执。
+      PendingActionDO current;
+      try {
+        current = pendingActions.find(actionId, userId);
+      } catch (RuntimeException unavailable) {
+        return verifyingReply(action);
       }
-      if ("order_create".equals(action.getToolName())) {
-        orders.failAction(userId, action.getId(), "下单确认失败，请重新结算");
+      if ("EXECUTED".equals(current.getStatus()) || "FAILED".equals(current.getStatus())) {
+        return recoveredReply(current);
       }
-      Map<String, Object> failure = Map.of("success", false, "error", rootMessage(e));
-      pendingActions.failed(action, failure);
-      String content = "确认已经收到，但执行失败：" + rootMessage(e) + "。请重新查询当前状态后再试。";
-      long messageId =
-          conversations.addMessage(
-              action.getConversationId(),
-              "assistant",
-              content,
-              Map.of("pendingActionId", action.getId(), "decision", "FAILED"));
-      return replies.create(action.getConversationId(), messageId, content, null);
+      if (e instanceof OrderRejectedException || e instanceof IllegalArgumentException
+          || e instanceof com.bitmall.agent.common.exception.BusinessRejectedException) {
+        if ("order_create".equals(action.getToolName())) {
+          orders.failAction(userId, action.getId(), "下单确认失败，请重新结算");
+        }
+        Map<String, Object> failure = Map.of("success", false, "error", rootMessage(e));
+        pendingActions.failed(action, failure);
+        return recoveredReply(pendingActions.find(actionId, userId));
+      }
+      // 网络、提交异常和未知程序故障保留 APPROVED，后续沿用 actionId 核对。
+      return verifyingReply(current);
     }
+  }
+
+  /** 重复确认返回原业务结果，避免再次调用写处理器和重复写聊天回执。 */
+  private AgentReplyVO recoveredReply(PendingActionDO action) {
+    if ("APPROVED".equals(action.getStatus())) return verifyingReply(action);
+    String content = switch (action.getStatus()) {
+      case "EXECUTED" -> replies.renderSuccess(action, action.getResult());
+      case "REJECTED" -> "这次操作已取消。";
+      case "FAILED" -> "这次操作执行失败：" + action.getResult().getOrDefault("error", "请核对业务状态");
+      default -> "请核对原操作状态，操作编号：" + action.getId();
+    };
+    AgentReplyVO reply = recoveryResponse(action, content);
+    if ("order_create".equals(action.getToolName()) && action.getResult().get("traceId") instanceof String trace) {
+      return reply.withOrderTrace(trace);
+    }
+    return reply;
+  }
+
+  /** 下单查询原 trace，其他操作保留原 actionId；查询服务故障也不能触发重新执行。 */
+  private AgentReplyVO verifyingReply(PendingActionDO action) {
+    String content = "操作正在处理或结果待核对，请使用原操作编号重试查询：" + action.getId();
+    if ("order_create".equals(action.getToolName())) {
+      try {
+        OrderSubmitVO progress = orders.actionProgress(action.getUserId(), action.getId());
+        content = "请按原购买编号查询结果：" + progress.getTraceId() + "，当前状态：" + progress.getStatus();
+        return recoveryResponse(action, content).withOrderTrace(progress.getTraceId());
+      } catch (RuntimeException unavailable) {
+        // 保留可重查的确认编号，不能把查询异常当成购买失败。
+      }
+    }
+    return recoveryResponse(action, content);
+  }
+
+  /** 恢复响应直接使用已读取的记录，避免因聊天写库故障再次损坏业务结果。 */
+  private AgentReplyVO recoveryResponse(PendingActionDO action, String content) {
+    return new AgentReplyVO(action.getConversationId(), 0, content, null, java.util.List.of(),
+        Map.of("pendingActionId", action.getId(), "status", action.getStatus(), "recovered", true));
   }
 
   /** 找到异常链中最内层原因，生成给日志和用户提示使用的文字。 */

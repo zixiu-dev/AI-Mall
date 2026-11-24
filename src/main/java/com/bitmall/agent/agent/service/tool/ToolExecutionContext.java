@@ -10,6 +10,14 @@ import java.util.Objects;
 /** 后端本轮工具调用的身份信息。 用户、会话和请求编号由编排流程设置，不让模型通过工具 JSON 参数自行指定另一个用户；演示接口本身尚未接登录态。 */
 @Getter
 public final class ToolExecutionContext {
+  /** 本轮工具失败预算，仅在执行内存中维护。 */
+  @JsonIgnore private final ToolFailureBudget failureBudget = new ToolFailureBudget();
+
+  @JsonIgnore
+  public ToolFailureBudget getFailureBudget() {
+    return failureBudget;
+  }
+
   /** 数据所属用户编号，由后端上下文传入。 */
   private final long userId;
 

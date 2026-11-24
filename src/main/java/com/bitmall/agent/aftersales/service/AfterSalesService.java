@@ -53,7 +53,7 @@ public class AfterSalesService {
     String reason = command.getReason();
     Map<String, Object> check = afterSalesPrecheck(userId, orderId, type);
     if (!Boolean.TRUE.equals(check.get("eligible"))) {
-      throw new IllegalStateException(check.get("reason").toString());
+      throw new com.bitmall.agent.common.exception.BusinessRejectedException(check.get("reason").toString());
     }
     BigDecimal expected = command.getExpectedRefundAmount();
     if (expected == null) {
@@ -61,7 +61,7 @@ public class AfterSalesService {
     }
     BigDecimal actual = new BigDecimal(check.get("refundableAmount").toString());
     if (expected.compareTo(actual) != 0) {
-      throw new IllegalStateException("可退款金额已经变化，请重新确认");
+      throw new com.bitmall.agent.common.exception.BusinessRejectedException("可退款金额已经变化，请重新确认");
     }
     String id = "AS" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     mapper.createAfterSales(id, userId, orderId, type, reason, actual);

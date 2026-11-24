@@ -31,6 +31,7 @@ import tools.jackson.databind.ObjectMapper;
  *   <li>把结果包装成 {"ok":true,"data":...}，过长时裁剪，失败时包装成 {"ok":false,"error":...}。
  * </ol>
  */
+@lombok.extern.slf4j.Slf4j
 public final class CommerceToolCallback implements ToolCallback {
   /** 加载手册成功时写入工具结果的元数据键，中间件据此识别仍可见的技能。 */
   public static final String LOADED_SKILL = "wowo_loaded_skill";
@@ -139,32 +140,53 @@ public final class CommerceToolCallback implements ToolCallback {
   /**
    * 工具调用的统一入口。用户身份和本轮允许的工具集合通过 ToolContext 由后端传入，不会发给模型。
    *
-   * <p>任何一步失败都不抛出异常，而是返回 {"ok":false,"error":...}，让模型看到失败原因。
+   * <p>业务失败返回结构化错误，让模型看到原因；取消信号向外传播，立即终止本轮。
    */
   @Override
   public String call(String input, ToolContext context) {
+    ToolExecutionContext executionContext;
     try {
-      ToolExecutionContext executionContext = requireTrustedContext(context);
+      executionContext = requireTrustedContext(context);
       requireToolAllowed(context);
+    } catch (Exception e) {
+      return ToolFailure.result(json, "FORBIDDEN", "工具未开放或缺少可信身份，请核对权限和技能", "STOP");
+    }
 
-      Map<String, Object> args = json.readValue(input, new TypeReference<>() {});
+    Map<String, Object> args;
+    try {
+      args = json.readValue(input, new TypeReference<>() {});
+      if (args == null) throw new IllegalArgumentException("参数必须是 JSON 对象");
       validate(args);
+    } catch (Exception e) {
+      String reason = e instanceof IllegalArgumentException ? e.getMessage() : "参数必须符合工具声明的 JSON 格式";
+      return ToolFailure.result(json, "INVALID_ARGUMENT", reason, "CORRECT_OR_ASK_USER");
+    }
 
-      // 同一请求内的工具调用串行执行，避免并发修改同一个执行上下文。
+    boolean completed = false;
+    try {
       Object data;
       synchronized (executionContext) {
         data = dispatcher.dispatch(getName(), executionContext, args);
       }
-
+      completed = true;
       data = compactIfLarge(data);
       String output = json.writeValueAsString(Map.of("ok", true, "data", data));
-      if (shouldTrimOutput()) {
-        output = trim(output);
-      }
-      return output;
+      return shouldTrimOutput() ? trim(output) : output;
+    } catch (java.util.concurrent.CancellationException e) {
+      throw e;
     } catch (Exception e) {
-      String message = e.getMessage() == null ? DEFAULT_ERROR_MESSAGE : e.getMessage();
-      return error(message);
+      log.warn("工具执行异常 tool={} request={}", getName(), executionContext.getRequestId(), e);
+      if (ToolFailure.isTransient(e)) {
+        return ToolFailure.result(json, isReadOnly() ? "TRANSIENT_ERROR" : "RESULT_UNKNOWN",
+            "工具服务暂时不可用，需要核对执行结果", isReadOnly() ? "RETRY_READ" : "QUERY_ORIGINAL_OPERATION");
+      }
+      if (!completed && (e instanceof IllegalArgumentException
+          || e instanceof com.bitmall.agent.common.exception.BusinessRejectedException
+          || e instanceof com.bitmall.agent.order.exception.OrderRejectedException)) {
+        return ToolFailure.result(json, "BUSINESS_REJECTED", e.getMessage(), "ASK_USER");
+      }
+      return ToolFailure.result(json, isReadOnly() ? "EXECUTION_FAILED" : "RESULT_UNKNOWN",
+          "工具执行异常，请核对当前业务状态", isReadOnly() ? "STOP" : "QUERY_ORIGINAL_OPERATION");
     }
   }
 

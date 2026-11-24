@@ -144,6 +144,26 @@ class SpringAiIntegrationTest {
     assertThat(events.get(events.size() - 1).getReply().getContent()).contains("符合预算");
   }
 
+  /** 从真实模型循环验证第三次参数错误后，即使模型改成正确参数也无法重置预算。 */
+  @Test
+  void correctionLimitAppliesAcrossModelSteps() {
+    model.steps.add((messages, tools) -> call("logistics_query", Map.of()));
+    model.steps.add((messages, tools) -> {
+      assertThat(results(messages).get(0).text()).contains("INVALID_ARGUMENT");
+      return call("logistics_query", Map.of("orderId", 1));
+    });
+    model.steps.add((messages, tools) -> call("logistics_query", Map.of()));
+    model.steps.add((messages, tools) -> {
+      assertThat(results(messages).get(2).text()).contains("CORRECTION_LIMIT");
+      return call("logistics_query", Map.of("orderId", "A"));
+    });
+    model.steps.add((messages, tools) -> {
+      assertThat(results(messages).get(3).text()).contains("CORRECTION_LIMIT");
+      return answer("需要你补充正确订单号");
+    });
+    assertThat(orchestrator.chat(10001, null, "查物流").getContent()).contains("补充");
+  }
+
   /** 同步收集服务回调，沿用工具权限、确认和交易断言。 */
   private List<com.bitmall.agent.agent.vo.StreamEventVO> streamEvents(
       long user, String conversation, String message) {
@@ -340,8 +360,8 @@ class SpringAiIntegrationTest {
     assertThat(
             jdbc.sql("SELECT stock FROM product_sku WHERE id=1003").query(Integer.class).single())
         .isEqualTo(stock + 1);
-    assertThatThrownBy(() -> actions.confirm(10001, reply.getPendingAction().getId(), true))
-        .hasMessageContaining("已经处理");
+    assertThat(actions.confirm(10001, reply.getPendingAction().getId(), true).getDebug())
+        .containsEntry("recovered", true);
     assertThatThrownBy(() -> orders.previewCancelOrder(10001, id)).hasMessageContaining("不允许直接取消");
     assertThat(
             jdbc.sql("SELECT stock FROM product_sku WHERE id=1003").query(Integer.class).single())
@@ -522,8 +542,8 @@ INSERT INTO coupon(id, name, threshold_amount, discount_amount, total_stock, cla
         .contains("订单已经创建成功");
     assertThat(jdbc.sql("SELECT COUNT(*) FROM customer_order").query(Long.class).single())
         .isEqualTo(before + 1);
-    assertThatThrownBy(() -> actions.confirm(10001, reply.getPendingAction().getId(), true))
-        .hasMessageContaining("已经处理");
+    assertThat(actions.confirm(10001, reply.getPendingAction().getId(), true).getDebug())
+        .containsEntry("recovered", true);
     model.steps.add(
         (messages, tools) -> {
           assertThat(names(tools)).contains("order_create");

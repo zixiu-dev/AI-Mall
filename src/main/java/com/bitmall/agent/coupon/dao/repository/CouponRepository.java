@@ -65,11 +65,11 @@ public class CouponRepository {
     if (RowValues.required(
             mapper.countUserClaims(parameters("userId", userId, "couponId", couponId)))
         > 0) {
-      throw new IllegalStateException("这张优惠券已经领取过了");
+      throw new com.bitmall.agent.common.exception.BusinessRejectedException("这张优惠券已经领取过了");
     }
     int stock = mapper.incrementClaimedCount(parameters("couponId", couponId));
     if (stock != 1) {
-      throw new IllegalStateException("优惠券已领完或活动已结束");
+      throw new com.bitmall.agent.common.exception.BusinessRejectedException("优惠券已领完或活动已结束");
     }
     mapper.insertUserCoupon(parameters("userId", userId, "couponId", couponId));
     return RowValues.required(

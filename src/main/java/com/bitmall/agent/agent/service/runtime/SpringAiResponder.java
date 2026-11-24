@@ -8,6 +8,7 @@ import com.bitmall.agent.agent.service.conversation.AgentHistorySelector;
 import com.bitmall.agent.agent.service.skill.SkillContextPolicy;
 import com.bitmall.agent.agent.service.state.AgentStateStoreService;
 import com.bitmall.agent.agent.service.tool.DynamicToolCatalog;
+import com.bitmall.agent.agent.service.tool.ToolCallRecovery;
 import com.bitmall.agent.agent.service.tool.ToolExecutionContext;
 import com.bitmall.agent.knowledge.model.KnowledgeExecutionContext;
 import java.util.ArrayList;
@@ -15,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,6 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -45,9 +44,6 @@ public class SpringAiResponder implements AgentResponder {
   private static final String MODEL_STAGE = "模型推理";
   private static final int MODEL_STAGE_TIMEOUT_SECONDS = 60;
 
-  private static final String TOOL_STAGE = "工具执行";
-  private static final int TOOL_STAGE_TIMEOUT_SECONDS = 15;
-
   /** 模型单次回复最多允许请求的工具调用数，防止一次性发起大量操作。 */
   private static final int MAX_TOOL_CALLS_PER_ANSWER = 16;
 
@@ -57,8 +53,6 @@ public class SpringAiResponder implements AgentResponder {
 
   private static final String TOOL_UNAVAILABLE_RESULT =
       "{\"ok\":false,\"error\":\"工具尚未开放或不存在，请先加载对应技能手册\"}";
-  private static final String TOOL_FAILED_RESULT =
-      "{\"ok\":false,\"error\":\"工具调用失败或超时，未自动重试；请查询实际业务状态\"}";
 
   /** 修复一次后模型仍声称有确认卡时，用这段固定回复替换模型回答。 */
   private static final String NO_CONFIRMATION_CARD_REPLY =
@@ -71,6 +65,9 @@ public class SpringAiResponder implements AgentResponder {
           + " pendingActionId 才能提示点击确认；否则明确尚未生成。";
 
   private static final String STEP_LIMIT_REPLY = "本次任务已达到执行步数上限。请缩小任务范围后继续；已经准备好的操作以页面确认卡为准。";
+
+  /** 对工具错误实施有限修正、只读重试和副作用结果核对。 */
+  private final ToolCallRecovery toolRecovery;
 
   /** 读取模型流式输出，合并分片的工具参数，并在结束时关闭上游流。 */
   private final SpringAiStreamReader streamReader;
@@ -253,7 +250,7 @@ public class SpringAiResponder implements AgentResponder {
   /**
    * 执行一个工具调用，并把结果作为工具回执加入历史。
    *
-   * <p>取消会直接向外传播；其他失败不自动重试（写操作重试可能重复下单），只告诉模型去查询实际业务状态，已生成的确认卡仍然有效。
+   * <p>取消直接向外传播；纯查询按有限预算重试，副作用失败核对原确认卡。
    */
   private void executeToolCall(
       AgentRunState run,
@@ -263,19 +260,9 @@ public class SpringAiResponder implements AgentResponder {
       AgentExecution execution,
       Consumer<TextChunk> events) {
     events.accept(new TextChunk(TOOL_START_EVENT, call.name()));
-    String result;
-    try {
-      result =
-          execution.stage(
-              TOOL_STAGE,
-              TOOL_STAGE_TIMEOUT_SECONDS,
-              () -> invokeTool(run, call, callbacks, allowedTools));
-    } catch (CancellationException error) {
-      throw error;
-    } catch (RuntimeException error) {
-      execution.check();
-      result = TOOL_FAILED_RESULT;
-    }
+    ToolCallback callback = findCallback(callbacks, call.name());
+    String result = callback == null ? TOOL_UNAVAILABLE_RESULT
+        : toolRecovery.execute(callback, call.arguments(), run.toolContext, allowedTools, execution);
     execution.check();
 
     run.messages.add(
@@ -286,26 +273,6 @@ public class SpringAiResponder implements AgentResponder {
             .build());
     saveHistory(run);
     events.accept(new TextChunk(TOOL_END_EVENT, call.name()));
-  }
-
-  /** 找到本轮开放的同名工具并调用；用户身份和允许名单通过 ToolContext 传入，不经过模型。 */
-  private String invokeTool(
-      AgentRunState run,
-      AssistantMessage.ToolCall call,
-      List<ToolCallback> callbacks,
-      Set<String> allowedTools) {
-    ToolCallback callback = findCallback(callbacks, call.name());
-    if (callback == null) {
-      return TOOL_UNAVAILABLE_RESULT;
-    }
-    ToolContext toolContext =
-        new ToolContext(
-            Map.of(
-                ToolExecutionContext.class.getName(),
-                run.toolContext,
-                SkillContextPolicy.ALLOWED_TOOLS,
-                allowedTools));
-    return callback.call(call.arguments(), toolContext);
   }
 
   private static ToolCallback findCallback(List<ToolCallback> callbacks, String toolName) {

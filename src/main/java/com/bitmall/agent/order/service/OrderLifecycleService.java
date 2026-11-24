@@ -83,7 +83,7 @@ public class OrderLifecycleService {
       return result(order, order.getStatus(), "订单已经关闭，库存和优惠券不会重复返还");
     }
     if (!STATUS_PENDING_PAYMENT.equals(order.getStatus())) {
-      throw new IllegalStateException("只有待支付订单可以直接取消，已支付订单请申请售后");
+      throw new com.bitmall.agent.common.exception.BusinessRejectedException("只有待支付订单可以直接取消，已支付订单请申请售后");
     }
     String closedStatus = expired(order) ? STATUS_CLOSED : STATUS_CANCELLED;
     return close(order, closedStatus, "订单已关闭，库存和优惠券已释放");
@@ -111,7 +111,7 @@ public class OrderLifecycleService {
   private Map<String, Object> close(OrderDetailVO order, String status, String message) {
     inventory.beforeClose(order);
     if (!orders.closeOrder(order.getUserId(), order.getId(), status)) {
-      throw new IllegalStateException("订单状态已变化，请刷新订单");
+      throw new com.bitmall.agent.common.exception.BusinessRejectedException("订单状态已变化，请刷新订单");
     }
     orders.finishStock(order, false);
     orders.finishCoupon(order, false);
