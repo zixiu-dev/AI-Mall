@@ -1,4 +1,4 @@
-package com.bitmall.agent.agent.service.model;
+package com.bitmall.agent.agent.gateway.model;
 
 /** 当前推理没有获得可用响应，聊天层可据此恢复已经保存的业务回执。 */
 public final class ModelUnavailableException extends IllegalStateException {

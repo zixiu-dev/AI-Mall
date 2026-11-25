@@ -2,14 +2,14 @@ package com.bitmall.agent.agent.service.runtime;
 
 import com.bitmall.agent.agent.config.AgentProperties;
 import com.bitmall.agent.agent.dao.entity.ChatMessageDO;
+import com.bitmall.agent.agent.gateway.model.ModelGateway;
 import com.bitmall.agent.agent.model.TextChunk;
 import com.bitmall.agent.agent.service.action.PendingActionService;
 import com.bitmall.agent.agent.service.conversation.AgentHistorySelector;
-import com.bitmall.agent.agent.service.model.ModelGateway;
 import com.bitmall.agent.agent.service.skill.SkillContextPolicy;
 import com.bitmall.agent.agent.service.state.AgentStateStoreService;
 import com.bitmall.agent.agent.service.tool.DynamicToolCatalog;
-import com.bitmall.agent.agent.service.tool.ToolCallRecovery;
+import com.bitmall.agent.agent.service.tool.ToolExecutor;
 import com.bitmall.agent.agent.service.tool.ToolExecutionContext;
 import com.bitmall.agent.knowledge.model.KnowledgeExecutionContext;
 import java.util.ArrayList;
@@ -48,9 +48,6 @@ public class SpringAiResponder implements AgentResponder {
   private static final String TOOL_END_EVENT = "tool_end";
   private static final String LOAD_SKILL_TOOL = "load_skill";
 
-  private static final String TOOL_UNAVAILABLE_RESULT =
-      "{\"ok\":false,\"error\":\"工具尚未开放或不存在，请先加载对应技能手册\"}";
-
   /** 修复一次后模型仍声称有确认卡时，用这段固定回复替换模型回答。 */
   private static final String NO_CONFIRMATION_CARD_REPLY =
       "本次还没有生成可点击的确认卡，本次操作尚未执行。请重新发起办理请求；只有页面实际显示确认卡后才能确认执行。";
@@ -63,8 +60,8 @@ public class SpringAiResponder implements AgentResponder {
 
   private static final String STEP_LIMIT_REPLY = "本次任务已达到执行步数上限。请缩小任务范围后继续；已经准备好的操作以页面确认卡为准。";
 
-  /** 对工具错误实施有限修正、只读重试和副作用结果核对。 */
-  private final ToolCallRecovery toolRecovery;
+  /** 执行模型请求的工具并返回原回执。 */
+  private final ToolExecutor toolExecutor;
 
   /** 每次推理通过模型网关执行，切换候选不重放已完成的工具。 */
   private final ModelGateway modelGateway;
@@ -96,7 +93,7 @@ public class SpringAiResponder implements AgentResponder {
   /** 读取单次请求超时和模型推理的最大循环轮数。 */
   private final AgentProperties properties;
 
-  /** 解析工具调用返回的 JSON 结果。 */
+  /** 读取加载技能回执，保存主循环需要的技能元数据。 */
   private final ObjectMapper json;
 
   /** 非流式调用：自己创建执行上下文（含整体超时），丢弃中间事件，只返回最终回答。 */
@@ -141,13 +138,14 @@ public class SpringAiResponder implements AgentResponder {
       saveHistory(run);
 
       // 2. 等待模型完整回复，实时转发文本；工具参数分片由 streamReader 合并。
-      AssistantMessage answer = callModel(modelInput, callbacks, execution, events);
+      int stepNo = iteration + 1;
+      AssistantMessage answer = callModel(modelInput, callbacks, execution, events, stepNo);
       run.messages.add(answer);
       saveHistory(run);
 
       // 3. 工具逐个执行并保存回执；下一步推理才能看到执行结果。
       if (answer.hasToolCalls()) {
-        executeToolCalls(run, answer, callbacks, allowedTools, execution, events);
+        executeToolCalls(run, answer, callbacks, allowedTools, execution, events, stepNo);
         continue;
       }
 
@@ -212,9 +210,10 @@ public class SpringAiResponder implements AgentResponder {
       List<Message> modelInput,
       List<ToolCallback> callbacks,
       AgentExecution execution,
-      Consumer<TextChunk> events) {
+      Consumer<TextChunk> events,
+      int stepNo) {
     return modelGateway.generate(modelInput, callbacks, execution,
-        delta -> events.accept(TextChunk.delta(delta)), () -> events.accept(TextChunk.reset()))
+        delta -> events.accept(TextChunk.delta(delta)), () -> events.accept(TextChunk.reset()), stepNo)
         .getResult().getOutput();
   }
 
@@ -225,33 +224,29 @@ public class SpringAiResponder implements AgentResponder {
       List<ToolCallback> callbacks,
       Set<String> allowedTools,
       AgentExecution execution,
-      Consumer<TextChunk> events) {
+      Consumer<TextChunk> events,
+      int stepNo) {
     if (answer.getToolCalls().size() > MAX_TOOL_CALLS_PER_ANSWER) {
       throw new IllegalStateException("单次工具数量超过预算");
     }
     events.accept(TextChunk.reset());
     for (AssistantMessage.ToolCall call : answer.getToolCalls()) {
       execution.check();
-      executeToolCall(run, call, callbacks, allowedTools, execution, events);
+      executeToolCall(run, call, callbacks, allowedTools, execution, events, stepNo);
     }
   }
 
-  /**
-   * 执行一个工具调用，并把结果作为工具回执加入历史。
-   *
-   * <p>取消直接向外传播；纯查询按有限预算重试，副作用失败核对原确认卡。
-   */
+  /** 调用工具执行器，把返回的回执加入历史并通知页面。 */
   private void executeToolCall(
       AgentRunState run,
       AssistantMessage.ToolCall call,
       List<ToolCallback> callbacks,
       Set<String> allowedTools,
       AgentExecution execution,
-      Consumer<TextChunk> events) {
+      Consumer<TextChunk> events,
+      int stepNo) {
     events.accept(new TextChunk(TOOL_START_EVENT, call.name()));
-    ToolCallback callback = findCallback(callbacks, call.name());
-    String result = callback == null ? TOOL_UNAVAILABLE_RESULT
-        : toolRecovery.execute(callback, call.arguments(), run.toolContext, allowedTools, execution);
+    String result = toolExecutor.execute(call, callbacks, allowedTools, run.toolContext, execution, stepNo);
     execution.check();
 
     run.messages.add(
@@ -262,13 +257,6 @@ public class SpringAiResponder implements AgentResponder {
             .build());
     saveHistory(run);
     events.accept(new TextChunk(TOOL_END_EVENT, call.name()));
-  }
-
-  private static ToolCallback findCallback(List<ToolCallback> callbacks, String toolName) {
-    return callbacks.stream()
-        .filter(callback -> callback.getToolDefinition().name().equals(toolName))
-        .findFirst()
-        .orElse(null);
   }
 
   /** load_skill 成功时在回执元数据里记录"哪次调用加载了哪个技能"，技能策略据此判断后续可开放的工具。 */

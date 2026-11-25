@@ -1,11 +1,12 @@
-package com.bitmall.agent.agent.service.model;
+package com.bitmall.agent.agent.gateway.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bitmall.agent.agent.config.SpringAiConfiguration;
 import com.bitmall.agent.agent.service.runtime.AgentExecution;
-import com.bitmall.agent.agent.service.runtime.SpringAiStreamReader;
+import com.bitmall.agent.agent.dao.entity.AgentExecutionDetailDO;
+import com.bitmall.agent.agent.service.trace.AgentTurnTrace;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -58,6 +59,8 @@ class ModelGatewayTransportTest {
     var metrics = new SimpleMeterRegistry();
     try {
       var gateway = gateway(server, metrics);
+      var details = new ArrayList<AgentExecutionDetailDO>();
+      var trace = new AgentTurnTrace(42, details::add);
       var events = new ArrayList<String>();
       var usedTools = new AtomicInteger();
       var tool = FunctionToolCallback.builder("lookup", (String query) -> usedTools.incrementAndGet())
@@ -71,10 +74,10 @@ class ModelGatewayTransportTest {
           ToolResponseMessage.builder().responses(List.of(
               new ToolResponseMessage.ToolResponse("lookup-1", "lookup", "商品已查询"))).build());
       for (int i = 0; i < 3; i++) {
-        try (var execution = new AgentExecution(scheduler, 10)) {
+        try (var execution = new AgentExecution(scheduler, 10, trace)) {
           execution.bind();
           var response = gateway.generate(history, List.of(tool), execution,
-              events::add, () -> events.add("[reset]"));
+              events::add, () -> events.add("[reset]"), i + 1);
           assertThat(response.getResult().getOutput().getText()).isEqualTo("备用结果");
         }
       }
@@ -92,6 +95,14 @@ class ModelGatewayTransportTest {
       assertThat(metrics.get("agent.model.tokens").tags("candidate", "bailian", "kind", "input").counter().count())
           .isEqualTo(21);
       assertThat(metrics.get("agent.model.usage.missing").tag("candidate", "primary").counter().count()).isEqualTo(2);
+      assertThat(details).extracting(AgentExecutionDetailDO::getItemType)
+          .containsExactly("MODEL_CALL", "MODEL_CALL", "MODEL_CALL", "MODEL_CALL",
+              "MODEL_SKIPPED", "MODEL_CALL");
+      assertThat(details).extracting(AgentExecutionDetailDO::getAttemptNo)
+          .containsExactly(1, 2, 1, 2, null, 1);
+      assertThat(details.get(2).getErrorCode()).isEqualTo("HTTP_503");
+      assertThat(details.get(2).getInputTokens()).isNull();
+      assertThat(details.get(3).getInputTokens()).isEqualTo(7);
     } finally {
       metrics.close();
       server.stop(0);
@@ -159,7 +170,7 @@ class ModelGatewayTransportTest {
         config.commerceChatModel("local-test-key", url, "/primary/chat/completions", "local-main")).build();
     var backup = config.bailianChatClient("local-test-key", url + "/compatible-mode/v1", "qwen-plus");
     return new ModelGateway(new SpringAiStreamReader(primary), Optional.of(backup), metrics,
-        2, Duration.ofSeconds(30));
+        2, Duration.ofSeconds(30), "local-main", "qwen-plus");
   }
 
   private void error(HttpExchange exchange, int status) throws IOException {

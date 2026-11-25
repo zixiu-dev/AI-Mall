@@ -5,14 +5,18 @@ import com.bitmall.agent.agent.dao.entity.AgentAnswerDO;
 import com.bitmall.agent.agent.dao.entity.ChatMessageDO;
 import com.bitmall.agent.agent.dao.repository.ConversationRepository;
 import com.bitmall.agent.agent.dto.AgentTurnRequest;
-import com.bitmall.agent.agent.service.model.ModelUnavailableException;
+import com.bitmall.agent.agent.gateway.model.ModelUnavailableException;
 import com.bitmall.agent.agent.service.conversation.ConversationService;
 import com.bitmall.agent.agent.service.runtime.AgentExecution;
 import com.bitmall.agent.agent.service.runtime.AgentRunGate;
+import com.bitmall.agent.agent.service.trace.AgentExecutionJournal;
+import com.bitmall.agent.agent.vo.AgentExecutionVO;
+import com.bitmall.agent.agent.vo.AgentTurnSummaryVO;
 import com.bitmall.agent.agent.vo.AgentTurnVO;
 import com.bitmall.agent.agent.vo.StreamEventVO;
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,6 +40,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @DependsOnDatabaseInitialization
 @RequiredArgsConstructor
 public class AgentTurnService {
+  private static final int RECENT_TURNS_LIMIT = 30;
   private static final Logger log = LoggerFactory.getLogger(AgentTurnService.class);
   private static final String FAILED = "FAILED";
   private static final String GENERATING = "GENERATING";
@@ -66,6 +71,9 @@ public class AgentTurnService {
 
   /** 读取聊天总预算，SSE 订阅使用稍长的连接超时。 */
   private final AgentProperties properties;
+
+  /** 创建并查询仅用于排障的非阻塞明细。 */
+  private final AgentExecutionJournal journal;
 
   /** 每条活动助手消息的一份草稿，完成时释放。 */
   private final Map<Long, AgentAnswerStream> streams = new ConcurrentHashMap<>();
@@ -114,10 +122,16 @@ public class AgentTurnService {
       AgentAnswerStream stream = createStream(conversationId);
       long messageId = answer.getMessage().getId();
       streams.put(messageId, stream);
-      AgentExecution execution = new AgentExecution(scheduler, properties.getRequestTimeoutSeconds());
+      var trace = journal.startTurn(messageId);
+      var queueWait = trace.beginQueueWait();
+      AgentExecution execution = new AgentExecution(scheduler, properties.getRequestTimeoutSeconds(), trace);
       try {
-        executor.execute(() -> run(userId, answer, execution, stream, lease));
+        executor.execute(() -> {
+          queueWait.finish("SUCCESS", null);
+          run(userId, answer, execution, stream, lease);
+        });
       } catch (RejectedExecutionException busy) {
+        queueWait.finish("REJECTED", "QUEUE_FULL");
         execution.close();
         try {
           fail(answer.getMessage(), "助手当前较忙，请稍后重新发送。", stream);
@@ -145,7 +159,7 @@ public class AgentTurnService {
         try (execution) {
           terminal = StreamEventVO.done(chats.generateAnswer(userId, answer, execution, stream::publish));
         } catch (RuntimeException failure) {
-          if (failure instanceof ModelUnavailableException && recoverPending(message, stream)) {
+          if (failure instanceof ModelUnavailableException && recoverPending(message, stream, execution)) {
             return;
           }
           log.warn("后台回答生成失败，消息编号 {}", message.getId(), failure);
@@ -160,12 +174,13 @@ public class AgentTurnService {
   }
 
   /** 已生成确认卡时给用户原回执，核对不可用的情况下沿用普通失败终态。 */
-  private boolean recoverPending(ChatMessageDO message, AgentAnswerStream stream) {
+  private boolean recoverPending(ChatMessageDO message, AgentAnswerStream stream, AgentExecution execution) {
     try {
       var reply = chats.recoverPendingAnswer(message);
       if (reply == null) {
         return false;
       }
+      execution.trace().confirmationRecovered(reply.getPendingAction().getId());
       stream.finish(StreamEventVO.done(reply));
       return true;
     } catch (RuntimeException failure) {
@@ -181,6 +196,19 @@ public class AgentTurnService {
 
   public AgentTurnVO result(long userId, long messageId) {
     return new AgentTurnVO(conversations.answer(userId, messageId).getMessage());
+  }
+
+  /** 归属校验沿用回答接口，诊断查询只读取原轮次。 */
+  public AgentExecutionVO executionDetails(long userId, long messageId) {
+    var message = conversations.answer(userId, messageId).getMessage();
+    return new AgentExecutionVO(message, journal.find(messageId));
+  }
+
+  /** 返回指定用户最近的后台轮次，按助手消息编号从新到旧。 */
+  public List<AgentTurnSummaryVO> recentTurns(long userId) {
+    return messages.recentTurns(userId, RECENT_TURNS_LIMIT).stream()
+        .map(AgentTurnSummaryVO::new)
+        .toList();
   }
 
   /** 找回 POST 回执丢失的回答。GET 仅查已提交记录，刷新不会发起新一轮。 */

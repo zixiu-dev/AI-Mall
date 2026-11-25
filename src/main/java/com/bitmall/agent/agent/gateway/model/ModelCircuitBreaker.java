@@ -1,4 +1,4 @@
-package com.bitmall.agent.agent.service.model;
+package com.bitmall.agent.agent.gateway.model;
 
 import java.time.Duration;
 import java.util.Objects;

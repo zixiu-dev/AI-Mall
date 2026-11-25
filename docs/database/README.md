@@ -11,7 +11,7 @@
 | [数据模型](../data-design.md) | 表为何存在、库存与状态关系、事务边界 |
 | [启动说明](../deployment.md) | 凭据配置、创建空库、启动与索引构建 |
 
-快照用于阅读和结构对照，**不是完整商城初始化脚本**：它们不包含技能、商品、政策、用户或 Flyway 历史。正常运行只需要创建空库并启动应用，由 Flyway 自动建表和导入项目种子数据，不需要自己逐份执行 V1～V20。
+快照用于阅读和结构对照，**不是完整商城初始化脚本**：它们不包含技能、商品、政策、用户或 Flyway 历史。正常运行只需要创建空库并启动应用，由 Flyway 自动建表和导入项目种子数据，不需要自己逐份执行 V1～V21。
 
 ## 新环境与已有环境怎么处理
 
@@ -27,17 +27,19 @@
 
 ## 历史脚本放在哪里
 
-- [MySQL 迁移](../../src/main/resources/db/mysql)：V1～V20，主运行路径。
-- [H2 迁移](../../src/main/resources/db/migration)：V1～V20，测试/demo 方言。
+- [MySQL 迁移](../../src/main/resources/db/mysql)：V1～V21，主运行路径。
+- [H2 迁移](../../src/main/resources/db/migration)：V1～V21，测试/demo 方言。
 - [PostgreSQL 迁移](../../src/main/resources/db/pgvector)：独立 V1，不与商城主库混跑。
 
 这些是应用的升级记录，保留在 resources 中给 Flyway 使用。它们不是面试阅读顺序；旧活动表在 V13 已删除，当前结构快照没有活动表。
 
 `agent_scope_state` 保留历史表名，当前存的是 `spring-ai-v1` 版本的消息；主库的三个 knowledge_index_* 表是 LEGACY 兼容，默认 PGVECTOR 使用 PostgreSQL 的独立三表。保留旧表不表示默认链路同时往两套索引写数据。
 
+`agent_model_call` 和 `agent_turn_item` 是短期排障表，以后台助手消息 ID 标识同一轮。按轮读取使用轮次和序号索引，过期清理使用开始时间索引。每轮的真实回答、确认卡与订单状态分别以现有业务表为准。详见 [单轮执行明细](../agent-design.md#单轮执行明细)。
+
 ## 更新快照
 
-当前 MySQL 快照来自 **全新临时库重放 V1～V20**，再导入第二个临时库并比对结构，没有读取用户现有业务库。执行：
+当前 MySQL 快照来自 **全新临时库重放 V1～V21**，再导入第二个临时库并比对结构，没有读取用户现有业务库。执行：
 
 ```bash
 python3 scripts/export-database-schema.py

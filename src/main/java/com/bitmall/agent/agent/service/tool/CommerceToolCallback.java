@@ -35,6 +35,8 @@ import tools.jackson.databind.ObjectMapper;
 public final class CommerceToolCallback implements ToolCallback {
   /** 加载手册成功时写入工具结果的元数据键，中间件据此识别仍可见的技能。 */
   public static final String LOADED_SKILL = "wowo_loaded_skill";
+  /** 后端 ToolContext 可选的执行观察器，在参数和技能校验通过后通知调用方。 */
+  static final String DISPATCH_OBSERVER_KEY = "agent.trace.onDispatch";
 
   private static final String LOAD_SKILL_TOOL = "load_skill";
   private static final String SAVE_PREFERENCE_TOOL = "save_preference";
@@ -166,7 +168,10 @@ public final class CommerceToolCallback implements ToolCallback {
     try {
       Object data;
       synchronized (executionContext) {
-        data = dispatcher.dispatch(getName(), executionContext, args);
+        Object observer = context.getContext().get(DISPATCH_OBSERVER_KEY);
+        data = observer instanceof Runnable onDispatch
+            ? dispatcher.dispatch(getName(), executionContext, args, onDispatch)
+            : dispatcher.dispatch(getName(), executionContext, args);
       }
       completed = true;
       data = compactIfLarge(data);

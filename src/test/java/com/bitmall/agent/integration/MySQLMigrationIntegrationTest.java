@@ -3,6 +3,8 @@ package com.bitmall.agent.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bitmall.agent.agent.dao.repository.ConversationRepository;
+import com.bitmall.agent.agent.dao.entity.AgentExecutionDetailDO;
+import com.bitmall.agent.agent.dao.repository.AgentExecutionDetailRepository;
 import com.bitmall.agent.checkout.service.CheckoutService;
 import com.bitmall.agent.coupon.service.CouponService;
 import com.bitmall.agent.knowledge.service.KnowledgeService;
@@ -11,6 +13,9 @@ import com.bitmall.agent.order.service.OrderService;
 import com.bitmall.agent.order.service.OrderSubmissionService;
 import com.bitmall.agent.order.service.OrderTraceService;
 import com.bitmall.agent.product.service.ProductService;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -53,6 +58,7 @@ class MySQLMigrationIntegrationTest {
   @Autowired OrderTraceService traces;
   @Autowired OrderSubmissionService submissions;
   @Autowired ConversationRepository conversations;
+  @Autowired AgentExecutionDetailRepository executionDetails;
   @Autowired com.bitmall.agent.agent.dao.mapper.PendingActionMapper pending;
 
   @Test
@@ -80,7 +86,7 @@ class MySQLMigrationIntegrationTest {
             jdbc.sql("SELECT COUNT(*) FROM flyway_schema_history WHERE success=TRUE")
                 .query(Integer.class)
                 .single())
-        .isEqualTo(20);
+        .isEqualTo(21);
     assertThat(products.product(101L).getSkus()).isNotEmpty();
     assertThat(knowledge.search("优惠券")).isNotEmpty();
   }
@@ -100,6 +106,36 @@ class MySQLMigrationIntegrationTest {
     conversationService.finishAnswer(conversationId, messageId, "COMPLETED", "完整回复", Map.of());
     assertThat(conversationService.answer(10001L, messageId).getMessage().getContent()).isEqualTo("完整回复");
     assertThat(conversations.recentMessages(conversationId, 10)).hasSize(2);
+  }
+
+  @Test
+  void executionDetailsBatchQueryAndRetentionWorkInMySql() {
+    var accepted = conversationService.createAnswer(10001L, UUID.randomUUID().toString(), true,
+        "查询明细", "10001:" + UUID.randomUUID());
+    long turnId = accepted.getMessage().getId();
+    LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+    var expired = AgentExecutionDetailDO.builder().turnId(turnId).sequenceNo(1).stepNo(1).attemptNo(1)
+        .candidate("primary").model("test").status("FAILED").errorCode("HTTP_503")
+        .startedAt(now.minusDays(8)).durationMs(3).build();
+    var success = AgentExecutionDetailDO.builder().turnId(turnId).sequenceNo(2).stepNo(1).attemptNo(2)
+        .candidate("bailian").model("qwen-plus").status("SUCCESS")
+        .startedAt(now).durationMs(8).inputTokens(7).outputTokens(2).build();
+    var tool = AgentExecutionDetailDO.builder().turnId(turnId).sequenceNo(3).stepNo(1)
+        .itemType("TOOL_CALL").modelCallSequence(2).toolName("product_detail").executionCount(2)
+        .status("SUCCESS").startedAt(now).durationMs(9).build();
+    var pastQueue = AgentExecutionDetailDO.builder().turnId(turnId).sequenceNo(4)
+        .itemType("QUEUE_WAIT").status("SUCCESS").startedAt(now.minusDays(8)).durationMs(1).build();
+    executionDetails.writeModelCalls(List.of(expired, success));
+    executionDetails.writeItems(List.of(tool, pastQueue));
+    assertThat(executionDetails.find(turnId, now.minusDays(7)))
+        .extracting(AgentExecutionDetailDO::getSequenceNo).containsExactly(2, 3);
+    executionDetails.prune(now.minusDays(7), 1);
+    var retained = executionDetails.find(turnId, now.minusDays(10));
+    assertThat(retained).hasSize(2);
+    assertThat(retained.get(0).getInputTokens()).isEqualTo(7);
+    assertThat(retained.get(1).getModelCallSequence()).isEqualTo(2);
+    assertThat(retained.get(1).getExecutionCount()).isEqualTo(2);
+    assertThat(conversationService.answer(10001L, turnId).getMessage().getId()).isEqualTo(turnId);
   }
 
   @Test

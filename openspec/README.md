@@ -10,7 +10,7 @@
 | 消息与订单状态 | [Outbox、消费幂等与死信](specs/order-messaging/spec.md) · [支付、取消与超时关单](specs/order-lifecycle/spec.md) |
 | Agent | [聊天与工具](specs/agent-runtime/spec.md) · [确认后执行业务](specs/agent-confirmation/spec.md) · [对话与记忆](specs/agent-memory/spec.md) |
 | 客服 | [物流与售后](specs/customer-service/spec.md) · [品牌政策 RAG](specs/knowledge-retrieval/spec.md) |
-| 监控 | [QPS、TPS 与积压](specs/observability/spec.md) |
+| 监控 | [交易指标与 Agent 单轮排障](specs/observability/spec.md) |
 
 复盘交易时，从商品查询读到结算和下单，再看库存、消息和关单。复盘 Agent 时，从聊天与工具读到用户确认，再看知识检索怎样提供证据。
 

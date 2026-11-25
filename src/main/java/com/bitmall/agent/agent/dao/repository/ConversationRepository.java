@@ -3,6 +3,7 @@ package com.bitmall.agent.agent.dao.repository;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bitmall.agent.agent.dao.entity.ChatMessageDO;
 import com.bitmall.agent.agent.dao.entity.AgentAnswerDO;
+import com.bitmall.agent.agent.dao.entity.AgentTurnSummaryDO;
 import com.bitmall.agent.agent.dao.entity.ChatMessageEntity;
 import com.bitmall.agent.agent.dao.entity.ConversationEntity;
 import com.bitmall.agent.agent.dao.mapper.ConversationMapper;
@@ -118,6 +119,11 @@ public class ConversationRepository {
   public Optional<AgentAnswerDO> ownedAnswer(long userId, long messageId) {
     return Optional.ofNullable(mapper.ownedAnswer(parameters("userId", userId, "id", messageId)))
         .map(this::toAnswer);
+  }
+
+  /** 只读取列表需要的列，正文与消息附加数据不参与查询。 */
+  public List<AgentTurnSummaryDO> recentTurns(long userId, int limit) {
+    return mapper.recentTurns(userId, limit);
   }
 
   /** 查询同一次发送已提交的原问题和回答，用于请求超时后的重试。 */

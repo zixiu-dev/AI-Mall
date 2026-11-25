@@ -2,7 +2,9 @@ package com.bitmall.agent.agent.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.mockito.Mockito.doThrow;
 
+import com.bitmall.agent.product.service.ProductService;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URI;
@@ -27,10 +29,13 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import tools.jackson.databind.JsonNode;
@@ -43,14 +48,17 @@ import tools.jackson.databind.ObjectMapper;
       "app.agent.ai-enabled=true",
       "app.catalog-cache.enabled=false",
       "app.hotkey.enabled=false",
+      "management.server.port=0",
       "spring.datasource.url=jdbc:h2:mem:agent-resume-http;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
     })
 @ActiveProfiles("demo")
 @Timeout(value = 30, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
 class AgentResumeHttpIntegrationTest {
   @LocalServerPort int port;
+  @LocalManagementPort int managementPort;
   @Autowired ObjectMapper json;
   @Autowired ControlledModel model;
+  @MockitoSpyBean ProductService products;
 
   private final HttpClient client = HttpClient.newBuilder()
       .version(HttpClient.Version.HTTP_1_1)
@@ -77,6 +85,7 @@ class AgentResumeHttpIntegrationTest {
     assertThat(get("/api/agent/chat/turns/" + requestId, 200).path("messageId").asLong())
         .isEqualTo(messageId);
     get("/api/agent/messages/" + messageId + "?userId=99999", 400);
+    get("/api/agent/messages/" + messageId + "/execution?userId=99999", 400);
     sendJson(request("/api/agent/messages/" + messageId + "/stream?userId=99999")
         .header("Accept", "text/event-stream, application/json").GET().build(), 400);
     assertThat(get("/api/agent/conversations/" + conversation + "/snapshot", 200)
@@ -102,6 +111,33 @@ class AgentResumeHttpIntegrationTest {
       assertThat(event(finished, "done").path("reply").path("content").asText()).isEqualTo("ABC");
     }
     assertThat(model.calls.get() - initialCalls).isEqualTo(1);
+    JsonNode execution = executionEntries(messageId, 2);
+    assertThat(execution.get(0).path("itemType").asText()).isEqualTo("QUEUE_WAIT");
+    assertThat(execution.get(1).path("itemType").asText()).isEqualTo("MODEL_CALL");
+    assertThat(execution.get(1).path("status").asText()).isEqualTo("SUCCESS");
+    assertThat(execution.get(1).path("inputTokens").isMissingNode()).isTrue();
+
+    // 管理页面及新增接口只在独立端口存在，并沿用已有轮次的归属和明细。
+    var page = managementGet("/agent-execution", 200);
+    assertThat(page.headers().firstValue("Content-Type")).hasValueSatisfying(
+        value -> assertThat(value).startsWith("text/html"));
+    assertThat(page.body()).contains("Agent 执行记录");
+    assertThat(managementGet("/agent-execution/dashboard.js", 200).body()).contains("loadDetail");
+    get("/agent-execution", 404);
+    get("/agent-execution/api/turns?userId=10001", 404);
+    get("/agent-execution/dashboard.js", 404);
+    var list = json.readTree(managementGet("/agent-execution/api/turns?userId=10001", 200).body());
+    assertThat(list.get(0).path("turnId").asLong()).isEqualTo(messageId);
+    assertThat(list.get(0).path("createdAt").isTextual()).isTrue();
+    assertThat(list.get(0).path("status").asText()).isEqualTo("COMPLETED");
+    assertThat(list.get(0).size()).isEqualTo(4);
+    var detail = managementGet("/agent-execution/api/turns/" + messageId + "?userId=10001", 200);
+    assertThat(detail.headers().firstValue("Cache-Control")).hasValue("no-store");
+    assertThat(json.readTree(detail.body()).path("entries")).isEqualTo(execution);
+    assertThat(json.readTree(managementGet("/agent-execution/api/turns?userId=99999", 200).body())
+        .isEmpty()).isTrue();
+    managementGet("/agent-execution/api/turns/" + messageId + "?userId=99999", 404);
+    managementGet("/agent-execution/api/turns?userId=0", 400);
   }
 
   @Test
@@ -146,6 +182,55 @@ class AgentResumeHttpIntegrationTest {
       assertThat(event(reconnected, "done").path("reply").path("pendingAction").path("id").asText())
           .isEqualTo(cardId);
     }
+    JsonNode entries = executionEntries(messageId, 7);
+    JsonNode proposalEntry = entries.get(4);
+    assertThat(proposalEntry.path("actionId").asText()).isEqualTo(cardId);
+    assertThat(proposalEntry.path("status").asText()).isEqualTo("AWAITING_CONFIRMATION");
+    assertThat(entries.get(6).path("itemType").asText()).isEqualTo("CONFIRMATION_RECOVERED");
+    assertThat(entries.get(6).path("actionId").asText()).isEqualTo(cardId);
+  }
+
+  @Test
+  void timelineCountsActualToolDispatchesAndLinksTheOriginatingModel() throws Exception {
+    doThrow(new TransientDataAccessResourceException("temporary database failure"))
+        .doCallRealMethod().when(products).product(201L);
+    var invalid = model.prepare();
+    var retried = model.prepare();
+    var answer = model.prepare();
+    long messageId = submit(UUID.randomUUID().toString(), "查询商品执行明细测试", 202)
+        .path("messageId").asLong();
+    tool(invalid, "product_detail", "{\"productId\":\"不能写入监控表的用户输入\"}");
+    tool(retried, "product_detail", "{\"productId\":201}");
+    emit(answer, "已查到商品。");
+    assertThat(answer.tryEmitComplete()).isEqualTo(Sinks.EmitResult.OK);
+    try (BufferedReader subscription = stream(messageId)) {
+      assertThat(event(subscription, "done").path("reply").path("content").asText())
+          .isEqualTo("已查到商品。");
+    }
+    JsonNode entries = executionEntries(messageId, 6);
+    JsonNode rejected = entries.get(2);
+    assertThat(rejected.path("executionCount").asInt()).isZero();
+    assertThat(rejected.path("errorCode").asText()).isEqualTo("INVALID_ARGUMENT");
+    JsonNode succeeded = entries.get(4);
+    assertThat(succeeded.path("executionCount").asInt()).isEqualTo(2);
+    assertThat(succeeded.path("modelCallSequence").asInt())
+        .isEqualTo(entries.get(3).path("sequenceNo").asInt());
+    assertThat(succeeded.path("status").asText()).isEqualTo("SUCCESS");
+    assertThat(entries.toString()).doesNotContain("不能写入监控表", "已查到商品。", "arguments");
+  }
+
+  private JsonNode executionEntries(long messageId, int size) throws Exception {
+    long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+    while (System.nanoTime() < deadline) {
+      JsonNode execution = get("/api/agent/messages/" + messageId + "/execution", 200);
+      assertThat(execution.path("turnId").asLong()).isEqualTo(messageId);
+      JsonNode entries = execution.path("entries");
+      if (entries.size() == size) {
+        return entries;
+      }
+      Thread.sleep(25);
+    }
+    return fail("未找到预期执行记录，回答 %d，预期 %d 条", messageId, size);
   }
 
   @Test
@@ -203,6 +288,15 @@ class AgentResumeHttpIntegrationTest {
 
   private JsonNode get(String path, int status) throws Exception {
     return sendJson(request(path).GET().build(), status);
+  }
+
+  private HttpResponse<String> managementGet(String path, int status) throws Exception {
+    HttpRequest request = HttpRequest.newBuilder(
+        URI.create("http://127.0.0.1:" + managementPort + path))
+        .timeout(Duration.ofSeconds(5)).GET().build();
+    var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+    assertThat(response.statusCode()).as(path).isEqualTo(status);
+    return response;
   }
 
   private JsonNode sendJson(HttpRequest request, int status) throws Exception {

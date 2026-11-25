@@ -31,8 +31,17 @@ public class ToolDispatcher {
     /** 先检查技能；查询工具立即执行，写工具仅创建或返回待确认操作。 */
     public Object dispatch(
             String toolName, ToolExecutionContext context, Map<String, Object> arguments) {
+        return dispatch(toolName, context, arguments, null);
+    }
+
+    /** 通过技能校验后通知诊断计数。写工具的这一步只分发提议，不执行确认后的交易。 */
+    Object dispatch(String toolName, ToolExecutionContext context, Map<String, Object> arguments,
+            Runnable onDispatch) {
         RegisteredTool tool = registry.require(toolName);
         checkSkill(tool, context.getConversationId());
+        if (onDispatch != null) {
+            onDispatch.run();
+        }
         // 写工具第一次被模型调用时，只生成确认卡，不直接调用 handler。
         if (tool.getRisk() == RegisteredTool.Risk.WRITE) {
             PendingActionDO existing = pendingActions.latest(context.getConversationId());

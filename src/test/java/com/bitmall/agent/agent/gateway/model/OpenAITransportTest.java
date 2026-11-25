@@ -1,7 +1,8 @@
-package com.bitmall.agent.agent.service.runtime;
+package com.bitmall.agent.agent.gateway.model;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.bitmall.agent.agent.service.runtime.AgentExecution;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;

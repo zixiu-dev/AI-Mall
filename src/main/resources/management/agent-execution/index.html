@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent 执行记录 · AI Mall</title>
+  <link rel="stylesheet" href="/agent-execution/dashboard.css">
+  <script src="/agent-execution/dashboard.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="wrap masthead-inner">
+      <span class="brand">AI Mall</span>
+      <span class="area">商城管理</span>
+    </div>
+  </header>
+  <main class="wrap">
+    <h1>Agent 执行记录</h1>
+    <form id="search" class="search" aria-label="查询执行记录">
+      <label>用户编号
+        <input id="user-id" value="10001" inputmode="numeric" required pattern="[1-9][0-9]{0,18}">
+      </label>
+      <label>轮次编号
+        <input id="turn-id" inputmode="numeric" pattern="[1-9][0-9]{0,18}" placeholder="可选">
+      </label>
+      <button type="submit">查询</button>
+    </form>
+
+    <div class="workspace">
+      <aside class="panel recent" aria-labelledby="recent-heading">
+        <div class="panel-head">
+          <h2 id="recent-heading">会话与轮次</h2>
+          <span id="recent-count" class="muted"></span>
+        </div>
+        <p id="recent-message" class="notice" role="status"></p>
+        <ul id="recent-list"></ul>
+      </aside>
+
+      <section class="panel detail" aria-labelledby="detail-heading">
+        <div class="panel-head">
+          <h2 id="detail-heading">执行树</h2>
+          <button id="refresh" class="secondary" type="button" disabled>刷新</button>
+        </div>
+        <p id="detail-message" class="notice" role="status"></p>
+        <div id="turn-detail" hidden>
+          <div class="turn-overview">
+            <div class="turn-header">
+              <h3 id="detail-turn"></h3>
+              <span id="detail-status" class="status"></span>
+            </div>
+            <div class="conversation">会话 <code id="detail-conversation"></code></div>
+            <dl id="turn-stats" class="turn-stats" aria-label="已记录调用"></dl>
+          </div>
+          <p id="detail-note" class="muted detail-note" hidden>部分执行明细可能尚未写入，可刷新查看。</p>
+          <p id="empty-tree" class="notice empty-tree" hidden>暂无已落库的执行明细。</p>
+          <ol id="execution-tree" class="branches root-branches" aria-label="执行过程"></ol>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

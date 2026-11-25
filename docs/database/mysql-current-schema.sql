@@ -1,4 +1,4 @@
--- 当前 MySQL 表结构快照；由 scripts/export-database-schema.py 从空库重放 V1～V20 后导出。
+-- 当前 MySQL 表结构快照；由 scripts/export-database-schema.py 从空库重放 V1～V21 后导出。
 -- 阅读/对照用途，含表与索引，不含业务数据、Flyway 历史、密钥或旧演化语句。
 -- 正常初始化请启动应用交给 Flyway；不要先导入本文件再让 Flyway 执行 V1。
 SET NAMES utf8mb4;
@@ -22,6 +22,28 @@ CREATE TABLE `after_sales` (
   CONSTRAINT `fk_after_sales_user_id` FOREIGN KEY (`user_id`) REFERENCES `app_user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- agent_model_call
+CREATE TABLE `agent_model_call` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `turn_id` bigint NOT NULL,
+  `sequence_no` int NOT NULL,
+  `step_no` int NOT NULL,
+  `attempt_no` int NOT NULL,
+  `candidate` varchar(24) COLLATE utf8mb4_bin NOT NULL,
+  `model` varchar(160) COLLATE utf8mb4_bin NOT NULL,
+  `status` varchar(24) COLLATE utf8mb4_bin NOT NULL,
+  `error_code` varchar(64) COLLATE utf8mb4_bin DEFAULT NULL,
+  `started_at` datetime(6) NOT NULL,
+  `duration_ms` bigint NOT NULL,
+  `first_text_ms` bigint DEFAULT NULL,
+  `input_tokens` int DEFAULT NULL,
+  `output_tokens` int DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `turn_id` (`turn_id`,`sequence_no`),
+  UNIQUE KEY `turn_id_2` (`turn_id`,`step_no`,`attempt_no`),
+  KEY `idx_agent_model_call_retention` (`started_at`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 -- agent_scope_state
 CREATE TABLE `agent_scope_state` (
   `user_id` varchar(80) COLLATE utf8mb4_bin NOT NULL,
@@ -41,6 +63,28 @@ CREATE TABLE `agent_skill` (
   `tool_names` mediumtext COLLATE utf8mb4_bin NOT NULL,
   `enabled` tinyint(1) NOT NULL DEFAULT '1',
   PRIMARY KEY (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- agent_turn_item
+CREATE TABLE `agent_turn_item` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `turn_id` bigint NOT NULL,
+  `sequence_no` int NOT NULL,
+  `step_no` int DEFAULT NULL,
+  `item_type` varchar(32) COLLATE utf8mb4_bin NOT NULL,
+  `model_call_sequence` int DEFAULT NULL,
+  `candidate` varchar(24) COLLATE utf8mb4_bin DEFAULT NULL,
+  `tool_call_id` varchar(128) COLLATE utf8mb4_bin DEFAULT NULL,
+  `tool_name` varchar(80) COLLATE utf8mb4_bin DEFAULT NULL,
+  `execution_count` int DEFAULT NULL,
+  `action_id` varchar(40) COLLATE utf8mb4_bin DEFAULT NULL,
+  `status` varchar(24) COLLATE utf8mb4_bin NOT NULL,
+  `error_code` varchar(64) COLLATE utf8mb4_bin DEFAULT NULL,
+  `started_at` datetime(6) NOT NULL,
+  `duration_ms` bigint NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `turn_id` (`turn_id`,`sequence_no`),
+  KEY `idx_agent_turn_item_retention` (`started_at`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- app_user

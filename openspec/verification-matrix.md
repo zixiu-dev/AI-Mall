@@ -14,13 +14,13 @@
 | [order-lifecycle](specs/order-lifecycle/spec.md) | LIFE-001, LIFE-002, LIFE-003, LIFE-004 | [OrderPaymentTimeoutIntegrationTest.java](../src/test/java/com/bitmall/agent/order/service/OrderPaymentTimeoutIntegrationTest.java) |
 | [order-messaging](specs/order-messaging/spec.md) | MQ-001, MQ-002, MQ-003, MQ-004, MQ-005, MQ-006 | [消息集成测试](../src/test/java/com/bitmall/agent/order/service/OrderMessagingIntegrationTest.java) · [库存和死信恢复](../src/test/java/com/bitmall/agent/order/service/InventoryReservationIntegrationTest.java) · [真实死信与告警验证](../scripts/verify-order-build-dead-letter.py) |
 | [order-routing](specs/order-routing/spec.md) | ROUTE-001, ROUTE-002, ROUTE-003 | [压力窗口](../src/test/java/com/bitmall/agent/order/monitor/OrderPressureWindowTest.java) · [自动路由](../src/test/java/com/bitmall/agent/order/monitor/OrderAutoRoutingIntegrationTest.java) · [发送探针](../src/test/java/com/bitmall/agent/order/mq/BrokerHealthCheckerTest.java) · [固定异步受理与库存](../src/test/java/com/bitmall/agent/order/service/InventoryReservationIntegrationTest.java) · [真实断线和恢复](changes/archive/2026-11-19-fix-async-routing-and-dlq-timing/verification.md) |
-| [agent-runtime](specs/agent-runtime/spec.md) | AGENT-001, AGENT-002, AGENT-003, AGENT-004, AGENT-005, AGENT-006, AGENT-007, AGENT-008 | [工具与确认流程](../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java) · [同步流、超时与取消](../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiStreamReaderTest.java) · [HTTP SSE 与容量拒绝](../src/test/java/com/bitmall/agent/agent/controller/AgentFlowIntegrationTest.java) · [真实 HTTP 断线重连](../src/test/java/com/bitmall/agent/agent/controller/AgentResumeHttpIntegrationTest.java) |
+| [agent-runtime](specs/agent-runtime/spec.md) | AGENT-001, AGENT-002, AGENT-003, AGENT-004, AGENT-005, AGENT-006, AGENT-007, AGENT-008 | [工具与确认流程](../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java) · [同步流、超时与取消](../src/test/java/com/bitmall/agent/agent/gateway/model/SpringAiStreamReaderTest.java) · [HTTP SSE 与容量拒绝](../src/test/java/com/bitmall/agent/agent/controller/AgentFlowIntegrationTest.java) · [真实 HTTP 断线重连](../src/test/java/com/bitmall/agent/agent/controller/AgentResumeHttpIntegrationTest.java) |
 | [agent-confirmation](specs/agent-confirmation/spec.md) | CONFIRM-001, CONFIRM-002, CONFIRM-003, CONFIRM-004 | [AgentFlowIntegrationTest.java](../src/test/java/com/bitmall/agent/agent/controller/AgentFlowIntegrationTest.java) |
 | [agent-memory](specs/agent-memory/spec.md) | MEMORY-001, MEMORY-002, MEMORY-003, MEMORY-004, MEMORY-005 | [SpringAiIntegrationTest.java](../src/test/java/com/bitmall/agent/agent/service/runtime/SpringAiIntegrationTest.java) · [会话恢复](../src/test/java/com/bitmall/agent/agent/controller/AgentFlowIntegrationTest.java) |
 | [customer-service](specs/customer-service/spec.md) | SUPPORT-001, SUPPORT-002, SUPPORT-003, SUPPORT-004, SUPPORT-005 | [CommerceModulesIntegrationTest.java](../src/test/java/com/bitmall/agent/integration/CommerceModulesIntegrationTest.java) |
 | [storefront-experience](specs/storefront-experience/spec.md) | FRONT-001, FRONT-002, FRONT-003, FRONT-004, FRONT-005 | [verify-storefront.cjs](../scripts/verify-storefront.cjs)，实际范围见 [测试总文档第 12 节](../docs/testing.md#12-商城前台浏览器验收) |
 | [knowledge-retrieval](specs/knowledge-retrieval/spec.md) | RAG-001～009 | [KnowledgePipelineIntegrationTest](../src/test/java/com/bitmall/agent/knowledge/KnowledgePipelineIntegrationTest.java)、[RealRagIntegrationTest](../src/test/java/com/bitmall/agent/knowledge/RealRagIntegrationTest.java) |
-| [observability](specs/observability/spec.md) | OBS-001, OBS-002, OBS-003, OBS-004 | [一秒吞吐测试](../src/test/java/com/bitmall/agent/common/monitor/OneSecondThroughputTest.java) · [监控快照测试](../src/test/java/com/bitmall/agent/order/monitor/OrderBuildBacklogMonitorTest.java) · [告警规则测试](../deploy/monitoring/order-alerts.test.yml) |
+| [observability](specs/observability/spec.md) | OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007 | [一秒吞吐测试](../src/test/java/com/bitmall/agent/common/monitor/OneSecondThroughputTest.java) · [监控快照测试](../src/test/java/com/bitmall/agent/order/monitor/OrderBuildBacklogMonitorTest.java) · [Agent 管理端与单轮 HTTP 测试](../src/test/java/com/bitmall/agent/agent/controller/AgentResumeHttpIntegrationTest.java) · [告警规则测试](../deploy/monitoring/order-alerts.test.yml) |
 
 ## 跨组件补充入口
 
@@ -40,3 +40,11 @@
 工具失败恢复另见 [工具故障注入测试](../src/test/java/com/bitmall/agent/agent/service/tool/ToolCallRecoveryTest.java) 与 [确认结果恢复测试](../src/test/java/com/bitmall/agent/agent/service/action/AgentActionRecoveryTest.java)。实际运行条件见 [本次验证记录](changes/archive/2026-11-25-handle-tool-failures/verification.md)。
 
 模型网关与百炼备用见 [AGENT-008 本地和真实百炼验证](changes/archive/2026-11-25-add-agent-model-circuit-breaker/verification.md)。
+
+Agent 单轮明细见 [本地与 MySQL 验证](changes/archive/2026-11-25-add-agent-execution-observability/verification.md)。
+
+Agent 管理页见 [端口边界与浏览器验证](changes/archive/2026-11-25-show-agent-execution-dashboard/verification.md)。
+
+Agent 调用网关见 [模型、工具及管理端回归](changes/archive/2026-11-25-extract-agent-gateway/verification.md)。
+
+Agent 执行树见 [会话分组、模型与工具父子关系的浏览器验证](changes/archive/2026-11-25-show-agent-execution-tree/verification.md)。

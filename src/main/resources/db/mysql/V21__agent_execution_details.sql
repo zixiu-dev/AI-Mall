@@ -1,0 +1,41 @@
+CREATE TABLE agent_model_call (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    turn_id BIGINT NOT NULL,
+    sequence_no INT NOT NULL,
+    step_no INT NOT NULL,
+    attempt_no INT NOT NULL,
+    candidate VARCHAR(24) NOT NULL,
+    model VARCHAR(160) NOT NULL,
+    status VARCHAR(24) NOT NULL,
+    error_code VARCHAR(64),
+    started_at DATETIME(6) NOT NULL,
+    duration_ms BIGINT NOT NULL,
+    first_text_ms BIGINT,
+    input_tokens INT,
+    output_tokens INT,
+    UNIQUE (turn_id, sequence_no),
+    UNIQUE (turn_id, step_no, attempt_no)
+);
+
+CREATE INDEX idx_agent_model_call_retention ON agent_model_call(started_at, id);
+
+CREATE TABLE agent_turn_item (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    turn_id BIGINT NOT NULL,
+    sequence_no INT NOT NULL,
+    step_no INT,
+    item_type VARCHAR(32) NOT NULL,
+    model_call_sequence INT,
+    candidate VARCHAR(24),
+    tool_call_id VARCHAR(128),
+    tool_name VARCHAR(80),
+    execution_count INT,
+    action_id VARCHAR(40),
+    status VARCHAR(24) NOT NULL,
+    error_code VARCHAR(64),
+    started_at DATETIME(6) NOT NULL,
+    duration_ms BIGINT NOT NULL,
+    UNIQUE (turn_id, sequence_no)
+);
+
+CREATE INDEX idx_agent_turn_item_retention ON agent_turn_item(started_at, id);

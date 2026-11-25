@@ -39,7 +39,17 @@ SSE 工作线程池为核心 4、最多 16、等待队列 32，满时发送 `err
 
 兼容的 POST SSE Controller 检测到发送失败、容器超时或连接结束后，用 `AgentExecution.cancel()` 中断工作线程。模型流在 try-with-resources 中关闭，后续推理和工具在执行前检查取消。如果当前数据库调用暂时忽略中断，会话执行权保留到它真正退出；持久化确认卡和交易结果仍按业务服务核对。没有配对结果的工具调用继续沿用下一轮恢复机制，补中断回执并由用户决定后续动作。
 
-[同步模型循环](../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [SDK 流式适配](../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiStreamReader.java) · [请求预算](../src/main/java/com/bitmall/agent/agent/service/runtime/AgentExecution.java) · [SSE Controller](../src/main/java/com/bitmall/agent/agent/controller/AgentChatController.java)
+[同步模型循环](../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [SDK 流式适配](../src/main/java/com/bitmall/agent/agent/gateway/model/SpringAiStreamReader.java) · [请求预算](../src/main/java/com/bitmall/agent/agent/service/runtime/AgentExecution.java) · [SSE Controller](../src/main/java/com/bitmall/agent/agent/controller/AgentChatController.java)
+
+## Agent 调用边界
+
+主循环传递步骤编号、安排模型和工具的调用顺序，并保存原始回执。
+
+- `gateway/model/ModelGateway` 统一接入主备模型，处理流式响应、熔断和每次模型尝试的耗时及用量。
+- `service/tool/ToolExecutor` 在 Agent 内部执行模型请求的工具，复用参数与权限校验、只读重试和确认卡核对。它记录工具最终状态及实际进入业务分发的次数。
+- 同一步的模型和工具共用执行上下文，时间线能通过来源编号追溯到触发工具的模型尝试。`AgentTurnService` 上报整轮排队，`AgentExecutionJournal` 负责异步写库。
+
+[模型网关](../src/main/java/com/bitmall/agent/agent/gateway/model/ModelGateway.java) · [工具执行器](../src/main/java/com/bitmall/agent/agent/service/tool/ToolExecutor.java)
 
 ## 工具调用失败后怎么办
 
@@ -101,4 +111,36 @@ flowchart TD
 | `agent.model.first.text` | 到首段文字的耗时，纯工具响应没有这项。 |
 | `agent.model.tokens` / `agent.model.usage.missing` | 统计完整响应提供的模型输入和输出 Token。失败或上游未回传完整用量时计入缺失。 |
 
-[网关实现](../src/main/java/com/bitmall/agent/agent/service/model/ModelGateway.java) · [熔断状态](../src/main/java/com/bitmall/agent/agent/service/model/ModelCircuitBreaker.java) · [百炼配置](deployment.md#4-本机既有数据与真实模型)
+[网关实现](../src/main/java/com/bitmall/agent/agent/gateway/model/ModelGateway.java) · [熔断状态](../src/main/java/com/bitmall/agent/agent/gateway/model/ModelCircuitBreaker.java) · [百炼配置](deployment.md#4-本机既有数据与真实模型)
+
+## 单轮执行明细
+
+启动项目后打开 [Agent 执行记录](http://127.0.0.1:9080/agent-execution)。左侧把该用户最近 30 轮后台回答按会话分组，也可以用助手消息编号直接定位某轮。右侧的执行树按「轮次 → 推理步骤 → 模型调用 → 工具」展开。主备尝试各占一个节点，工具挂在实际触发它的模型调用下。如果来源模型明细暂缺，工具先显示在对应步骤下，刷新后重新匹配。
+
+`GET /api/agent/messages/{messageId}/execution` 复用回答的会话归属校验，返回 `conversationId`、`turnId`、`userMessageId`、回答 `status` 和按 `sequenceNo` 排序的 `entries`。它读取已有明细，不执行模型、工具或确认。调用身份沿用当前商城的演示用户机制。
+
+```bash
+curl 'http://localhost:8080/api/agent/messages/805/execution?userId=10001'
+```
+
+把 805 换成 `POST /api/agent/chat/turns` 返回的助手 `messageId`。从一次提问到助手回复，`turnId` 保持不变。执行树的示例结构如下。
+
+```text
+会话
+└─ 轮次 #805
+   ├─ #1 等待执行
+   ├─ 第 1 步推理
+   │  └─ #2 模型调用 1 · 主模型成功
+   │     └─ #3 查询商品详情 · 实际执行 2 次
+   └─ 第 2 步推理
+      ├─ #4 模型调用 1 · 主模型失败 HTTP_503
+      └─ #5 模型调用 2 · 备用模型成功
+```
+
+- `agent_model_call` 每次进入模型传输记一行。保存步号、尝试号、候选模型、UTC 开始时间、毫秒耗时、错误码和回传用量。没有显示文字或没有回传用量时，对应字段为空。熔断跳过记为 `MODEL_SKIPPED`，请求次数不增加。
+- `agent_turn_item` 保存排队、工具、跳过和确认卡恢复事件。工具每次进入业务分发前已通过参数和技能校验，内部重试累加 `executionCount`，同一个模型工具请求仍只占一行。`modelCallSequence` 指向同轮触发它的模型调用，`actionId` 可关联原确认卡。后续确认/订单事务遵循原业务状态。
+- 每项完成后，专用线程从有界队列批量写入，两张表允许暂时不齐。监控记录只保存状态、编号、时间与用量，不复制提示词、回答、工具参数与结果。后台重连不会重复产生明细。旧普通聊天和 RAG 内部模型不在这张时间线中。
+- `AGENT_EXECUTION_DETAIL_QUEUE_CAPACITY` 默认 4,096，`AGENT_EXECUTION_DETAIL_RETENTION_DAYS` 默认 7。查询过滤过期记录，后台每分钟每表最多删除 500 行。重启前未落库、队列满和数据库写入失败可能造成排障明细缺失。
+- Prometheus 继续看整体模型用量和耗时。另有 `agent.execution.detail.queue.size`、`agent.execution.detail.dropped`（原因标签）和 `agent.execution.detail.prune.failed`。轮次 ID 用在单轮查询，不进入这些指标的标签。
+
+[查询入口](../src/main/java/com/bitmall/agent/agent/controller/AgentTurnController.java) · [异步写入](../src/main/java/com/bitmall/agent/agent/service/trace/AgentExecutionJournal.java) · [表结构](database/mysql-current-schema.sql)

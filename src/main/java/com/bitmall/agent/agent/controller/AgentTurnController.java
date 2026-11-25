@@ -2,6 +2,7 @@ package com.bitmall.agent.agent.controller;
 
 import com.bitmall.agent.agent.dto.AgentTurnRequest;
 import com.bitmall.agent.agent.service.chat.AgentTurnService;
+import com.bitmall.agent.agent.vo.AgentExecutionVO;
 import com.bitmall.agent.agent.vo.AgentTurnVO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
@@ -43,6 +44,13 @@ public class AgentTurnController {
   public AgentTurnVO answer(
       @PathVariable long messageId, @RequestParam(defaultValue = "10001") long userId) {
     return turns.result(userId, messageId);
+  }
+
+  /** 查询按发生顺序排列的执行明细，仅限该回答的所属用户。 */
+  @GetMapping("/messages/{messageId}/execution")
+  public AgentExecutionVO execution(
+      @PathVariable long messageId, @RequestParam(defaultValue = "10001") long userId) {
+    return turns.executionDetails(userId, messageId);
   }
 
   @GetMapping(value = "/messages/{messageId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)

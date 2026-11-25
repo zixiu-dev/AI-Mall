@@ -155,6 +155,9 @@ app:
     request-timeout-seconds: 180
     max-context-chars: 32000
     keep-recent-turns: 6
+    execution-detail:
+      queue-capacity: ${AGENT_EXECUTION_DETAIL_QUEUE_CAPACITY:4096}
+      retention-days: ${AGENT_EXECUTION_DETAIL_RETENTION_DAYS:7}
     model:
       api-key: ${OPENAI_API_KEY:demo-key}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com}

@@ -1,5 +1,6 @@
 package com.bitmall.agent.agent.service.runtime;
 
+import com.bitmall.agent.agent.service.trace.AgentTurnTrace;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -26,6 +27,8 @@ public final class AgentExecution implements AutoCloseable {
 
   /** 整轮请求的截止时间（System.nanoTime）。 */
   private final long deadline;
+  /** 后台回答的诊断上下文，兼容入口为空。 */
+  private final AgentTurnTrace trace;
 
   /** 执行本轮请求的线程；bind 之前和 close 之后为 null。 */
   private Thread owner;
@@ -40,8 +43,22 @@ public final class AgentExecution implements AutoCloseable {
   private Stage active;
 
   public AgentExecution(ScheduledExecutorService scheduler, int timeoutSeconds) {
+    this(scheduler, timeoutSeconds, null);
+  }
+
+  public AgentExecution(ScheduledExecutorService scheduler, int timeoutSeconds, AgentTurnTrace trace) {
     this.scheduler = scheduler;
+    this.trace = trace;
     this.deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+  }
+
+  public AgentTurnTrace trace() {
+    return trace;
+  }
+
+  /** 模型网关和工具执行器共享同一步明细，用于把工具关联到来源模型调用。 */
+  public AgentTurnTrace.Step traceStep(int stepNo) {
+    return trace == null ? null : trace.step(stepNo);
   }
 
   /** 工作线程真正开始执行时绑定自己。如果请求在排队期间已经断开，这里直接抛出，不会再创建会话。 */
@@ -68,7 +85,7 @@ public final class AgentExecution implements AutoCloseable {
   public synchronized void check() {
     checkConnected();
     if (System.nanoTime() >= deadline) {
-      throw new IllegalStateException("Agent 总执行时间超限");
+      throw new RequestTimeoutException();
     }
   }
 
@@ -120,6 +137,9 @@ public final class AgentExecution implements AutoCloseable {
       throw new CancellationException("聊天连接已断开");
     }
     if (stage.expired) {
+      if (System.nanoTime() >= deadline) {
+        throw new RequestTimeoutException();
+      }
       throw new StageTimeoutException(name + "超时");
     }
     check();
@@ -149,6 +169,13 @@ public final class AgentExecution implements AutoCloseable {
   /** 可识别的阶段超时，供查询重试策略使用。 */
   public static final class StageTimeoutException extends IllegalStateException {
     public StageTimeoutException(String message) { super(message); }
+  }
+
+  /** 本轮总时间耗尽，与上游单次调用超时区分。 */
+  public static final class RequestTimeoutException extends IllegalStateException {
+    private RequestTimeoutException() {
+      super("Agent 总执行时间超限");
+    }
   }
 
   /** 退避等待也受本轮预算与客户端取消约束。 */

@@ -1,10 +1,9 @@
-package com.bitmall.agent.agent.service.model;
+package com.bitmall.agent.agent.gateway.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.bitmall.agent.agent.config.SpringAiConfiguration;
 import com.bitmall.agent.agent.service.runtime.AgentExecution;
-import com.bitmall.agent.agent.service.runtime.SpringAiStreamReader;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.time.Duration;
@@ -44,7 +43,7 @@ class RealBailianGatewayIntegrationTest {
     var metrics = new SimpleMeterRegistry();
     try {
       var gateway = new ModelGateway(new SpringAiStreamReader(primary), Optional.of(backup),
-          metrics, 2, Duration.ofSeconds(30));
+          metrics, 2, Duration.ofSeconds(30), "local-main", model);
       var deltas = new ArrayList<String>();
       try (var execution = new AgentExecution(scheduler, 50)) {
         execution.bind();

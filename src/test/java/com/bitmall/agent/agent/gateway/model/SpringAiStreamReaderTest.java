@@ -1,7 +1,9 @@
-package com.bitmall.agent.agent.service.runtime;
+package com.bitmall.agent.agent.gateway.model;
 
 import static org.assertj.core.api.Assertions.*;
 
+import com.bitmall.agent.agent.service.runtime.AgentExecution;
+import com.bitmall.agent.agent.service.runtime.AgentRunGate;
 import java.util.List;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;

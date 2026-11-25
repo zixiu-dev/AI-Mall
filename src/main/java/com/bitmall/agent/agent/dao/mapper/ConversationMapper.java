@@ -1,6 +1,7 @@
 package com.bitmall.agent.agent.dao.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.bitmall.agent.agent.dao.entity.AgentTurnSummaryDO;
 import com.bitmall.agent.agent.dao.entity.ConversationEntity;
 import org.apache.ibatis.annotations.Mapper;
 import com.bitmall.agent.agent.dao.entity.ChatMessageEntity;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Param;
 
 /** MyBatis-Plus 表映射；条件扣减、行锁和状态 CAS 由 XML 显式定义。 */
 @Mapper
@@ -28,6 +30,9 @@ public interface ConversationMapper extends BaseMapper<ConversationEntity> {
       Map<String, Object> values);
 
   Map<String, Object> ownedAnswer(Map<String, Object> values);
+
+  /** 按所属用户读取最新的后台回答摘要。 */
+  List<AgentTurnSummaryDO> recentTurns(@Param("userId") long userId, @Param("limit") int limit);
 
   Map<String, Object> answerByRequest(Map<String, Object> values);
 

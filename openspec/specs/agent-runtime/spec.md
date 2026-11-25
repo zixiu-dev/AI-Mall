@@ -13,14 +13,17 @@
 | `POST /api/agent/chat/turns` | 商城页面提交一轮后台回答，返回问题与助手消息编号。 |
 | `GET /api/agent/chat/turns/{clientRequestId}` | 按请求编号找回已提交的回答。 |
 | `GET /api/agent/messages/{messageId}` | 查询后台回答状态与最终正文。 |
+| `GET /api/agent/messages/{messageId}/execution` | 按助手消息编号查询已落库的模型调用和执行项，详见 [运行指标 Spec](../observability/spec.md)。 |
 | `GET /api/agent/messages/{messageId}/stream` | 按原消息编号订阅草稿快照、后续增量和终态。 |
 | `GET /api/agent/status` | 返回当前配置使用模型或演示模式。 |
 
 启用真实模型后，`SpringAiResponder` 用普通 `for` 循环组织 Spring AI 模型推理、工具执行、结果保存和下一次推理。`AgentChatController` 在有界工作线程中执行聊天，由 `SseEmitter` 发送事件。`SpringAiStreamReader` 将 SDK 流转换为可关闭的 Java Stream，实时读取文本并合并分片工具参数。工具目录保存参数 Schema、读写分类和所需 Skill；模型看到当前允许的工具，真正执行时再校验。Skills 是数据库中的操作手册，由 `load_skill` 读取。工具从服务端上下文取用户与会话，查询直连业务 Service，写操作交给[确认流程](../agent-confirmation/spec.md)。演示模式由确定性规则调用业务。模型单次 60 秒、工具单次 15 秒，均受本轮总预算限制；取消通过 `AgentExecution` 中断工作线程并关闭模型流，当前业务调用实际退出后释放会话门禁。兼容的 POST SSE 入口仍在连接断开时停止本轮。商城页面使用后台轮次，断连只移除旧订阅，终态按助手消息查询；交易结果按原 trace 查询。
 
-[Agent 流程图](../../../docs/images/agent-execution.png) · [聊天服务](../../../src/main/java/com/bitmall/agent/agent/service/chat/AgentChatService.java) · [模型执行](../../../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [工具分发](../../../src/main/java/com/bitmall/agent/agent/service/tool/ToolDispatcher.java)
+[Agent 流程图](../../../docs/images/agent-execution.png) · [聊天服务](../../../src/main/java/com/bitmall/agent/agent/service/chat/AgentChatService.java) · [执行编排](../../../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [工具分发](../../../src/main/java/com/bitmall/agent/agent/service/tool/ToolDispatcher.java)
 
-Agent 聊天的每步推理经 [模型网关](../../../src/main/java/com/bitmall/agent/agent/service/model/ModelGateway.java) 运行，主模型与显式启用的百炼备用分别记录健康状态。默认连续两次上游故障后冷却 30 秒，到期放一个请求探测。切换复用同一步的历史和工具定义，并先清除失败草稿。后台轮次可展示模型失败前已保存的确认卡。熔断状态按实例维护，监控记录调用耗时、候选状态和上游回传的用量。 [配置与验证](../../../docs/agent-design.md#模型网关与熔断)
+Agent 聊天的每步推理经 [模型网关](../../../src/main/java/com/bitmall/agent/agent/gateway/model/ModelGateway.java) 运行，主模型与显式启用的百炼备用分别记录健康状态。默认连续两次上游故障后冷却 30 秒，到期放一个请求探测。切换复用同一步的历史和工具定义，并先清除失败草稿。后台轮次可展示模型失败前已保存的确认卡。熔断状态按实例维护，监控记录调用耗时、候选状态和上游回传的用量。 [配置与验证](../../../docs/agent-design.md#模型网关与熔断)
+
+模型工具请求经 `ToolExecutor` 执行。执行器处理失败与恢复，记录工具结果及实际分发次数，再将原回执交给主循环。主循环维护步骤编号、历史和 SSE 事件。 [工具执行器](../../../src/main/java/com/bitmall/agent/agent/service/tool/ToolExecutor.java)
 
 ## Requirements
 

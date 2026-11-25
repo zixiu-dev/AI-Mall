@@ -1,5 +1,6 @@
-package com.bitmall.agent.agent.service.runtime;
+package com.bitmall.agent.agent.gateway.model;
 
+import com.bitmall.agent.agent.service.runtime.AgentExecution;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;

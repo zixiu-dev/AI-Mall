@@ -24,13 +24,23 @@ public class ToolCallRecovery {
 
   public String execute(ToolCallback callback, String arguments, ToolExecutionContext context,
       Set<String> allowed, AgentExecution execution) {
+    return execute(callback, arguments, context, allowed, execution, null);
+  }
+
+  /** 同一个工具项的内部重试沿用计数回调，每次通过校验并进入分发才增加一次。 */
+  public String execute(ToolCallback callback, String arguments, ToolExecutionContext context,
+      Set<String> allowed, AgentExecution execution, Runnable onDispatch) {
     String name = callback.getToolDefinition().name();
     ToolFailureBudget budget = context.getFailureBudget();
     String stopped = budget.stopped(name);
     if (stopped != null) return stopped;
     boolean readOnly = callback instanceof CommerceToolCallback commerce && commerce.isReadOnly();
-    ToolContext toolContext = new ToolContext(Map.of(
+    Map<String, Object> trusted = new java.util.HashMap<>(Map.of(
         ToolExecutionContext.class.getName(), context, SkillContextPolicy.ALLOWED_TOOLS, allowed));
+    if (onDispatch != null) {
+      trusted.put(CommerceToolCallback.DISPATCH_OBSERVER_KEY, onDispatch);
+    }
+    ToolContext toolContext = new ToolContext(trusted);
 
     while (true) {
       execution.check();

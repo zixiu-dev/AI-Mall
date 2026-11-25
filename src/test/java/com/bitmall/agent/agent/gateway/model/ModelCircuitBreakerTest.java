@@ -1,7 +1,7 @@
-package com.bitmall.agent.agent.service.model;
+package com.bitmall.agent.agent.gateway.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static com.bitmall.agent.agent.service.model.ModelCircuitBreaker.Outcome.*;
+import static com.bitmall.agent.agent.gateway.model.ModelCircuitBreaker.Outcome.*;
 
 import java.time.Duration;
 import java.util.Objects;

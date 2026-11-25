@@ -1,7 +1,7 @@
-package com.bitmall.agent.agent.service.model;
+package com.bitmall.agent.agent.gateway.model;
 
 import com.bitmall.agent.agent.service.runtime.AgentExecution;
-import com.bitmall.agent.agent.service.runtime.SpringAiStreamReader;
+import com.bitmall.agent.agent.service.trace.AgentTurnTrace;
 import com.openai.errors.OpenAIIoException;
 import com.openai.errors.OpenAIServiceException;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -39,11 +39,13 @@ public class ModelGateway {
       @Qualifier("bailianChatClient") Optional<ChatClient> bailian,
       MeterRegistry metrics,
       @Value("${app.agent.model.failure-threshold}") int failureThreshold,
-      @Value("${app.agent.model.cooldown}") Duration cooldown) {
+      @Value("${app.agent.model.cooldown}") Duration cooldown,
+      @Value("${app.agent.model.name}") String primaryModel,
+      @Value("${app.agent.model.bailian.name}") String bailianModel) {
     this.metrics = metrics;
-    Candidate main = candidate("primary", primary, failureThreshold, cooldown);
+    Candidate main = candidate("primary", primaryModel, primary, failureThreshold, cooldown);
     this.candidates = bailian.map(client -> List.of(main,
-        candidate("bailian", new SpringAiStreamReader(client), failureThreshold, cooldown)))
+        candidate("bailian", bailianModel, new SpringAiStreamReader(client), failureThreshold, cooldown)))
         .orElseGet(() -> List.of(main));
   }
 
@@ -54,24 +56,62 @@ public class ModelGateway {
       AgentExecution execution,
       Consumer<String> text,
       Runnable resetDraft) {
+    return generate(messages, tools, execution, text, resetDraft, null);
+  }
+
+  /** 使用本轮的步骤编号汇总主备尝试，返回完整的模型结果。 */
+  public ChatResponse generate(
+      List<Message> messages,
+      List<ToolCallback> tools,
+      AgentExecution execution,
+      Consumer<String> text,
+      Runnable resetDraft,
+      int stepNo) {
+    return generate(messages, tools, execution, text, resetDraft, execution.traceStep(stepNo));
+  }
+
+  private ChatResponse generate(
+      List<Message> messages,
+      List<ToolCallback> tools,
+      AgentExecution execution,
+      Consumer<String> text,
+      Runnable resetDraft,
+      AgentTurnTrace.Step step) {
     for (Candidate candidate : candidates) {
       execution.check();
       ModelCircuitBreaker.Permit permit = candidate.breaker.acquire();
       if (permit == null) {
         metrics.counter("agent.model.skipped", "candidate", candidate.name).increment();
+        if (step != null) {
+          step.modelSkipped(candidate.name);
+        }
         continue;
       }
-      Attempt attempt = new Attempt(candidate, text);
+      Attempt attempt = new Attempt(candidate, text, step);
       try {
-        ChatResponse response = execution.stage("模型推理", MODEL_TIMEOUT_SECONDS,
-            () -> candidate.reader.read(messages, tools, execution, attempt::onText));
+        ChatResponse response = execution.stage("模型推理", MODEL_TIMEOUT_SECONDS, () -> {
+          attempt.startTrace();
+          return candidate.reader.read(messages, tools, execution, attempt::onText);
+        });
         attempt.succeed(response);
         return response;
       } catch (CancellationException cancelled) {
+        attempt.traceStatus = "CANCELLED";
         throw cancelled;
       } catch (RuntimeException failure) {
+        attempt.errorCode = classifyFailure(failure);
+        attempt.traceStatus = "FAILED";
         // 整轮超时和取消属于请求生命周期，不能污染共享模型健康状态。
-        execution.check();
+        try {
+          execution.check();
+        } catch (CancellationException cancelled) {
+          attempt.traceStatus = "CANCELLED";
+          attempt.errorCode = null;
+          throw cancelled;
+        } catch (AgentExecution.RequestTimeoutException timeout) {
+          attempt.errorCode = "TURN_TIMEOUT";
+          throw timeout;
+        }
         boolean retryable = isUpstreamFailure(failure);
         attempt.outcome = retryable ? "upstream_failure" : "rejected";
         attempt.health = retryable ? ModelCircuitBreaker.Outcome.FAILURE : ModelCircuitBreaker.Outcome.NEUTRAL;
@@ -88,9 +128,30 @@ public class ModelGateway {
         metrics.timer("agent.model.attempt", "candidate", candidate.name, "outcome", attempt.outcome)
             .record(System.nanoTime() - attempt.started, TimeUnit.NANOSECONDS);
         attempt.recordUsage();
+        attempt.finishTrace();
       }
     }
     throw new ModelUnavailableException();
+  }
+
+  /** 按技术原因记录错误码，日志和诊断表不接收上游错误正文。 */
+  private static String classifyFailure(Throwable failure) {
+    for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+      if (cause instanceof OpenAIServiceException service) {
+        return "HTTP_" + service.statusCode();
+      }
+      if (cause instanceof AgentExecution.StageTimeoutException
+          || cause instanceof java.net.SocketTimeoutException || cause instanceof TimeoutException) {
+        return "MODEL_TIMEOUT";
+      }
+      if (cause instanceof SpringAiStreamReader.IncompleteResponseException) {
+        return "INCOMPLETE_RESPONSE";
+      }
+      if (cause.getCause() == cause) {
+        break;
+      }
+    }
+    return isUpstreamFailure(failure) ? "UPSTREAM_FAILURE" : "MODEL_REJECTED";
   }
 
   /** 只用结构化异常识别上游故障。输入、鉴权和模型策略错误直接结束当前步骤。 */
@@ -114,21 +175,23 @@ public class ModelGateway {
     return false;
   }
 
-  private Candidate candidate(String name, SpringAiStreamReader reader, int threshold, Duration cooldown) {
+  private Candidate candidate(String name, String model, SpringAiStreamReader reader, int threshold, Duration cooldown) {
     var breaker = new ModelCircuitBreaker(threshold, cooldown, System::nanoTime);
     metrics.gauge("agent.model.circuit.state", List.of(io.micrometer.core.instrument.Tag.of("candidate", name)),
         breaker, value -> value.state().ordinal());
-    return new Candidate(name, reader, breaker);
+    return new Candidate(name, model, reader, breaker);
   }
 
   /** 一个已配置的模型客户端及其独立的熔断状态。 */
   private static final class Candidate {
     private final String name;
+    private final String model;
     private final SpringAiStreamReader reader;
     private final ModelCircuitBreaker breaker;
 
-    private Candidate(String name, SpringAiStreamReader reader, ModelCircuitBreaker breaker) {
+    private Candidate(String name, String model, SpringAiStreamReader reader, ModelCircuitBreaker breaker) {
       this.name = name;
+      this.model = model;
       this.reader = reader;
       this.breaker = breaker;
     }
@@ -138,15 +201,26 @@ public class ModelGateway {
   private final class Attempt {
     private final Candidate candidate;
     private final Consumer<String> text;
+    private final AgentTurnTrace.Step step;
     private final long started = System.nanoTime();
     private String outcome = "interrupted";
     private ModelCircuitBreaker.Outcome health = ModelCircuitBreaker.Outcome.NEUTRAL;
     private boolean emittedText;
     private ChatResponse response;
+    private AgentTurnTrace.Entry trace;
+    private String traceStatus = "FAILED";
+    private String errorCode;
 
-    private Attempt(Candidate candidate, Consumer<String> text) {
+    private Attempt(Candidate candidate, Consumer<String> text, AgentTurnTrace.Step step) {
       this.candidate = candidate;
       this.text = text;
+      this.step = step;
+    }
+
+    private void startTrace() {
+      if (step != null) {
+        trace = step.startModelCall(candidate.name, candidate.model);
+      }
     }
 
     private void onText(String delta) {
@@ -154,8 +228,12 @@ public class ModelGateway {
         return;
       }
       if (!emittedText) {
+        long elapsed = System.nanoTime() - started;
         metrics.timer("agent.model.first.text", "candidate", candidate.name)
-            .record(System.nanoTime() - started, TimeUnit.NANOSECONDS);
+            .record(elapsed, TimeUnit.NANOSECONDS);
+        if (trace != null) {
+          trace.firstText(TimeUnit.NANOSECONDS.toMillis(elapsed));
+        }
         emittedText = true;
       }
       text.accept(delta);
@@ -165,6 +243,7 @@ public class ModelGateway {
       this.response = response;
       outcome = "success";
       health = ModelCircuitBreaker.Outcome.SUCCESS;
+      traceStatus = "SUCCESS";
     }
 
     private void recordUsage() {
@@ -178,6 +257,18 @@ public class ModelGateway {
           .increment(usage.getPromptTokens());
       metrics.counter("agent.model.tokens", "candidate", candidate.name, "kind", "output")
           .increment(usage.getCompletionTokens());
+      if (trace != null) {
+        trace.modelUsage(usage.getPromptTokens(), usage.getCompletionTokens());
+      }
+    }
+
+    private void finishTrace() {
+      if (trace != null) {
+        if (health == ModelCircuitBreaker.Outcome.SUCCESS) {
+          step.modelSucceeded(trace);
+        }
+        trace.finish(traceStatus, errorCode);
+      }
     }
   }
 }

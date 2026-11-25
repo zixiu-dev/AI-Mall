@@ -34,12 +34,14 @@ ORDER_SUBMISSION_MODE=SYNC mvn spring-boot:run -Dspring-boot.run.profiles=demo
 
 | 组件 | 本地默认地址 | 作用 |
 |---|---|---|
-| 商城 / 管理端 | 8080 / 127.0.0.1:9080 | 页面 API / 指标 |
+| 商城 / 管理端 | 8080 / 127.0.0.1:9080 | 商城页面与 API / 指标和 Agent 执行记录 |
 | MySQL | 127.0.0.1:3307 / bit_mall | 业务事实与 Flyway 迁移 |
 | 商品缓存 Redis | 127.0.0.1:6380 | 可淘汰的公共展示缓存 |
 | 交易 Redis | 127.0.0.1:6381 | noeviction，共享预占、锁与路由 |
 | RocketMQ | 按 ROCKETMQ_NAME_SERVER 配置 | 5.x Broker；定时关单需要时间轮能力 |
 | etcd / HotKey Worker | 2379 / 11111 | 可选热点识别 |
+
+Agent 执行记录在独立管理端口的 `/agent-execution`，默认地址为 <http://127.0.0.1:9080/agent-execution>。如果设置了 `MANAGEMENT_PORT`，使用对应的端口。页面上的用户编号用于筛选轮次，管理访问沿用该端口的部署边界。
 
 普通配置 MQ 默认地址是共享开发环境 `common-rocketmq-dev.magestack.cn:9876`，开发者需确认当前网络与 Broker 可达。压测脚本使用本机隔离 MQ，不向该共享环境发压。
 
