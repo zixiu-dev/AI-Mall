@@ -11,6 +11,10 @@ parser.add_argument('--rocketmq-home',type=Path,default=ROOT/'.runtime/load-infr
 parser.add_argument('--wrk',type=Path,default=ROOT/'.runtime/load-infra/wrk/wrk')
 parser.add_argument('--scenarios',default='l1,redis,sync-hot,async-hot,sync-spread,async-spread')
 parser.add_argument('--probe-seconds',type=int,default=20)
+parser.add_argument('--warmup-seconds',type=int,default=10)
+parser.add_argument('--drain-timeout',type=int,default=600)
+parser.add_argument('--query-product-id',type=int,default=205)
+parser.add_argument('--order-template-sku',type=int,default=20501)
 parser.add_argument('--confirm-seconds',type=int,default=60)
 parser.add_argument('--order-workers',type=int,default=4)
 parser.add_argument('--backlog-limit',type=int,default=1500)
@@ -104,7 +108,7 @@ def query_step(env,label,concurrency,seconds):
     # 查询用长连接闭环发压：固定并发持续请求，按 wrk 自身的实际计时统计响应吞吐。
     directory=env.folder/label;directory.mkdir();before=env.api('/actuator/catalogcache',True)['counters'];sampler=Sampler(env,directory)
     log=(directory/'wrk.log').open('w');started=time.monotonic();start_epoch_ms=time.time()*1000
-    process=subprocess.Popen([str(args.wrk.resolve()),'-t2','-c'+str(concurrency),'-d'+str(seconds)+'s','--latency','--timeout','5s','-s',str(ROOT/'scripts/wrk-summary.lua'),'http://127.0.0.1:'+str(env.app_port)+'/api/store/products/108'],stdout=log,stderr=subprocess.STDOUT);active_workers.append(process);sampler.extra=[process];sampler.start()
+    process=subprocess.Popen([str(args.wrk.resolve()),'-t2','-c'+str(concurrency),'-d'+str(seconds)+'s','--latency','--timeout','5s','-s',str(ROOT/'scripts/wrk-summary.lua'),'http://127.0.0.1:'+str(env.app_port)+'/api/store/products/'+str(args.query_product_id)],stdout=log,stderr=subprocess.STDOUT);active_workers.append(process);sampler.extra=[process];sampler.start()
     try:process.wait(timeout=seconds+20);finished=time.monotonic();end_epoch_ms=time.time()*1000
     finally:BenchmarkEnvironment.stop(process);sampler.close();log.close()
     text=(directory/'wrk.log').read_text(errors='replace');match=re.search(r'PEAK_JSON (.*)',text)
@@ -117,6 +121,57 @@ def query_step(env,label,concurrency,seconds):
     result['stable']=result['errorRate']<=.01 and process.returncode==0 and result['hitRatio']>.99
     if args.one_second:result['oneSecond']=one_second_result(env,directory,start_epoch_ms,end_epoch_ms)
     (directory/'result.json').write_text(json.dumps(result,indent=2));print_result('QUERY',result);return result
+
+def latency_stats(values):
+    """逐笔实测毫秒的最近秩分位，并保留平均值与最大值。"""
+    if not values:
+        return {'count': 0}
+    values = sorted(values)
+    result = {'count': len(values), 'mean': round(sum(values) / len(values), 3)}
+    for name, fraction in [('p50', .5), ('p95', .95), ('p99', .99), ('max', 1)]:
+        result[name] = round(values[math.ceil(len(values) * fraction) - 1], 3)
+    return result
+
+def order_latencies(env, directory, worker_rows):
+    """用 trace 将 HTTP 样本和数据库终态配对，分别统计响应、排队到建单和提交到建单。"""
+    samples = {item['traceId']: item for row in worker_rows for item in row['traces']}
+    successful = [item for item in samples.values()
+                  if item['httpCode'] == 200 and item.get('status') in {'SUCCESS', 'PROCESSING'}]
+    failed = [item for item in samples.values()
+              if item['httpCode'] != 200 or item.get('status') not in {'SUCCESS', 'PROCESSING'}]
+    # 数据库时间戳位于建单事务内。TPS 单独使用 afterCommit 秒桶。
+    sql = ("SELECT trace_id, status, COALESCE(UNIX_TIMESTAMP(accepted_at)*1000,0), "
+           "COALESCE(UNIX_TIMESTAMP(finished_at)*1000,0) "
+           "FROM order_submit_trace WHERE finished_at IS NOT NULL")
+    paired, accept_to_build, submit_to_build, async_wait_ms = [], [], [], []
+    for line in env.sql(sql).splitlines():
+        trace_id, status, accepted_ms, finished_ms = line.split('\t')
+        item = samples.get(trace_id)
+        if item is None:
+            continue
+        accepted_ms, finished_ms = float(accepted_ms), float(finished_ms)
+        paired.append({'traceId': trace_id, 'status': status,
+                       'acceptedEpochMs': accepted_ms, 'finishedEpochMs': finished_ms})
+        if status == 'SUCCESS':
+            submit_to_build.append(finished_ms - item['submitEpochMs'])
+            if accepted_ms:
+                accept_to_build.append(finished_ms - accepted_ms)
+            if item.get('status') == 'PROCESSING':
+                async_wait_ms.append(finished_ms - item['submitEpochMs'] - item['httpMs'])
+    (directory/'db-terminal-pairs.json').write_text(json.dumps(paired, ensure_ascii=False))
+    return {
+        'httpSuccessMs': latency_stats([item['httpMs'] for item in successful]),
+        'httpErrorMs': latency_stats([item['httpMs'] for item in failed]),
+        'submitToDbFinishedMs': latency_stats(submit_to_build),
+        'dbAcceptedToFinishedMs': latency_stats(accept_to_build),
+        'asyncHttpReplyToDbFinishedMs': latency_stats(async_wait_ms),
+        'httpAcceptedWithFinalOrder': sum(item['status'] == 'SUCCESS'
+             and samples[item['traceId']]['httpCode'] == 200
+             and samples[item['traceId']].get('status') in {'SUCCESS', 'PROCESSING'} for item in paired),
+        'httpFailedButOrderCreated': sum(item['status'] == 'SUCCESS'
+             and (samples[item['traceId']]['httpCode'] != 200
+                  or samples[item['traceId']].get('status') not in {'SUCCESS', 'PROCESSING'}) for item in paired),
+    }
 
 def order_step(env,label,rate,seconds,purchases):
     # 下单用开环到达率，先完成后端发号，再用统一屏障同时启动四个进程。
@@ -147,18 +202,21 @@ def order_step(env,label,rate,seconds,purchases):
     completed=sum(r['completed'] for r in rows);dropped=sum(r['dropped'] for r in rows);success=sum(r['accepted'] for r in rows);commits=after['ordersCreatedTotal']-before['ordersCreatedTotal'];
     result={'name':label,'targetRate':rate,'requestedSeconds':seconds,'measuredSeconds':elapsed,'completed':completed,'successfulResponses':success,'codes':codes,'modes':modes,'clientDropped':dropped,'haltedWorkers':sum(bool(r.get('halted',False)) for r in rows),'successfulSubmitQps':success/elapsed,'totalResponseQps':completed/elapsed,'committedOrdersInWindow':commits,'businessTps':commits/elapsed,'pendingAtEnd':outstanding,'httpP99Ms':percentile(http_hist,.99),'arrivalP99Ms':percentile(arrival_hist,.99),'workers':[{'cpuPercent':r['cpuPercent'],'eventLoopP99Ms':r['eventLoopP99Ms']} for r in rows],'resources':sampler.summary()}
     result['stable']=elapsed>=seconds*.95 and not any(r.get('halted',False) for r in rows) and (completed-success)/max(1,completed)<=.01 and dropped/max(1,completed+dropped)<=.01 and success/max(1,rate*elapsed)>=.98 and outstanding<=max(5,success*.01) and commits/max(1,success)>=.97 and sampler.guard is None
+    if args.one_second:
+        stop_ms = min(start + seconds * 1000, after['sampledAtEpochMs'])
+        result['oneSecond'] = one_second_result(env, directory, start, stop_ms)
     # 即使过载后排空超时，也先保留窗口内的失败、受理和 TPS 数据。
     (directory/'result-before-drain.json').write_text(json.dumps(result,indent=2))
-    drained=env.drain(output=directory/'drain.json');result['drainSeconds']=drained['seconds'];(directory/'drain.json').write_text(json.dumps(drained,indent=2))
+    drained=env.drain(timeout=args.drain_timeout,output=directory/'drain.json',allow_timeout=True);result['drained']=drained['drained'];result['drainSeconds']=drained['seconds'];(directory/'drain.json').write_text(json.dumps(drained,indent=2))
     if args.one_second:
-        stop_ms=min(start+seconds*1000,after['sampledAtEpochMs'])
-        result['oneSecond']=one_second_result(env,directory,start,stop_ms)
         drain_dir=directory/'drain-seconds';drain_dir.mkdir()
-        raw_seconds=json.loads((directory/'one-second-raw.json').read_text())
+        time.sleep(max(0, math.floor(time.time()) + 1.02 - time.time()))
+        raw_seconds=env.api('/actuator/throughput',True)
         result['drainOneSecond']=one_second_result(env,drain_dir,after['sampledAtEpochMs'],raw_seconds['snapshotAtEpochMs'],raw_seconds)
         whole_dir=directory/'whole-seconds';whole_dir.mkdir()
         result['wholeOneSecond']=one_second_result(env,whole_dir,start,raw_seconds['snapshotAtEpochMs'],raw_seconds)
     # 有积压时记录真实消费 TPS；负载停止后“清队列”的吞吐不能冒充入口受理能力。
+    result['latency']=order_latencies(env,directory,rows)
     intervals=[]
     for left,right in zip(drained['samples'],drained['samples'][1:]):
         if left['pending']>20:intervals.append((right['created']-left['created'])/max(.001,(right['epochMs']-left['epochMs'])/1000))
@@ -170,15 +228,19 @@ try:
         assert scenario in ['l1','redis','sync-hot','async-hot','sync-spread','async-spread']
         env=BenchmarkEnvironment(ROOT,run/scenario,args.rocketmq_home);entry={'name':scenario,'stages':[]};report['scenarios'].append(entry);save();print('START '+scenario,flush=True)
         try:
-            env.start();is_query=scenario in ['l1','redis'];mode='ASYNC' if scenario.startswith('async') else 'SYNC';env.start_app(mode,'ALL' if scenario=='l1' else 'OFF',args.one_second);entry['ports']=env.ports
+            env.start()
+            is_query=scenario in ['l1','redis']
+            mode='ASYNC' if scenario.startswith('async') else 'SYNC'
+            env.start_app(mode,'ALL' if scenario=='l1' else 'OFF',args.one_second)
+            entry['ports']=env.ports
             if is_query:
                 connection=http.client.HTTPConnection('127.0.0.1',env.app_port,timeout=5)
-                connection.request('GET','/api/store/products/108');response=connection.getresponse();response.read();first_port=connection.sock.getsockname()[1] if connection.sock else None
-                connection.request('GET','/api/store/products/108');response=connection.getresponse();response.read();second_port=connection.sock.getsockname()[1] if connection.sock else None
+                connection.request('GET','/api/store/products/'+str(args.query_product_id));response=connection.getresponse();response.read();first_port=connection.sock.getsockname()[1] if connection.sock else None
+                connection.request('GET','/api/store/products/'+str(args.query_product_id));response=connection.getresponse();response.read();second_port=connection.sock.getsockname()[1] if connection.sock else None
                 entry['http11KeepAliveVerified']=response.version==11 and first_port is not None and first_port==second_port;connection.close();assert entry['http11KeepAliveVerified']
                 # HTTP 预热真实缓存，不通过模拟热点探测器伪造本地命中。
-                for _ in range(5):assert env.api('/api/store/products/108')['id']==108
-                warm=query_step(env,'warmup',16,10);entry['warmup']=warm
+                for _ in range(5):assert env.api('/api/store/products/'+str(args.query_product_id))['id']==args.query_product_id
+                warm=query_step(env,'warmup',16,args.warmup_seconds);entry['warmup']=warm
                 flat=0;best=None
                 for concurrency in [int(value) for value in args.query_concurrencies.split(',')]:
                     row=query_step(env,'probe-c'+str(concurrency),concurrency,args.probe_seconds);entry['stages'].append(row);save()
@@ -198,22 +260,32 @@ try:
                     if scenario=='redis':assert confirmation['cacheCounters'].get(other,0)==0
             else:
                 sku_count=64 if scenario.endswith('spread') else 1
-                for i in range(sku_count):env.sql("INSERT INTO product_sku(id,product_id,sku_code,spec,price,original_price,stock,enabled) SELECT "+str(900001+i)+",product_id,'PEAK-"+str(i)+"',spec,price,original_price,5000000,TRUE FROM product_sku WHERE id=1003")
+                for i in range(sku_count):env.sql("INSERT INTO product_sku(id,product_id,sku_code,spec,price,original_price,stock,enabled) SELECT "+str(900001+i)+",product_id,'PEAK-"+str(i)+"',spec,price,original_price,5000000,TRUE FROM product_sku WHERE id="+str(args.order_template_sku)+" AND enabled=TRUE")
                 q=env.api('/api/store/checkout/quote',body={'userId':10001,'source':'DIRECT','skuId':900001,'quantity':1,'addressId':20001})
                 purchases=[{'source':'DIRECT','skuId':900001+i,'quantity':1,'addressId':20001,'expectedPayAmount':q['payAmount'],'expectedItems':[{'skuId':900001+i,'quantity':1}]} for i in range(sku_count)]
-                entry['skuCount']=sku_count;entry['warmup']=order_step(env,'warmup',20,10,purchases);best=None;failed=None;flat=0;peak=0
+                entry['skuCount']=sku_count;entry['warmup']=order_step(env,'warmup',20,args.warmup_seconds,purchases);best=None;failed=None;flat=0;peak=0
                 for rate in [int(value) for value in args.order_rates.split(',')]:
                     row=order_step(env,'probe-r'+str(rate),rate,args.probe_seconds,purchases);entry['stages'].append(row);save()
                     if row['stable']:best=row
                     else:failed=rate
                     flat=flat+1 if row['businessTps']<peak*1.05 else 0;peak=max(peak,row['businessTps'])
+                    if not row['drained']:
+                        entry['unfinishedStage'] = row['name']
+                        break
                     if args.peak_only:
                         if row['resources']['guard']:break
                     elif not row['stable'] or flat>=2:break
                 if args.peak_only:
-                    entry['validation']='complete one-second event buckets and final stock conservation; no sustained-capacity assertion'
+                    entry['validation']='complete one-second event buckets; check stock conservation on drained scenarios'
                     entry['passed']=True
-                else:
+                    if args.confirmation_rate is not None and 'unfinishedStage' not in entry:
+                        confirmation=order_step(env,'confirm-r'+str(args.confirmation_rate),
+                                                args.confirmation_rate,args.confirm_seconds,purchases)
+                        entry['confirmation']=confirmation
+                        entry['stages'].append(confirmation)
+                        if not confirmation['drained']:
+                            entry['unfinishedStage'] = confirmation['name']
+                elif 'unfinishedStage' not in entry:
                     # 找到边界后缩小区间，避免把 200 与 400 之间的真实能力粗略说成只有 200。
                     if best and failed:
                         low=best['targetRate'];high=failed
@@ -233,7 +305,13 @@ try:
                             entry.setdefault('failedConfirmations',[]).append(confirmation);confirmation=order_step(env,'confirm-r'+str(candidate['targetRate']),candidate['targetRate'],args.confirm_seconds,purchases)
                             if confirmation['stable']:break
                     entry['confirmation']=confirmation;entry['peakObservedTps']=max([r['businessTps'] for r in entry['stages'] if r['measuredSeconds']>=r['requestedSeconds']*.95 and not r.get('haltedWorkers',0)] or [0]);entry['peakAcceptedQps']=max([r['successfulSubmitQps'] for r in entry['stages'] if r['measuredSeconds']>=r['requestedSeconds']*.95 and not r.get('haltedWorkers',0)] or [0]);entry['confirmedTps']=confirmation['businessTps'];entry['passed']=confirmation['stable']
-                entry['consistency']=env.consistency()
+                if 'unfinishedStage' in entry:
+                    entry['passed']=False
+                    entry['pendingBeforeCleanup'] = env.outstanding()
+                    entry['unfinishedOutbox'] = env.sql(
+                        'SELECT event_type,status,COUNT(*) FROM order_message_outbox GROUP BY event_type,status')
+                else:
+                    entry['consistency']=env.consistency()
                 # 保留每笔数据库终态时间，可独立复核异步完成而不是只看 HTTP 200。
                 (env.folder/'order-completions.tsv').write_text(env.sql("SELECT trace_id,mode,status,UNIX_TIMESTAMP(created_at)*1000,UNIX_TIMESTAMP(finished_at)*1000 FROM order_submit_trace ORDER BY created_at"))
             if args.one_second:

@@ -111,7 +111,7 @@ class BenchmarkEnvironment:
     def outstanding(self):
         query="SELECT COUNT(*) FROM order_submit_trace WHERE status='PROCESSING' OR reserve_status IN ('RESERVING','RESERVED','CONFIRM_PENDING','RELEASE_PENDING','RETURN_PENDING')"
         return int(self.sql(query))
-    def drain(self, timeout=600, output=None):
+    def drain(self, timeout=600, output=None, allow_timeout=False):
         """等已受理交易和库存整理到终态，逐秒落盘；Outbox 余量另行记录，绝不隐藏超时。"""
         began=time.monotonic();samples=[]
         while True:
@@ -121,7 +121,9 @@ class BenchmarkEnvironment:
             if output:Path(output).write_text(json.dumps(result,indent=2))
             if count==0:return result
             if len(samples)%10==0:print('DRAIN '+json.dumps(samples[-1]),flush=True)
-            if time.monotonic()-began>timeout:raise RuntimeError('异步任务未及时清空；状态已保存在 '+str(output))
+            if time.monotonic()-began>timeout:
+                if allow_timeout:return result
+                raise RuntimeError('异步任务未及时清空；状态已保存在 '+str(output))
             time.sleep(1)
     def consistency(self):
         unfinished=self.outstanding()
