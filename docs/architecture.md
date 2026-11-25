@@ -10,9 +10,9 @@
 
 页面按钮和 Agent 工具是两个入口，进入相同的业务 Service。价格、库存、归属、优惠资格都在业务层校验，模型没有直接执行数据库 SQL 的权限。
 
-[![智能商城总体架构与三条关键链路](images/system-architecture.png)](images/system-architecture.svg)
+[![智能商城总体架构、模型网关与商城关键链路](images/system-architecture.png)](images/system-architecture.svg)
 
-左侧按职责分层，右侧串起查询与同步／异步下单。 点击图片查看可缩放 SVG。
+左侧展示商城和 Agent 如何共用业务服务，右侧标出模型主备切换以及商品查询、同步建单和异步建单。点击图片查看可缩放 SVG。
 
 
 图中的 Outbox 是 MySQL 表：先与业务状态同事务写入，再在提交后发送 MQ。架构图表达组件关系，具体事务顺序见 [下单设计](../openspec/specs/order-submission/spec.md)。

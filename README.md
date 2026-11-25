@@ -1,16 +1,35 @@
-# AI - Mall
+# AI - Mall 智能商城
 
-一个 Java / Spring Boot 模块化单体项目：用户既可以在页面购买商品，也可以让 Agent 查询商品、试算价格、生成确认卡，再由业务服务完成交易。
+一个带购物助手的 Java 商城。用户可以在页面浏览、领券和下单，也可以在对话中查询商品、试算价格、确认购买。页面和 Agent 共用同一套业务服务。
 
-**面试主线：商品查询怎样保护数据库；一次购买怎样只建一单；异步建单怎样处理失败；Agent 怎样可靠调用真实业务。**
-
-打开 [功能 Spec](openspec/README.md)，按商品、交易、消息和 Agent 查看当前接口与实现。运行、测试和面试资料见 [项目资料](docs/README.md)。
+[商城界面](#商城界面) · [快速启动](#最快体验) · [功能 Spec](openspec/README.md) · [设计、测试与面试资料](docs/README.md)
 
 ## 整体架构图
 
-[![智购整体架构：访问入口、Agent 编排、业务服务、核心设计、外部组件，以及商品查询和同步／异步下单链路](docs/images/system-architecture.png)](docs/images/system-architecture.svg)
+[![AI - Mall 架构图，包含商城与 Agent 入口、模型熔断与百炼备用、共享业务服务及同步和异步建单](docs/images/system-architecture.png)](docs/images/system-architecture.svg)
 
-左侧按职责分层，右侧串起三条关键链路。**页面与 Agent 共用业务 Service；同步与异步共用建单事务；已受理、建单成功、已支付是不同状态。** 点击图片可查看可缩放的 SVG，也可打开 [高清 PNG](docs/images/system-architecture.png)。
+商城请求直达业务服务，Agent 经受控工具调用同一套服务。模型网关负责每一步推理，支持三态熔断和可选的百炼 `qwen-plus` 备用。点击架构图可查看可缩放的 SVG。
+
+## 商城界面
+
+截图取自本地 demo，商品图、品牌与参考价格见 [商品来源](openspec/specs/product-catalog/spec.md#真实商品与价格从哪里来)。订单、地址和库存使用演示数据。
+
+[![商城首页，展示商品分类、推荐商品和购物助手入口](docs/images/storefront-home.png)](docs/images/storefront-home.png)
+
+| 商品详情 · 选择 SKU | 结算页 · 核对地址和金额 |
+| --- | --- |
+| [![iPhone 商品详情、价格和 SKU 选择](docs/images/storefront-product.png)](docs/images/storefront-product.png) | [![下单前的收货地址、优惠券和结算明细](docs/images/storefront-checkout.png)](docs/images/storefront-checkout.png) |
+| **订单页 · 筛选与查看状态** | **购物助手 · 核对确认卡** |
+| [![商城订单列表和待支付状态](docs/images/storefront-orders.png)](docs/images/storefront-orders.png) | [![演示助手根据购买请求生成后端确认卡](docs/images/storefront-assistant.png)](docs/images/storefront-assistant.png) |
+
+<details>
+<summary>查看更多：购物车与优惠券</summary>
+
+| 购物车 | 优惠券中心 |
+| --- | --- |
+| [![购物车商品、数量和结算入口](docs/images/storefront-cart.png)](docs/images/storefront-cart.png) | [![优惠券列表、使用门槛和可用状态](docs/images/storefront-coupons.png)](docs/images/storefront-coupons.png) |
+
+</details>
 
 ## 一分钟介绍项目
 
@@ -19,6 +38,8 @@
 > 商品稳定资料按“参数校验 → Caffeine → Redisson Bloom → Redis → RLock 与锁后双检 → 数据库”读取，再批读 SKU 公开价格与可售量组成详情。建单/关单只刷新相关规格库存；空值缓存和随机 TTL 继续保护回源。交易使用后端 trace 标识购买意图，AOP 分布式锁减少重复执行，数据库行锁、CAS 和唯一约束兜底。
 >
 > 同步和异步共用建单事务。异步在 Redis 预扣后持久化受理状态和 Outbox，再由 RocketMQ 消费者建单；失败和中断通过持久化状态幂等恢复。Agent 写操作先保存确认卡，用户同意后恢复后端参数，再调用这些业务服务。
+>
+> 模型故障时，网关只切换当前推理步骤，保留已完成的工具结果。如果模型都不可用，后端仍能展示已经保存的确认卡。
 
 ## 项目实际具备什么
 
@@ -26,6 +47,7 @@
 - 建单后默认 15 分钟未支付，RocketMQ 定时消息触发关单、返库存和释放券，数据库扫描兜底。
 - 按交易压力选择同步/异步；两种模式共用 SKU 库存池与数据库建单规则。
 - Spring AI 同步工具循环与 SseEmitter 实时输出、按需加载业务手册、持久化确认卡、会话历史和用户偏好。
+- 后台回答支持刷新后重连。模型网关按候选维护熔断状态，记录调用耗时和 Token，用已保存的确认卡兜底。[Agent 设计](docs/agent-design.md#模型网关与熔断)
 - 按品牌与文档类别检索退换货、保修、配送等政策，提供官方来源，缺失资料时明确补问。
 - 真实 MySQL / Redis / RocketMQ 联调，以及区分缓存命中、缓存构建、受理 QPS 和成功建单 TPS 的压测。
 
@@ -53,8 +75,4 @@ ORDER_SUBMISSION_MODE=SYNC mvn spring-boot:run -Dspring-boot.run.profiles=demo
 
 验证命令：`mvn test`。本次文档的源码入口和接口清单均对应当前代码；各项边界见对应主题文档。
 
-商城前台已提供独立商品详情、购物车、结算、优惠券与订单页面，支持手机布局。页面设计与购买交互见 [商城前台 Spec](openspec/specs/storefront-experience/spec.md)。
-
-当前目录收录 32 款真实品牌商品（Apple、米家、Nike、IKEA、MUJI），规格、品牌图片及参考价格均保留来源与核对日期，见 [商品来源](openspec/specs/product-catalog/spec.md#真实商品与价格从哪里来)。库存与支付仍为本地演示数据。
-
-当前数据库 DDL 与初始化入口见 [docs/database](docs/database/README.md)；Spring AI 用法及源码职责见 [Agent 运行 Spec](openspec/specs/agent-runtime/spec.md)。
+详细入口：[商城前台 Spec](openspec/specs/storefront-experience/spec.md) · [数据库 DDL 与初始化](docs/database/README.md) · [Agent 运行 Spec](openspec/specs/agent-runtime/spec.md)。
