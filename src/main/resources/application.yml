@@ -160,6 +160,13 @@ app:
       base-url: ${OPENAI_BASE_URL:https://api.openai.com}
       endpoint-path: ${OPENAI_ENDPOINT_PATH:/v1/chat/completions}
       name: ${OPENAI_MODEL:gpt-4.1-mini}
+      failure-threshold: ${AGENT_MODEL_FAILURE_THRESHOLD:2}
+      cooldown: ${AGENT_MODEL_COOLDOWN:30s}
+      bailian:
+        enabled: ${AGENT_BAILIAN_ENABLED:false}
+        api-key: ${AGENT_BAILIAN_API_KEY:${DASHSCOPE_API_KEY:}}
+        base-url: ${AGENT_BAILIAN_BASE_URL:}
+        name: ${AGENT_BAILIAN_MODEL:qwen-plus}
 
 logging:
   level:

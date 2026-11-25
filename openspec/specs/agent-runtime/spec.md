@@ -20,6 +20,8 @@
 
 [Agent 流程图](../../../docs/images/agent-execution.png) · [聊天服务](../../../src/main/java/com/bitmall/agent/agent/service/chat/AgentChatService.java) · [模型执行](../../../src/main/java/com/bitmall/agent/agent/service/runtime/SpringAiResponder.java) · [工具分发](../../../src/main/java/com/bitmall/agent/agent/service/tool/ToolDispatcher.java)
 
+Agent 聊天的每步推理经 [模型网关](../../../src/main/java/com/bitmall/agent/agent/service/model/ModelGateway.java) 运行，主模型与显式启用的百炼备用分别记录健康状态。默认连续两次上游故障后冷却 30 秒，到期放一个请求探测。切换复用同一步的历史和工具定义，并先清除失败草稿。后台轮次可展示模型失败前已保存的确认卡。熔断状态按实例维护，监控记录调用耗时、候选状态和上游回传的用量。 [配置与验证](../../../docs/agent-design.md#模型网关与熔断)
+
 ## Requirements
 
 ### Requirement: AGENT-001 真实模式与演示模式可区分
@@ -142,6 +144,35 @@
 
 - **WHEN** 副作用工具超时或返回结果失败
 - **THEN** 核对原操作记录，保留原编号并禁止盲目重放；确认重复请求只能读取原回执或处理中状态。
+
+### Requirement: AGENT-008 模型三态熔断与备用
+
+系统 SHALL 为每个聊天模型候选独立跟踪正常、熔断和半开状态，在当前推理预算内从主模型切换到已配置的备用模型，保持本次输入、已完成的工具结果与权限规则。
+
+#### Scenario: 主模型持续发生上游故障
+
+- **WHEN** 主模型连续发生两次可计入的上游故障
+- **THEN** 该模型默认冷却 30 秒，期间新请求跳过它，备用模型独立计数。
+
+#### Scenario: 冷却后并发探测
+
+- **WHEN** 冷却结束且多个请求尝试调用同一模型
+- **THEN** 每个应用实例只允许一个探测，完整有效响应恢复正常，故障重新开始冷却；取消归还探测名额，旧调用结果不能修改新状态。
+
+#### Scenario: 流式生成中断
+
+- **WHEN** 主模型已经输出草稿，在完整响应前发生可切换故障
+- **THEN** 清除该草稿后才输出备用结果，不执行未完成响应中的工具，已执行的工具不重放。
+
+#### Scenario: 已有确认卡但最终模型不可用
+
+- **WHEN** 当前轮已持久化确认卡，后续推理没有可用模型
+- **THEN** 后台回答返回原确认卡和模型不可用说明，确认卡保持待确认。
+
+#### Scenario: 记录模型调用
+
+- **WHEN** 网关完成、拒绝或取消一次模型尝试
+- **THEN** 按配置模型记录耗时或拒绝次数与结果，使用服务商回传的 Token，用量缺失单独记录。
 
 ## Current limitations
 

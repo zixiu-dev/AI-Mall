@@ -83,6 +83,10 @@ Compose 当前没有 RocketMQ 服务，须单独准备 Broker。延时关单采�
 
 真实 AI 失败会报告不可用，不自动切成 demo。`GET /api/agent/status` 可检查配置状态，随后要用实际聊天/工具结果验证运行，不能只凭开关判断模型可用。
 
+启用百炼备用时，在启动环境设置 `AGENT_BAILIAN_ENABLED=true` 和 `AGENT_BAILIAN_BASE_URL`。地址填百炼工作空间控制台提供的 OpenAI 兼容 base URL，结尾是 `/compatible-mode/v1`，客户端会追加 `/chat/completions`。Key 通过 `AGENT_BAILIAN_API_KEY` 提供，也可复用已设置的 `DASHSCOPE_API_KEY`。模型默认 `qwen-plus`，可通过 `AGENT_BAILIAN_MODEL` 指定工作空间已开通且支持工具调用的模型。Key 与工作空间地域须一致。启用后，当前推理输入可能转发到该百炼工作空间。 [百炼 OpenAI 兼容接口文档](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions)
+
+熔断默认连续 2 次上游故障触发，冷却 30 秒。分别用 `AGENT_MODEL_FAILURE_THRESHOLD` 和 `AGENT_MODEL_COOLDOWN` 调整。按应用实例、候选模型分别计数。监控口径见 [Agent 设计](agent-design.md#模型网关与熔断)。
+
 ## 5. 可选：真正启用京东 HotKey
 
 本机脚本：

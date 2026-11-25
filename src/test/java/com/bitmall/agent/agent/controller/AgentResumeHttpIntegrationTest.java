@@ -121,6 +121,34 @@ class AgentResumeHttpIntegrationTest {
   }
 
   @Test
+  void modelFailureAfterCouponProposalRestoresOriginalCardOnReconnect() throws Exception {
+    var skill = model.prepare();
+    var proposal = model.prepare();
+    var followUp = model.prepare();
+    long messageId = submit(UUID.randomUUID().toString(), "领取品质生活优惠券", 202)
+        .path("messageId").asLong();
+    String cardId;
+    try (BufferedReader live = stream(messageId)) {
+      event(live, "snapshot");
+      tool(skill, "load_skill", "{\"skillCode\":\"coupon_ops\"}");
+      event(live, "tool_end");
+      tool(proposal, "coupon_claim", "{\"couponId\":3002}");
+      event(live, "tool_end");
+      assertThat(followUp.tryEmitError(new IllegalStateException("模型生成故障")))
+          .isEqualTo(Sinks.EmitResult.OK);
+      JsonNode reply = event(live, "done").path("reply");
+      assertThat(reply.path("content").asText()).contains("AI 服务暂时不可用");
+      assertThat(reply.path("pendingAction").path("toolName").asText()).isEqualTo("coupon_claim");
+      cardId = reply.path("pendingAction").path("id").asText();
+      assertThat(cardId).isNotBlank();
+    }
+    try (BufferedReader reconnected = stream(messageId)) {
+      assertThat(event(reconnected, "done").path("reply").path("pendingAction").path("id").asText())
+          .isEqualTo(cardId);
+    }
+  }
+
+  @Test
   void resetClearsReconnectedDraftAndAnswerCompletesWithoutSubscribers() throws Exception {
     Sinks.Many<ChatResponse> firstModelStep = model.prepare();
     Sinks.Many<ChatResponse> secondModelStep = model.prepare();
@@ -213,6 +241,14 @@ class AgentResumeHttpIntegrationTest {
   private static void emit(Sinks.Many<ChatResponse> outputs, String text) {
     assertThat(outputs.tryEmitNext(new ChatResponse(
         java.util.List.of(new Generation(new AssistantMessage(text)))))).isEqualTo(Sinks.EmitResult.OK);
+  }
+
+  private static void tool(Sinks.Many<ChatResponse> outputs, String name, String arguments) {
+    var request = new AssistantMessage.ToolCall("call-" + name, "function", name, arguments);
+    var message = AssistantMessage.builder().toolCalls(List.of(request)).build();
+    assertThat(outputs.tryEmitNext(new ChatResponse(List.of(new Generation(message)))))
+        .isEqualTo(Sinks.EmitResult.OK);
+    assertThat(outputs.tryEmitComplete()).isEqualTo(Sinks.EmitResult.OK);
   }
 
   @TestConfiguration

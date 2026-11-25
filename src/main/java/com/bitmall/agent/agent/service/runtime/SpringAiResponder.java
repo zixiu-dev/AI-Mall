@@ -5,6 +5,7 @@ import com.bitmall.agent.agent.dao.entity.ChatMessageDO;
 import com.bitmall.agent.agent.model.TextChunk;
 import com.bitmall.agent.agent.service.action.PendingActionService;
 import com.bitmall.agent.agent.service.conversation.AgentHistorySelector;
+import com.bitmall.agent.agent.service.model.ModelGateway;
 import com.bitmall.agent.agent.service.skill.SkillContextPolicy;
 import com.bitmall.agent.agent.service.state.AgentStateStoreService;
 import com.bitmall.agent.agent.service.tool.DynamicToolCatalog;
@@ -24,7 +25,6 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -40,9 +40,6 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 @RequiredArgsConstructor
 public class SpringAiResponder implements AgentResponder {
-
-  private static final String MODEL_STAGE = "模型推理";
-  private static final int MODEL_STAGE_TIMEOUT_SECONDS = 60;
 
   /** 模型单次回复最多允许请求的工具调用数，防止一次性发起大量操作。 */
   private static final int MAX_TOOL_CALLS_PER_ANSWER = 16;
@@ -69,8 +66,8 @@ public class SpringAiResponder implements AgentResponder {
   /** 对工具错误实施有限修正、只读重试和副作用结果核对。 */
   private final ToolCallRecovery toolRecovery;
 
-  /** 读取模型流式输出，合并分片的工具参数，并在结束时关闭上游流。 */
-  private final SpringAiStreamReader streamReader;
+  /** 每次推理通过模型网关执行，切换候选不重放已完成的工具。 */
+  private final ModelGateway modelGateway;
 
   /** 用于安排模型和工具的超时检查。 */
   private final ScheduledExecutorService scheduler;
@@ -216,17 +213,9 @@ public class SpringAiResponder implements AgentResponder {
       List<ToolCallback> callbacks,
       AgentExecution execution,
       Consumer<TextChunk> events) {
-    ChatResponse response =
-        execution.stage(
-            MODEL_STAGE,
-            MODEL_STAGE_TIMEOUT_SECONDS,
-            () ->
-                streamReader.read(
-                    modelInput,
-                    callbacks,
-                    execution,
-                    delta -> events.accept(TextChunk.delta(delta))));
-    return response.getResult().getOutput();
+    return modelGateway.generate(modelInput, callbacks, execution,
+        delta -> events.accept(TextChunk.delta(delta)), () -> events.accept(TextChunk.reset()))
+        .getResult().getOutput();
   }
 
   /** 先通知页面清空已经输出的临时文本（模型转去调用工具了），再按顺序执行每个工具。 */

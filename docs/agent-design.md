@@ -76,3 +76,29 @@ flowchart TD
 当前没有自动续跑所有 `APPROVED` 操作的后台任务；如果执行前进程崩溃，保留原编号核对，不保证自动完成。真实模型能否一次修正参数属于模型效果，本次通过可控模型与故障注入验证后端策略。
 
 [恢复策略](../src/main/java/com/bitmall/agent/agent/service/tool/ToolCallRecovery.java) · [确认恢复](../src/main/java/com/bitmall/agent/agent/service/action/AgentActionService.java)
+
+## 模型网关与熔断
+
+每次 Spring AI 推理通过 ModelGateway。主模型继续使用 `OPENAI_*`，已启用的百炼 `qwen-plus` 是备用候选。每个候选在当前推理步骤最多调用一次，单次最多 60 秒，并共用 Agent 原来的整轮截止时间。已完成工具的回执带入备用模型，工具执行仍由主循环控制。
+
+| 熔断状态 | 行为 |
+|---|---|
+| CLOSED | 正常调用。完整结果清零连续失败计数，默认连续两次上游故障后打开。 |
+| OPEN | 冷却期间跳过该候选，默认 30 秒。 |
+| HALF_OPEN | 冷却后只放一个真实请求探测，完整有效结果恢复正常，失败重新冷却。取消或非健康故障释放探测名额。 |
+
+网络异常、HTTP 408/429/5xx、单次推理超时与上游响应不完整可以触发切换。输入或鉴权等非瞬时故障直接结束该步骤。熔断状态存在每个应用进程中。迟到的调用结果通过许可版本核对，不能修改新一轮熔断状态。
+
+如果流中断前已显示文字，重新推理前发送 `reset` 清理草稿。兼容接口响应必须有结束原因，才交给主循环处理工具。候选都不可用时，后台回答仍会核对并展示本轮已保存的原确认卡。
+
+通过现有 Micrometer 和 Prometheus 记录下列指标。指标使用固定的 `primary` / `bailian` 标签。
+
+| Micrometer 指标 | 含义 |
+|---|---|
+| `agent.model.circuit.state` | 0 正常、1 熔断、2 半开。 |
+| `agent.model.skipped` | 熔断或探测占用而跳过的调用。 |
+| `agent.model.attempt` | 模型尝试次数与耗时，按结果区分。 |
+| `agent.model.first.text` | 到首段文字的耗时，纯工具响应没有这项。 |
+| `agent.model.tokens` / `agent.model.usage.missing` | 统计完整响应提供的模型输入和输出 Token。失败或上游未回传完整用量时计入缺失。 |
+
+[网关实现](../src/main/java/com/bitmall/agent/agent/service/model/ModelGateway.java) · [熔断状态](../src/main/java/com/bitmall/agent/agent/service/model/ModelCircuitBreaker.java) · [百炼配置](deployment.md#4-本机既有数据与真实模型)

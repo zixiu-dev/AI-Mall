@@ -185,6 +185,22 @@ public class AgentChatService {
         if (content == null || content.isBlank()) {
             content = EMPTY_REPLY;
         }
+        return finishAnswer(message, content, pending);
+    }
+
+    /** 模型最终不可用时，在执行上下文关闭后读取真实确认卡并关联原助手消息。 */
+    public AgentReplyVO recoverPendingAnswer(ChatMessageDO message) {
+        PendingActionDO pending = pendingActions.latest(message.getConversationId());
+        if (pending == null) {
+            return null;
+        }
+        return finishAnswer(message,
+                "AI 服务暂时不可用，请核对已经准备好的操作：" + pending.getSummary(), pending);
+    }
+
+    /** 完成后台回复，并记录恢复时应当展示的原确认卡编号。 */
+    private AgentReplyVO finishAnswer(ChatMessageDO message, String content, PendingActionDO pending) {
+        String conversationId = message.getConversationId();
         AgentReplyVO reply = replies.create(conversationId, message.getId(), content, pending);
         Map<String, Object> metadata = pending == null
                 ? Map.of() : Map.of(PENDING_ACTION_ID_KEY, pending.getId());

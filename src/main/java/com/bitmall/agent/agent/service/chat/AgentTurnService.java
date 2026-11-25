@@ -5,6 +5,7 @@ import com.bitmall.agent.agent.dao.entity.AgentAnswerDO;
 import com.bitmall.agent.agent.dao.entity.ChatMessageDO;
 import com.bitmall.agent.agent.dao.repository.ConversationRepository;
 import com.bitmall.agent.agent.dto.AgentTurnRequest;
+import com.bitmall.agent.agent.service.model.ModelUnavailableException;
 import com.bitmall.agent.agent.service.conversation.ConversationService;
 import com.bitmall.agent.agent.service.runtime.AgentExecution;
 import com.bitmall.agent.agent.service.runtime.AgentRunGate;
@@ -144,6 +145,9 @@ public class AgentTurnService {
         try (execution) {
           terminal = StreamEventVO.done(chats.generateAnswer(userId, answer, execution, stream::publish));
         } catch (RuntimeException failure) {
+          if (failure instanceof ModelUnavailableException && recoverPending(message, stream)) {
+            return;
+          }
           log.warn("后台回答生成失败，消息编号 {}", message.getId(), failure);
           fail(message, GENERATION_FAILURE, stream);
           return;
@@ -152,6 +156,21 @@ public class AgentTurnService {
       } finally {
         streams.remove(message.getId(), stream);
       }
+    }
+  }
+
+  /** 已生成确认卡时给用户原回执，核对不可用的情况下沿用普通失败终态。 */
+  private boolean recoverPending(ChatMessageDO message, AgentAnswerStream stream) {
+    try {
+      var reply = chats.recoverPendingAnswer(message);
+      if (reply == null) {
+        return false;
+      }
+      stream.finish(StreamEventVO.done(reply));
+      return true;
+    } catch (RuntimeException failure) {
+      log.warn("恢复确认卡失败，消息编号 {}", message.getId(), failure);
+      return false;
     }
   }
 
