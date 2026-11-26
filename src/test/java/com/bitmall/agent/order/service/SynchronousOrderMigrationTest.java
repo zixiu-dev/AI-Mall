@@ -3,12 +3,15 @@ package com.bitmall.agent.order.service;
 import static org.assertj.core.api.Assertions.*;
 
 import com.bitmall.agent.order.config.SyncOrderMigrationGuard;
+import com.bitmall.agent.support.LegacyMigrationFixtures;
 import java.sql.DriverManager;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 
 /** 使用真实旧版本数据库验证升级边界，不能为了删活动表遗失已经受理的购买。 */
+@EnabledIf("com.bitmall.agent.support.LegacyMigrationFixtures#hasH2History")
 class SynchronousOrderMigrationTest {
   @Test
   void unfinishedLegacyAsyncPurchaseBlocksRemovalUntilReconciled() throws Exception {
@@ -18,7 +21,7 @@ class SynchronousOrderMigrationTest {
             + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
     Flyway.configure()
         .dataSource(url, "sa", "")
-        .locations("classpath:db/migration")
+        .locations(LegacyMigrationFixtures.h2Location())
         .target("12")
         .load()
         .migrate();
@@ -33,7 +36,7 @@ class SynchronousOrderMigrationTest {
       var upgrade =
           Flyway.configure()
               .dataSource(url, "sa", "")
-              .locations("classpath:db/migration")
+              .locations("classpath:db/migration", LegacyMigrationFixtures.h2Location())
               .callbacks(new SyncOrderMigrationGuard())
               .load();
       assertThatThrownBy(upgrade::migrate).hasStackTraceContaining("仍有旧异步购买");

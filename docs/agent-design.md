@@ -143,4 +143,4 @@ curl 'http://localhost:8080/api/agent/messages/805/execution?userId=10001'
 - `AGENT_EXECUTION_DETAIL_QUEUE_CAPACITY` 默认 4,096，`AGENT_EXECUTION_DETAIL_RETENTION_DAYS` 默认 7。查询过滤过期记录，后台每分钟每表最多删除 500 行。重启前未落库、队列满和数据库写入失败可能造成排障明细缺失。
 - Prometheus 继续看整体模型用量和耗时。另有 `agent.execution.detail.queue.size`、`agent.execution.detail.dropped`（原因标签）和 `agent.execution.detail.prune.failed`。轮次 ID 用在单轮查询，不进入这些指标的标签。
 
-[查询入口](../src/main/java/com/bitmall/agent/agent/controller/AgentTurnController.java) · [异步写入](../src/main/java/com/bitmall/agent/agent/service/trace/AgentExecutionJournal.java) · [表结构](database/mysql-current-schema.sql)
+[查询入口](../src/main/java/com/bitmall/agent/agent/controller/AgentTurnController.java) · [异步写入](../src/main/java/com/bitmall/agent/agent/service/trace/AgentExecutionJournal.java) · [Agent 表结构](database/mysql/07-agent.sql)

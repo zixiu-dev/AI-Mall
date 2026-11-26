@@ -48,3 +48,7 @@ Agent 管理页见 [端口边界与浏览器验证](changes/archive/2026-11-25-s
 Agent 调用网关见 [模型、工具及管理端回归](changes/archive/2026-11-25-extract-agent-gateway/verification.md)。
 
 Agent 执行树见 [会话分组、模型与工具父子关系的浏览器验证](changes/archive/2026-11-25-show-agent-execution-tree/verification.md)。
+
+数据库脚本见 [分模块导入、历史结构和三库注释校验](changes/archive/2026-11-25-organize-database-scripts/verification.md)。
+
+数据库初始化见 [空库两文件、种子数据对照和旧库升级](changes/archive/2026-11-25-consolidate-database-bootstrap/verification.md)。

@@ -106,6 +106,12 @@ class PgVectorIndexIntegrationTest {
                 "SELECT COUNT(*) FROM knowledge_index_chunk WHERE index_version='" + version + "'"))
         .isEqualTo("22");
     assertThat(scalar("SELECT extversion FROM pg_extension WHERE extname='vector'")).isNotBlank();
+    assertThat(scalar("SELECT obj_description('knowledge_index_chunk'::regclass, 'pg_class')"))
+        .contains("知识切片");
+    assertThat(scalar("""
+        SELECT col_description(attrelid, attnum) FROM pg_attribute
+        WHERE attrelid = 'knowledge_index_chunk'::regclass AND attname = 'embedding'
+        """)).contains("1024 维");
     try (var c = primaryDataSource.getConnection()) {
       assertThat(c.getMetaData().getDatabaseProductName()).isEqualTo("H2");
     }

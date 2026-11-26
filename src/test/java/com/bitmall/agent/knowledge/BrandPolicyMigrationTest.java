@@ -2,13 +2,16 @@ package com.bitmall.agent.knowledge;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.bitmall.agent.support.LegacyMigrationFixtures;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 /** V18 只升级知识资料，不能顺便重写订单、库存、商品或旧文档正文。 */
+@EnabledIf("com.bitmall.agent.support.LegacyMigrationFixtures#hasH2History")
 class BrandPolicyMigrationTest {
   @Test
   void upgradesKnowledgeWithoutRewritingTransactionFacts() {
@@ -21,7 +24,7 @@ class BrandPolicyMigrationTest {
             "");
     Flyway.configure()
         .dataSource(ds)
-        .locations("classpath:db/migration")
+        .locations(LegacyMigrationFixtures.h2Location())
         .target("17")
         .load()
         .migrate();
@@ -29,7 +32,7 @@ class BrandPolicyMigrationTest {
     var orders = jdbc.queryForList("SELECT * FROM customer_order ORDER BY id");
     var skus = jdbc.queryForList("SELECT * FROM product_sku ORDER BY id");
     var original = jdbc.queryForList("SELECT id,title,content FROM knowledge_document ORDER BY id");
-    Flyway.configure().dataSource(ds).locations("classpath:db/migration").load().migrate();
+    Flyway.configure().dataSource(ds).locations("classpath:db/migration", LegacyMigrationFixtures.h2Location()).load().migrate();
     assertThat(jdbc.queryForList("SELECT * FROM customer_order ORDER BY id")).isEqualTo(orders);
     assertThat(jdbc.queryForList("SELECT * FROM product_sku ORDER BY id")).isEqualTo(skus);
     assertThat(

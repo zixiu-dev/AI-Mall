@@ -15,7 +15,7 @@ spring:
     password: ${DB_PASSWORD:bitmall}
   flyway:
     enabled: true
-    locations: classpath:db/mysql
+    locations: classpath:db/mysql,filesystem:${app.database.history-dir}/mysql
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
@@ -44,6 +44,8 @@ management:
       enabled: ${CATALOG_CACHE_ENABLED:true}
 
 app:
+  database:
+    history-dir: ${DB_HISTORY_DIR:.runtime/db-history}
   inventory:
     enabled: ${ORDER_INVENTORY_RESERVATION_ENABLED:true}
     admission-grace-seconds: 30

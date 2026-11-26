@@ -12,7 +12,7 @@
 
 ## 验证与迁移
 
-- MySQL 与 H2 分别新增 Flyway 迁移，保留已经应用的脚本。PostgreSQL 向量索引用独立 schema 和迁移入口。
+- MySQL、H2 和 PostgreSQL 的空库分别通过 Flyway 基线和种子脚本初始化。已有库按需从 `DB_HISTORY_DIR` 读取原样保留的迁移。PostgreSQL 向量索引用独立 schema 和迁移入口。
 - Redis Lua、SQL 方言以及 RocketMQ 投递使用相应的隔离组件验证。MQ 测试替身和真实 Broker 的结果分开报告。
 - 记录实测环境、统计窗口、请求成功、订单提交以及积压。密钥和私有连接信息保存在本机配置中。
 - 按 [验证映射](verification-matrix.md)查测试。启动和测试结果分别见 [运行文档](../docs/deployment.md) 与 [测试总文档](../docs/testing.md)。

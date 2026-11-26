@@ -1,49 +1,40 @@
-# 数据库资料：先看当前结构
+# 数据库结构
 
-返回 [项目文档导航](../README.md) · [表的设计理由与事务](../data-design.md)
+返回 [项目文档导航](../README.md) · [表之间的关系与事务](../data-design.md)
 
-## 日常只看这些
+## MySQL 按业务查表
 
-| 文件 | 用途 |
-|---|---|
-| [mysql-current-schema.sql](mysql-current-schema.sql) | 当前 MySQL 全部表、索引、唯一约束和外键；没有 ALTER 历史，也没有种子数据 |
-| [pgvector-current-schema.sql](pgvector-current-schema.sql) | 当前 PostgreSQL 知识索引的 3 张表、vector(1024)、JSONB 和 HNSW 索引 |
-| [数据模型](../data-design.md) | 表为何存在、库存与状态关系、事务边界 |
-| [启动说明](../deployment.md) | 凭据配置、创建空库、启动与索引构建 |
+| 业务 | 当前 SQL | 主要数据 |
+|---|---|---|
+| 用户与地址 | [01-users.sql](mysql/01-users.sql) | 用户归属、收货地址 |
+| 商品与 SKU | [02-catalog.sql](mysql/02-catalog.sql) | 商品主档、规格、库存和属性 |
+| 购物车与优惠券 | [03-cart-coupons.sql](mysql/03-cart-coupons.sql) | 购物车项、券模板、用户券 |
+| 下单与库存 | [04-orders.sql](mysql/04-orders.sql) | 购买 trace、订单、成交明细、库存返还任务 |
+| 订单消息 | [05-order-messaging.sql](mysql/05-order-messaging.sql) | Outbox、生命周期消费回执 |
+| 物流与售后 | [06-fulfillment.sql](mysql/06-fulfillment.sql) | 物流事件、售后申请 |
+| Agent | [07-agent.sql](mysql/07-agent.sql) | 会话、消息、记忆、技能、确认卡和执行明细 |
+| RAG | [08-knowledge.sql](mysql/08-knowledge.sql) | 政策源文档、MySQL 兼容索引 |
 
-快照用于阅读和结构对照，**不是完整商城初始化脚本**：它们不包含技能、商品、政策、用户或 Flyway 历史。正常运行只需要创建空库并启动应用，由 Flyway 自动建表和导入项目种子数据，不需要自己逐份执行 V1～V21。
+这八份脚本包含当前 30 张表的字段、中文注释、索引与约束。接手下单链路时先看 `04-orders.sql`，再用 `05-order-messaging.sql` 对照异步建单与关单消息。Agent 的 `conversation.id` 对应会话编号，后台助手的 `chat_message.id` 对应轮次编号。
 
-## 新环境与已有环境怎么处理
+[PostgreSQL/pgvector 索引](pgvector-current-schema.sql)单独维护，包含索引版本、发布指针、文本切片三张表。MySQL 中的 `knowledge_index_*` 是 LEGACY 兼容路径，默认向量召回走 PostgreSQL。详见 [RAG 设计](../knowledge-design.md)。
 
-| 场景 | 正确做法 |
-|---|---|
-| 全新 MySQL | 按启动说明创建空数据库、配置连接并启动应用；Flyway 自动执行当前迁移 |
-| 本地 demo/H2 | 启用 demo profile；应用自动创建临时库并迁移 |
-| 新 PostgreSQL 知识库 | 准备独立数据库与 pgvector 扩展权限，运行离线知识索引构建；独立 Flyway 创建 knowledge schema 后生成真实向量 |
-| 已有数据库更新代码 | 保留 flyway_schema_history；应用校验旧脚本并只执行尚未应用的新版本 |
-| 只阅读数据库结构 | 看本目录两个 current-schema.sql，不需要读演化过程 |
+## 应用建库与升级
 
-**不要先导入 current-schema.sql 再启动默认 Flyway。** 这样会产生已有表却没有迁移历史的数据库；也不要用 baseline-on-migrate 或 repair 随意跳过验证。重置已有库、合并历史为新基线是独立的数据迁移操作，不能靠删除旧脚本完成。
+准备好空库后按[部署说明](../deployment.md)启动。Flyway 先执行带注释的基线，再插入种子数据。
 
-## 历史脚本放在哪里
+| 数据源 | 建表基线 | 种子数据 |
+|---|---|---|
+| MySQL | [B22](../../src/main/resources/db/mysql/B22__schema.sql) | [V23](../../src/main/resources/db/mysql/V23__seed_data.sql) |
+| H2 | [B22](../../src/main/resources/db/migration/B22__schema.sql) | [V23](../../src/main/resources/db/migration/V23__seed_data.sql) |
+| PostgreSQL | [B2](../../src/main/resources/db/pgvector/B2__schema.sql) | [V3](../../src/main/resources/db/pgvector/V3__seed_data.sql) |
 
-- [MySQL 迁移](../../src/main/resources/db/mysql)：V1～V21，主运行路径。
-- [H2 迁移](../../src/main/resources/db/migration)：V1～V21，测试/demo 方言。
-- [PostgreSQL 迁移](../../src/main/resources/db/pgvector)：独立 V1，不与商城主库混跑。
+已有 Flyway 历史的库升级时，设置 `DB_HISTORY_DIR` 指向旧迁移目录。目录下按 `mysql/`、`migration/`、`pgvector/` 存放适用脚本，文件名和内容沿用旧迁移。本机默认读取 Git 忽略的 `.runtime/db-history`。新建空库从应用包内的两份脚本初始化。MySQL 可用 `SHOW FULL COLUMNS FROM order_submit_trace` 查看字段说明。
 
-这些是应用的升级记录，保留在 resources 中给 Flyway 使用。它们不是面试阅读顺序；旧活动表在 V13 已删除，当前结构快照没有活动表。
-
-`agent_scope_state` 保留历史表名，当前存的是 `spring-ai-v1` 版本的消息；主库的三个 knowledge_index_* 表是 LEGACY 兼容，默认 PGVECTOR 使用 PostgreSQL 的独立三表。保留旧表不表示默认链路同时往两套索引写数据。
-
-`agent_model_call` 和 `agent_turn_item` 是短期排障表，以后台助手消息 ID 标识同一轮。按轮读取使用轮次和序号索引，过期清理使用开始时间索引。每轮的真实回答、确认卡与订单状态分别以现有业务表为准。详见 [单轮执行明细](../agent-design.md#单轮执行明细)。
-
-## 更新快照
-
-当前 MySQL 快照来自 **全新临时库重放 V1～V21**，再导入第二个临时库并比对结构，没有读取用户现有业务库。执行：
+## 刷新 MySQL 快照
 
 ```bash
 python3 scripts/export-database-schema.py
-# 可通过 --mysql / --defaults-file 指定本机客户端及私有连接配置
 ```
 
-脚本只使用随机命名的临时数据库，结束后清理；输出不包含业务记录、密码、主机连接信息或自增数据水位。新增迁移后重新导出并验证，不能手工修改快照来代替新增迁移。PG 快照按独立迁移维护，并在隔离 PG 库验证可执行性。
+导出脚本在临时库执行当前 MySQL 基线和后续 SQL，按业务分组导出，再导入第二个临时库比对表、字段、约束和注释。脚本通过 `--mysql` 与 `--defaults-file` 支持本机私有连接配置。快照不含业务记录、连接信息和自增水位。新增表时在导出脚本的 `MODULES` 中登记它所属的模块。

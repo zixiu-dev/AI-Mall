@@ -29,7 +29,7 @@
 
 ## 知识索引：源文档与发布版本分开
 
-默认索引已迁入 PostgreSQL 的 `knowledge` schema：`knowledge_index_version`（模型身份、维度、构建状态）、`knowledge_index_chunk`（正文、哈希、JSONB、vector(1024)）和 `knowledge_index_head`（发布指针）。PG 独立 Flyway V1；主库历史 V19 表保留作 LEGACY 兼容，交易库不迁移。索引网络构建在事务外，最终复核源数据后原子发布；失败不覆盖旧指针。详情见 [RAG 设计](knowledge-design.md#离线索引为何单独做)。
+默认索引已迁入 PostgreSQL 的 `knowledge` schema：`knowledge_index_version`（模型身份、维度、构建状态）、`knowledge_index_chunk`（正文、哈希、JSONB、vector(1024)）和 `knowledge_index_head`（发布指针）。PG 使用独立 Flyway 路径。主库历史 V19 表保留作 LEGACY 兼容。索引网络构建在事务外，最终复核源数据后原子发布；失败不覆盖旧指针。详情见 [RAG 设计](knowledge-design.md#离线索引为何单独做)。
 
 ## 2. trace 里为什么有两组状态
 
@@ -78,9 +78,9 @@ MyBatis-Plus 不会自动补库存条件或状态机。显式 SQL 仍需要用�
 
 ## 6. 直接看当前结构，不用追演化过程
 
-当前完整 DDL 集中在 [数据库资料](database/README.md)：[MySQL](database/mysql-current-schema.sql) 与 [PostgreSQL/pgvector](database/pgvector-current-schema.sql)。快照包含最终字段、索引与约束，不含业务数据或 ALTER 历史。数据库初始化与已有环境升级也在该目录说明。
+在[数据库目录](database/README.md)按业务打开当前 DDL。下单和库存看[订单脚本](database/mysql/04-orders.sql)，消息发送和回执看[消息脚本](database/mysql/05-order-messaging.sql)，会话和执行明细看 [Agent 脚本](database/mysql/07-agent.sql)。PostgreSQL 向量索引有[独立脚本](database/pgvector-current-schema.sql)。
 
-MySQL / H2 目前均到 **V19**，PG 使用独立 V1。Flyway 自动处理初始化和增量升级；已应用历史保留在 resources，日常学习不必打开。V12 的旧活动表已在 V13 删除；当前快照没有它。
+Flyway 在空库先建表再执行种子脚本。MySQL / H2 当前为 B22、V23，PostgreSQL 知识索引使用独立 B2、V3。
 
 `agent_scope_state` 保留历史表名和旧行；新实现只读写 `spring-ai-v1` 键，不自动重放旧框架工具。
 

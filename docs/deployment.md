@@ -179,7 +179,7 @@ RAG_PG_SEARCH_MODE=EXACT
 
 容器方式：在私有环境设置非空 `RAG_PG_PASSWORD` 后，执行 `docker compose --profile knowledge up -d knowledge-postgres`；默认映射 localhost:5433，数据卷独立。不能与本机方式同时占同一端口，可改 `RAG_PG_PORT` 并同步 JDBC URL。本轮真实验证使用 Homebrew 本机 PG，容器启动未实际执行。
 
-PG 迁移由知识仓库按需执行 [db/pgvector/V1](../src/main/resources/db/pgvector/V1__knowledge_pgvector_index.sql)，历史表位于 `knowledge` schema，vector 扩展位于 `public`。应用账号需对目标 schema 有建表/索引权限；扩展可由 DBA 预先创建，未安装时需可创建扩展的角色。商城主库 Flyway 路径不加入 PG 目录。
+PG 迁移由知识仓库按需执行 [独立 PostgreSQL 建表与种子脚本](../src/main/resources/db/pgvector)，历史表位于 `knowledge` schema，vector 扩展位于 `public`。应用账号需对目标 schema 有建表/索引权限；扩展可由 DBA 预先创建，未安装时需可创建扩展的角色。商城主库 Flyway 路径不加入 PG 目录。
 
 索引迁移采用重建：加载主库启用文档 → 调百炼 → 将版本/块/向量/指针一次发布到 PG。旧 V19 JSON 表不删除，不自动导入 PG；仅显式 `RAG_VECTOR_STORE=LEGACY` 才走旧兼容实现。
 

@@ -8,7 +8,7 @@ spring:
     password:
     driver-class-name: org.h2.Driver
   flyway:
-    locations: classpath:db/migration
+    locations: classpath:db/migration,filesystem:${app.database.history-dir}/migration
 
 app:
   inventory:

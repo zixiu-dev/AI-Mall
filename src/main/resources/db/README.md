@@ -1,11 +1,13 @@
-# Flyway 执行目录
+# 数据源初始化 SQL
 
-了解当前表结构请直接看 [docs/database](../../../../docs/database/README.md)，不用按版本阅读本目录。
+每个目录保留两个当前入口，一份带中文注释的建表定义，一份初始数据。
 
-| 目录 | 数据库 | 谁执行 |
+| 数据源 | 建表 | 初始数据 |
 |---|---|---|
-| mysql | MySQL 主业务库 | 默认应用启动 Flyway |
-| migration | H2 demo/测试 | demo profile 的 Flyway |
-| pgvector | PostgreSQL 知识索引 | 知识索引适配器的独立 Flyway |
+| MySQL | [B22__schema.sql](mysql/B22__schema.sql) | [V23__seed_data.sql](mysql/V23__seed_data.sql) |
+| H2 | [B22__schema.sql](migration/B22__schema.sql) | [V23__seed_data.sql](migration/V23__seed_data.sql) |
+| PostgreSQL / pgvector | [B2__schema.sql](pgvector/B2__schema.sql) | [V3__seed_data.sql](pgvector/V3__seed_data.sql) |
 
-已应用迁移不可重写或删除。后续结构变化新增迁移；当前快照只用于阅读，不替代升级历史。商品、用户、订单和政策种子均为项目演示/人工整理资料，不是在线真实交易数据。
+空库启动时，Flyway 先执行 `B` 基线，再执行种子脚本。已有库可通过 `DB_HISTORY_DIR` 加载源码外的旧迁移，默认使用本机 `.runtime/db-history`。
+
+按业务查表见 [数据库结构](../../../../docs/database/README.md)。

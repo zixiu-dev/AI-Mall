@@ -83,10 +83,23 @@ class MySQLMigrationIntegrationTest {
                 .single())
         .isZero();
     assertThat(
-            jdbc.sql("SELECT COUNT(*) FROM flyway_schema_history WHERE success=TRUE")
-                .query(Integer.class)
-                .single())
-        .isEqualTo(21);
+            jdbc.sql("""
+                SELECT type FROM flyway_schema_history
+                WHERE success=TRUE AND version IS NOT NULL ORDER BY installed_rank
+                """)
+                .query(String.class)
+                .list())
+        .containsExactly("SQL_BASELINE", "SQL");
+    assertThat(jdbc.sql("""
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema = DATABASE() AND table_name <> 'flyway_schema_history'
+          AND table_comment = ''
+        """).query(Integer.class).single()).isZero();
+    assertThat(jdbc.sql("""
+        SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name <> 'flyway_schema_history'
+          AND column_comment = ''
+        """).query(Integer.class).single()).isZero();
     assertThat(products.product(101L).getSkus()).isNotEmpty();
     assertThat(knowledge.search("优惠券")).isNotEmpty();
   }

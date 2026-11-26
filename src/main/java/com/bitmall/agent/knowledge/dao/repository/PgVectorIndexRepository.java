@@ -25,6 +25,7 @@ import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.SqlSessionFactoryBuilder;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 import org.flywaydb.core.Flyway;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Repository;
@@ -53,6 +54,10 @@ public class PgVectorIndexRepository implements KnowledgeIndexStore {
 
   /** 向量库连接参数和检索方式配置。 */
   private final PgVectorProperties properties;
+
+  /** 旧库校验所需的可选外部 Flyway 脚本目录。 */
+  @Value("${app.database.history-dir}")
+  private final String databaseHistoryDir;
 
   /** 序列化向量、文档元数据，以及反序列化 metadata_json。 */
   private final ObjectMapper json;
@@ -92,7 +97,7 @@ public class PgVectorIndexRepository implements KnowledgeIndexStore {
     try {
       Flyway.configure()
           .dataSource(candidate)
-          .locations("classpath:db/pgvector")
+          .locations("classpath:db/pgvector", "filesystem:" + databaseHistoryDir + "/pgvector")
           .schemas("knowledge")
           .defaultSchema("knowledge")
           .table("knowledge_flyway_schema_history")
